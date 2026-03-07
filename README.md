@@ -5,5 +5,3 @@ I'm an Agriculture grad who found a second home in the tech world! I'm highly in
 ![](https://github-readme-stats.vercel.app/api?username=Youffx&theme=dark&hide_border=false&include_all_commits=false&count_private=false)<br/>
 ![](https://nirzak-streak-stats.vercel.app/?user=Youffx&theme=dark&hide_border=false)<br/>
 ![](https://github-readme-stats.vercel.app/api/top-langs/?username=Youffx&theme=dark&hide_border=false&include_all_commits=false&count_private=false&layout=compact)
-
-[![Top Langs](https://github-readme-stats-one-bice.vercel.app/api/top-langs/?username=Youffx&layout=compact&role=OWNER,ORGANIZATION_MEMBER&langs_count=10)](https://github.com/anuraghazra/github-readme-stats)
