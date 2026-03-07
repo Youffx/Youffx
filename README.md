@@ -1,5 +1,5 @@
 <img align="center" alt="coding" src="https://64.media.tumblr.com/e13b776f7f210a7199dd0fe24dba49bd/4b0e9200d5bc8d3d-39/s1280x1920/dd468fe973efb2b33e8f95e02e0b8d1c19f21631.gif">
-<h1 align="center">Hello, I'm Youffx <img src="https://github.com/M7MD43BAN/M7MD43BAN/blob/main/assets/pepe-frog.gif](https://64.media.tumblr.com/6e5b91dbf4686786e353ce447140d650/1f1c535107cad8d3-69/s540x810/a950657be18f570e509a90bfabb8caeb5e6f3e43.gif" width="50"></h1>
+<h1 align="center">Hello, I'm  <img src="https://github.com/M7MD43BAN/M7MD43BAN/blob/main/assets/pepe-frog.gif" width="50"></h1>
 
 # 💫 About Me
 I'm an Agriculture grad who found a second home in the tech world! I'm highly interested in coding, software development, and figuring out how things work behind the scenes in IT. Always eager to learn and explore new tech.
