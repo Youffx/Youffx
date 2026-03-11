@@ -1,4 +1,4 @@
-name: Build LandVe Kernel (RKSU)
+name: Build LandVe Kernel (KSU)
 
 on:
   workflow_dispatch:
