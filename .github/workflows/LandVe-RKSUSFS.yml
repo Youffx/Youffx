@@ -33,10 +33,10 @@ jobs:
           tar -xf Clang-15.0.7-20260208.tar.gz -C ${{ github.workspace }}/clang
           rm Clang-15.0.7-20260208.tar.gz
           ${{ github.workspace }}/clang/bin/clang --version
+
       - name: Apply SuSFS Patch
         run: |
           curl -sL https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1
-          
 
       - name: Modifikasi Defconfig
         run: |
