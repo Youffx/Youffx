@@ -1,0 +1,72 @@
+name: Package Flashable Zip
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    name: Prepare Flashable Zip
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Download Latest Kernel Artifact
+        uses: dawidd6/action-download-artifact@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          workflow: LandVe-RKSU.yml
+          name: LandVe-Image-RKSU
+          path: kernel_temp
+          check_artifacts: true
+          search_artifacts: true
+
+      - name: Generate Dynamic Release Notes
+        run: |
+          BUILD_WF=".github/workflows/LandVe-RKSU.yml"
+          
+          DESC="### LandVe Kernel Release\n\n"
+          
+          DESC+="**Workflow Steps Applied:**\n"
+          STEPS=$(grep "\- name:" "$BUILD_WF" | grep -vE "Checkout|Install Dependencies|Setup Clang|Build Kernel|Upload Image" | sed 's/- name: //g' | xargs -I {} echo "- ✅ {}")
+          DESC+="$STEPS\n\n"
+          
+          DESC+="**Kernel Configuration (Defconfig Mod):**\n"
+          CONFIGS=$(grep -oP "CONFIG_[A-Z0-9_]+" "$BUILD_WF" | grep -v "LOCALVERSION" | sort -u | xargs -I {} echo "- \`{}\`")
+          DESC+="$CONFIGS\n\n"
+
+          COMPILER=$(grep "wget" "$BUILD_WF" | cut -d'/' -f 8 | sed 's/Clang-//;s/.tar.gz//')
+          DESC+="**Toolchain:** \`$COMPILER\`\n"
+
+          LOCAL_VER=$(grep "echo 'CONFIG_LOCALVERSION=" "$BUILD_WF" | cut -d'"' -f2 | sed 's/^-//' | sed 's/\///g')
+          DATE=$(date +"%Y%m%d-%H%M")
+          ZIP_NAME="${LOCAL_VER}-RKSU-${DATE}"
+          
+          mkdir -p output
+          cp kernel_temp/Image.gz-dtb .github/Flash/kernels/
+          cd .github/Flash/
+          zip -r "../../output/${ZIP_NAME}.zip" ./*
+          cd ../../
+
+          echo "ZIP_FINAL_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=Release-${DATE}" >> $GITHUB_ENV
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
+          echo -e "$DESC" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.ZIP_FINAL_NAME }}
+          body: ${{ env.RELEASE_NOTES }}
+          files: output/${{ env.ZIP_FINAL_NAME }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
