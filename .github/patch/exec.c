@@ -1897,45 +1897,14 @@ out_ret:
 }
 
 static int do_execveat_common(int fd, struct filename *filename,
-			      struct user_arg_ptr argv,
-			      struct user_arg_ptr envp,
-			      int flags)
-{
-	struct linux_binprm *bprm;
-	int retval;
-
-	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) != 0)
-		return -EINVAL;
-
-	if (IS_ERR(filename))
-		return PTR_ERR(filename);
-
-	if ((flags & AT_EMPTY_PATH) && !filename->name[0] && !S_ISREG(filename->name[0])) {
-		retval = -EBADF;
-		goto out_ret;
-	}
-
-	retval = -ENOMEM;
-	bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
-	if (!bprm)
-		goto out_ret;
-
-	retval = prepare_binprm_stack(bprm);
-	if (retval < 0)
-		goto out_free;
-
-	retval = do_execve_common(fd, filename, argv, envp, flags, bprm);
-	if (retval < 0)
-		goto out_free;
-
-	return retval;
-
-out_free:
-	free_bprm(bprm);
-out_ret:
-	putname(filename);
-	return retval;
+ 	return retval;
 }
+ 
+#ifdef CONFIG_KSU
+__attribute__((hot))
+extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
+				void *argv, void *envp, int *flags);
+#endif
 
 #ifdef CONFIG_KSU
 __attribute__((hot))
@@ -1958,7 +1927,6 @@ int do_execve(struct filename *filename,
 	return do_execveat_common(fd, filename, argv, envp, flags);
 }
 
-#ifdef CONFIG_COMPAT
 static int compat_do_execve(struct filename *filename,
 	const compat_uptr_t __user *__argv,
 	const compat_uptr_t __user *__envp)
@@ -1979,7 +1947,6 @@ static int compat_do_execve(struct filename *filename,
 #endif
 	return do_execveat_common(fd, filename, argv, envp, flags);
 }
-#endif
 
 void set_binfmt(struct linux_binfmt *new)
 {
