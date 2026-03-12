@@ -375,9 +375,6 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
 	return cp_new_stat(&stat, statbuf);
 }
 #endif
-	return cp_new_stat(&stat, statbuf);
-}
-#endif
 
 SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
 {
