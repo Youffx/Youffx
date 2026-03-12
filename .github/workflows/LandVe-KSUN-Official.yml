@@ -33,6 +33,10 @@ jobs:
           rm Clang-15.0.7-20260208.tar.gz
           ${{ github.workspace }}/clang/bin/clang --version
 
+      - name: Main KernelSU Next
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh"
+        
       - name: Apply KernelSU Next Patch
         run: |
           curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/ksunext.diff -o ksunext.patch
