@@ -1897,9 +1897,46 @@ out_ret:
 }
 
 static int do_execveat_common(int fd, struct filename *filename,
- 	return retval;
+			      struct user_arg_ptr argv,
+			      struct user_arg_ptr envp,
+			      int flags)
+{
+	struct linux_binprm *bprm;
+	int retval;
+
+	if ((flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) != 0)
+		return -EINVAL;
+
+	if (IS_ERR(filename))
+		return PTR_ERR(filename);
+
+	if ((flags & AT_EMPTY_PATH) && !filename->name[0] && !S_ISREG(filename->name[0])) {
+		retval = -EBADF;
+		goto out_ret;
+	}
+
+	retval = -ENOMEM;
+	bprm = kzalloc(sizeof(*bprm), GFP_KERNEL);
+	if (!bprm)
+		goto out_ret;
+
+	retval = prepare_binprm_stack(bprm);
+	if (retval < 0)
+		goto out_free;
+
+	retval = do_execve_common(fd, filename, argv, envp, flags, bprm);
+	if (retval < 0)
+		goto out_free;
+
+	return retval;
+
+out_free:
+	free_bprm(bprm);
+out_ret:
+	putname(filename);
+	return retval;
 }
- 
+
 #ifdef CONFIG_KSU
 __attribute__((hot))
 extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
@@ -1907,43 +1944,24 @@ extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
 #endif
 
 int do_execve(struct filename *filename,
- 	const char __user *const __user *__argv,
- 	const char __user *const __user *__envp)
-{
- 	struct user_arg_ptr argv = { .ptr.native = __argv };
- 	struct user_arg_ptr envp = { .ptr.native = __envp };
-#ifdef CONFIG_KSU
-	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
-#endif
- 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
-}
-
-int do_execveat(int fd, struct filename *filename,
-		const char __user *const __user *__argv,
-		const char __user *const __user *__envp,
-		int flags)
+	const char __user *const __user *__argv,
+	const char __user *const __user *__envp)
 {
 	struct user_arg_ptr argv = { .ptr.native = __argv };
 	struct user_arg_ptr envp = { .ptr.native = __envp };
+	int fd = AT_FDCWD;
+	int flags = 0;
 
+#ifdef CONFIG_KSU
+	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+#endif
 	return do_execveat_common(fd, filename, argv, envp, flags);
 }
 
 #ifdef CONFIG_COMPAT
 static int compat_do_execve(struct filename *filename,
- 		.is_compat = true,
- 		.ptr.compat = __envp,
- 	};
-#ifdef CONFIG_KSU // 32-bit ksud and 32-on-64 support
-	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
-#endif
- 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
-}
-
-static int compat_do_execveat(int fd, struct filename *filename,
-			      const compat_uptr_t __user *__argv,
-			      const compat_uptr_t __user *__envp,
-			      int flags)
+	const compat_uptr_t __user *__argv,
+	const compat_uptr_t __user *__envp)
 {
 	struct user_arg_ptr argv = {
 		.is_compat = true,
@@ -1953,6 +1971,12 @@ static int compat_do_execveat(int fd, struct filename *filename,
 		.is_compat = true,
 		.ptr.compat = __envp,
 	};
+	int fd = AT_FDCWD;
+	int flags = 0;
+
+#ifdef CONFIG_KSU
+	ksu_handle_execveat(&fd, &filename, &argv, &envp, &flags);
+#endif
 	return do_execveat_common(fd, filename, argv, envp, flags);
 }
 #endif
