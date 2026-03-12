@@ -1,4 +1,4 @@
-name: Build LandVe Kernel (KSU-Next)
+name: Build LandVe Sorayukii KSUN 
 
 on:
   workflow_dispatch:
