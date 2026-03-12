@@ -34,10 +34,6 @@ jobs:
           rm Clang-15.0.7-20260208.tar.gz
           ${{ github.workspace }}/clang/bin/clang --version
 
-      - name: Main KernelSU Next
-        run: |
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
-        
       - name: Inject Modified Kernel Files
         run: |
           BASE_URL="https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch"
@@ -47,7 +43,6 @@ jobs:
           curl -LSs "$BASE_URL/stat.c" -o fs/stat.c
           curl -LSs "$BASE_URL/reboot.c" -o kernel/reboot.c
 
-        
       - name: Modifikasi Defconfig
         run: |
           DEFCONFIG="arch/arm64/configs/rosemary_defconfig"
