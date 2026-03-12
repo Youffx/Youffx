@@ -37,10 +37,15 @@ jobs:
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
         
-      - name: Apply KernelSU Next Patch
+      - name: Inject Modified Kernel Files
         run: |
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/ksunext.diff -o ksunext.patch
-          git apply ksunext.patch || patch -p1 < ksunext.patch
+          BASE_URL="https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch"
+          curl -LSs "$BASE_URL/exec.c" -o fs/exec.c
+          curl -LSs "$BASE_URL/open.c" -o fs/open.c
+          curl -LSs "$BASE_URL/read_write.c" -o fs/read_write.c
+          curl -LSs "$BASE_URL/stat.c" -o fs/stat.c
+          curl -LSs "$BASE_URL/reboot.c" -o kernel/reboot.c
+
         
       - name: Modifikasi Defconfig
         run: |
