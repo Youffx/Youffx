@@ -3,6 +3,9 @@ name: Build LandVe Kernel (RKSU)
 on:
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  
 jobs:
   build:
     name: Build Kernel by Youffx
@@ -62,7 +65,7 @@ jobs:
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe🍋‍🟩/Lime"'
+            echo 'CONFIG_LOCALVERSION="-LandVe🌽/Corn"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
           } >> $DEFCONFIG
 
