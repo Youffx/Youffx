@@ -6,7 +6,7 @@
 diff --git a/fs/exec.c b/fs/exec.c
 --- a/fs/exec.c
 +++ b/fs/exec.c
-@@ -1890,11 +1890,18 @@ static int __do_execve_file(int fd, struct filename *filename,
+@@ -1890,6 +1890,14 @@
  	return retval;
  }
  
@@ -21,8 +21,7 @@ diff --git a/fs/exec.c b/fs/exec.c
  static int do_execveat_common(int fd, struct filename *filename,
  			      struct user_arg_ptr argv,
  			      struct user_arg_ptr envp,
- 			      int flags)
- {
+@@ -1897,6 +1905,12 @@
  	char *pathbuf = NULL;
  	struct linux_binprm *bprm;
  	struct file *file;
@@ -50,8 +49,7 @@ diff --git a/fs/open.c b/fs/open.c
  /*
   * access() needs to use the real uid/gid, not the effective uid/gid.
   * We do this by temporarily clearing all FS-related capabilities and
-  * switching the fsuid/fsgid around to the real ones.
-  */
+@@ -355,6 +361,10 @@
  SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
  {
  	const struct cred *old_cred;
@@ -70,7 +68,7 @@ diff --git a/fs/open.c b/fs/open.c
 diff --git a/fs/read_write.c b/fs/read_write.c
 --- a/fs/read_write.c
 +++ b/fs/read_write.c
-@@ -568,11 +568,21 @@ static inline void file_pos_write(struct file *file, loff_t pos)
+@@ -568,6 +568,12 @@
  		file->f_pos = pos;
  }
  
@@ -83,6 +81,7 @@ diff --git a/fs/read_write.c b/fs/read_write.c
  SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
  {
  	struct fd f = fdget_pos(fd);
+@@ -575,6 +581,10 @@
  	ssize_t ret = -EBADF;
  
 +#ifdef CONFIG_KSU
@@ -95,7 +94,7 @@ diff --git a/fs/read_write.c b/fs/read_write.c
 diff --git a/fs/stat.c b/fs/stat.c
 --- a/fs/stat.c
 +++ b/fs/stat.c
-@@ -353,6 +353,12 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+@@ -353,6 +353,12 @@
  	return cp_new_stat(&stat, statbuf);
  }
  
@@ -108,7 +107,7 @@ diff --git a/fs/stat.c b/fs/stat.c
  #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
  SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
  		struct stat __user *, statbuf, int, flag)
- {
+@@ -360,6 +366,10 @@
  	struct kstat stat;
  	int error;
  
@@ -121,7 +120,7 @@ diff --git a/fs/stat.c b/fs/stat.c
 diff --git a/kernel/reboot.c b/kernel/reboot.c
 --- a/kernel/reboot.c
 +++ b/kernel/reboot.c
-@@ -277,6 +277,11 @@ 
+@@ -277,6 +277,11 @@
   *
   * reboot doesn't sync: do that yourself before calling this.
   */
@@ -133,7 +132,7 @@ diff --git a/kernel/reboot.c b/kernel/reboot.c
  SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
  		void __user *, arg)
  {
- 	struct pid_namespace *pid_ns = task_active_pid_ns(current);
+@@ -284,6 +289,10 @@
  	char buffer[256];
  	int ret = 0;
  
@@ -143,4 +142,4 @@ diff --git a/kernel/reboot.c b/kernel/reboot.c
  	/* We only trust the superuser with rebooting the system. */
  	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
  		return -EPERM;
-    
+   
