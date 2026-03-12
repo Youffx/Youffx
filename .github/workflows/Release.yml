@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 jobs:
   package:
@@ -17,21 +18,52 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Find Latest Workflow Run
+        id: find_latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          LATEST_RUN_ID=""
+          LATEST_TIME=""
+          LATEST_WF=""
+          
+          WORKFLOWS=("LandVe-KSUN-Fork.yml" "LandVe-KSUN-Official.yml" "LandVe-RKSU.yml")
+          
+          for WF in "${WORKFLOWS[@]}"; do
+            RUN_INFO=$(gh run list --workflow "$WF" --status success --limit 1 --json databaseId,createdAt -q '.[0]')
+            if [[ "$RUN_INFO" != "null" && -n "$RUN_INFO" ]]; then
+              RUN_ID=$(echo "$RUN_INFO" | jq -r '.databaseId')
+              RUN_TIME=$(echo "$RUN_INFO" | jq -r '.createdAt')
+              
+              if [[ -z "$LATEST_TIME" ]] || [[ "$RUN_TIME" > "$LATEST_TIME" ]]; then
+                LATEST_TIME="$RUN_TIME"
+                LATEST_RUN_ID="$RUN_ID"
+                LATEST_WF="$WF"
+              fi
+            fi
+          done
+          
+          if [[ -z "$LATEST_RUN_ID" ]]; then
+            echo "No successful runs found."
+            exit 1
+          fi
+          
+          echo "LATEST_RUN_ID=$LATEST_RUN_ID" >> $GITHUB_ENV
+          echo "LATEST_WF=$LATEST_WF" >> $GITHUB_ENV
+
       - name: Download Latest Kernel Artifact
         uses: dawidd6/action-download-artifact@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          workflow: LandVe-RKSU.yml
-          name: LandVe-Image-RKSU
+          run_id: ${{ env.LATEST_RUN_ID }}
           path: kernel_temp
-          check_artifacts: true
-          search_artifacts: true
 
       - name: Generate Dynamic Release Notes
         run: |
-          BUILD_WF=".github/workflows/LandVe-RKSU.yml"
+          BUILD_WF=".github/workflows/${LATEST_WF}"
           
-          DESC="### LandVe Kernel Release\n\n"
+          SUFFIX=$(echo "$LATEST_WF" | sed 's/LandVe-//;s/.yml//')
+          DESC="### LandVe Kernel Release ($SUFFIX)\n\n"
           
           DESC+="**Workflow Steps Applied:**\n"
           STEPS=$(grep "\- name:" "$BUILD_WF" | grep -vE "Checkout|Install Dependencies|Setup Clang|Build Kernel|Upload Image" | sed 's/- name: //g' | xargs -I {} echo "- ✅ {}")
@@ -41,21 +73,28 @@ jobs:
           CONFIGS=$(grep -oP "CONFIG_[A-Z0-9_]+" "$BUILD_WF" | grep -v "LOCALVERSION" | sort -u | xargs -I {} echo "- \`{}\`")
           DESC+="$CONFIGS\n\n"
 
-          COMPILER=$(grep "wget" "$BUILD_WF" | cut -d'/' -f 8 | sed 's/Clang-//;s/.tar.gz//')
+          COMPILER=$(grep "wget" "$BUILD_WF" | cut -d'/' -f 8 | sed 's/Clang-//;s/.tar.gz//' | head -n 1)
           DESC+="**Toolchain:** \`$COMPILER\`\n"
 
-          LOCAL_VER=$(grep "echo 'CONFIG_LOCALVERSION=" "$BUILD_WF" | cut -d'"' -f2 | sed 's/^-//' | sed 's/\///g')
+          LOCAL_VER=$(grep -m 1 "echo 'CONFIG_LOCALVERSION=" "$BUILD_WF" | cut -d'"' -f2 | sed 's/^-//' | sed 's/\///g')
           DATE=$(date +"%Y%m%d-%H%M")
-          ZIP_NAME="${LOCAL_VER}-RKSU-${DATE}"
+          ZIP_NAME="${LOCAL_VER}-${SUFFIX}-${DATE}"
           
           mkdir -p output
-          cp kernel_temp/Image.gz-dtb .github/Flash/kernels/
+          
+          IMAGE_PATH=$(find kernel_temp -name "Image.gz-dtb" | head -n 1)
+          if [[ -z "$IMAGE_PATH" ]]; then
+            echo "Image.gz-dtb not found!"
+            exit 1
+          fi
+          
+          cp "$IMAGE_PATH" .github/Flash/kernels/
           cd .github/Flash/
           zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
 
           echo "ZIP_FINAL_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          echo "RELEASE_TAG=Release-${DATE}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=Release-${SUFFIX}-${DATE}" >> $GITHUB_ENV
           echo "RELEASE_NOTES<<EOF" >> $GITHUB_ENV
           echo -e "$DESC" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -69,4 +108,3 @@ jobs:
           files: output/${{ env.ZIP_FINAL_NAME }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
