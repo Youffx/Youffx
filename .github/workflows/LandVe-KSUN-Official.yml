@@ -28,28 +28,6 @@ jobs:
       - name: Apply SUSFS and Fix Rejects
         run: |
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" | bash
-          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch" | patch -p1 || true
-          
-          sed -i '1i #include <linux/susfs.h>\n#ifndef PR_SUSFS_RUN_COMMAND\n#define PR_SUSFS_RUN_COMMAND 0x55534653\n#endif\nextern int susfs_run_command(void __user *arg, uint32_t magic);' kernel/sys.c
-          if [ -f kernel/sys.c.rej ]; then
-            sed -i '/case PR_SET_PDEATHSIG:/i #ifdef CONFIG_KSU_SUSFS\n	if (option == PR_SUSFS_RUN_COMMAND) {\n		return susfs_run_command((void __user *)arg2, (uint32_t)arg3);\n	}\n#endif' kernel/sys.c
-          fi
-
-          sed -i '1i #include <linux/susfs.h>\nextern void susfs_sus_map(struct file *file, struct path *path);' fs/proc/task_mmu.c
-          if [ -f fs/proc/task_mmu.c.rej ]; then
-            sed -i 's|if (vma->vm_file) {|if (vma->vm_file) {\n#ifdef CONFIG_KSU_SUSFS\n		struct path path = vma->vm_file->f_path;\n		susfs_sus_map(vma->vm_file, \&path);\n#endif|' fs/proc/task_mmu.c
-          fi
-
-          {
-            echo "void susfs_sus_map(struct file *file, struct path *path) { }"
-            echo "void susfs_reorder_mnt_id(void) { }"
-            echo "void susfs_set_i_state_on_external_dir(void *arg) { }"
-          } >> fs/susfs.c
-
-          sed -i '1s/^/extern void susfs_set_i_state_on_external_dir(void *);\n/' drivers/kernelsu/supercalls.c
-          sed -i '1s/^/extern void susfs_reorder_mnt_id(void);\n/' drivers/kernelsu/setuid_hook.c
-
-          rm -f kernel/sys.c.rej fs/proc/task_mmu.c.rej
 
       - name: Install Dependencies
         run: |
@@ -69,18 +47,13 @@ jobs:
           DEFCONFIG="arch/arm64/configs/rosemary_defconfig"
 
           sed -i '/CONFIG_KPROBES/d' $DEFCONFIG
-          sed -i '/CONFIG_KPROBE_EVENTS/d' $DEFCONFIG
-          sed -i '/CONFIG_KSU_KPROBE_HOOKS/d' $DEFCONFIG
           sed -i '/CONFIG_LOCALVERSION/d' $DEFCONFIG
           sed -i '/CONFIG_EROFS_FS/d' $DEFCONFIG
           sed -i '/CONFIG_SDCARD_FS/d' $DEFCONFIG
-          sed -i '/CONFIG_KSU_/d' $DEFCONFIG
           
           {
 
             echo "CONFIG_KPROBES=n"
-            echo "CONFIG_KPROBE_EVENTS=n"
-            echo "CONFIG_KSU_KPROBE_HOOKS=n"
             echo "CONFIG_EROFS_FS=y"
             echo "CONFIG_EROFS_FS_ZIP=y"
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
@@ -88,20 +61,7 @@ jobs:
             echo "CONFIG_SDCARD_FS=y"
             echo 'CONFIG_LOCALVERSION="-LandVe👺/Tengusama"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
-            echo "CONFIG_KSU_SUSFS=y"
-            echo "CONFIG_KSU_DEBUG=n"
-            echo "CONFIG_KSU_ALLOWLIST_WORKAROUND=n"
-            echo "CONFIG_KSU_MANUAL_HOOK=y"
-            echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
-            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
-            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
-            echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=n"
-            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
-            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=n"
-            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
-            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
-            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
-            echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
+            
           } >> $DEFCONFIG
 
       - name: Build Kernel
