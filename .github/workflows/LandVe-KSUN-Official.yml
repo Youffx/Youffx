@@ -34,29 +34,16 @@ jobs:
           rm Clang-15.0.7-20260208.tar.gz
           ${{ github.workspace }}/clang/bin/clang --version
 
-      - name: Inject Modified Kernel Files
-        run: |
-          BASE_URL="https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch"
-          curl -LSs "$BASE_URL/exec.c" -o fs/exec.c
-          curl -LSs "$BASE_URL/open.c" -o fs/open.c
-          curl -LSs "$BASE_URL/read_write.c" -o fs/read_write.c
-          curl -LSs "$BASE_URL/stat.c" -o fs/stat.c
-          curl -LSs "$BASE_URL/reboot.c" -o kernel/reboot.c
-
       - name: Modifikasi Defconfig
         run: |
           DEFCONFIG="arch/arm64/configs/rosemary_defconfig"
 
-          sed -i '/CONFIG_KSU/d' $DEFCONFIG
-          sed -i '/CONFIG_KPROBES/d' $DEFCONFIG
           sed -i '/CONFIG_LOCALVERSION/d' $DEFCONFIG
           sed -i '/CONFIG_EROFS_FS/d' $DEFCONFIG
           sed -i '/CONFIG_SDCARD_FS/d' $DEFCONFIG
           
           {
 
-            echo "CONFIG_KSU=y"
-            echo "# CONFIG_KPROBES is not set"
             echo "CONFIG_EROFS_FS=y"
             echo "CONFIG_EROFS_FS_ZIP=y"
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
