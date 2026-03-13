@@ -42,12 +42,12 @@ jobs:
 
           {
             echo "void susfs_sus_map(struct file *file, struct path *path) { }"
-            echo "void susfs_reorder_mnt_id(struct nameidata *nd) { }"
+            echo "void susfs_reorder_mnt_id(void) { }"
             echo "void susfs_set_i_state_on_external_dir(void *arg) { }"
           } >> fs/susfs.c
 
           sed -i '1s/^/extern void susfs_set_i_state_on_external_dir(void *);\n/' drivers/kernelsu/supercalls.c
-          sed -i '1s/^/struct nameidata;\nextern void susfs_reorder_mnt_id(struct nameidata *);\n/' drivers/kernelsu/setuid_hook.c
+          sed -i '1s/^/extern void susfs_reorder_mnt_id(void);\n/' drivers/kernelsu/setuid_hook.c
 
           rm -f kernel/sys.c.rej fs/proc/task_mmu.c.rej
 
