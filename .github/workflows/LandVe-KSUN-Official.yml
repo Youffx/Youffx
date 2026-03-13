@@ -31,19 +31,25 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch" | patch -p1 || true
           
           sed -i '1i #include <linux/susfs.h>\n#ifndef PR_SUSFS_RUN_COMMAND\n#define PR_SUSFS_RUN_COMMAND 0x55534653\n#endif\nextern int susfs_run_command(void __user *arg, uint32_t magic);' kernel/sys.c
-          
           if [ -f kernel/sys.c.rej ]; then
             sed -i '/case PR_SET_PDEATHSIG:/i #ifdef CONFIG_KSU_SUSFS\n	if (option == PR_SUSFS_RUN_COMMAND) {\n		return susfs_run_command((void __user *)arg2, (uint32_t)arg3);\n	}\n#endif' kernel/sys.c
           fi
 
           sed -i '1i #include <linux/susfs.h>\nextern void susfs_sus_map(struct file *file, struct path *path);' fs/proc/task_mmu.c
-          
           if [ -f fs/proc/task_mmu.c.rej ]; then
             sed -i 's|if (vma->vm_file) {|if (vma->vm_file) {\n#ifdef CONFIG_KSU_SUSFS\n		struct path path = vma->vm_file->f_path;\n		susfs_sus_map(vma->vm_file, \&path);\n#endif|' fs/proc/task_mmu.c
           fi
-          
-          rm -f kernel/sys.c.rej fs/proc/task_mmu.c.rej
+
+          {
+            echo "void susfs_sus_map(struct file *file, struct path *path) { }"
+            echo "void susfs_reorder_mnt_id(struct nameidata *nd) { }"
+            echo "void susfs_set_i_state_on_external_dir(void *arg) { }"
+          } >> fs/susfs.c
+
           sed -i '1s/^/extern void susfs_set_i_state_on_external_dir(void *);\n/' drivers/kernelsu/supercalls.c
+          sed -i '1s/^/struct nameidata;\nextern void susfs_reorder_mnt_id(struct nameidata *);\n/' drivers/kernelsu/setuid_hook.c
+
+          rm -f kernel/sys.c.rej fs/proc/task_mmu.c.rej
 
       - name: Install Dependencies
         run: |
