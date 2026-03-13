@@ -21,6 +21,10 @@ jobs:
           git branch
           git log --oneline -n 5
 
+      - name: KSU Next
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
