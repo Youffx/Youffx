@@ -25,10 +25,21 @@ jobs:
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
 
-      - name: Apply SUSFS and Syscall Hook Patches
+      - name: Apply SUSFS and Fix Rejects
         run: |
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" | bash
-          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch" | patch -p1
+          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch" | patch -p1 || true
+          
+          if [ -f kernel/sys.c.rej ]; then
+            sed -i '/case PR_SET_PDEATHSIG:/i #ifdef CONFIG_KSU_SUSFS\n	if (option == PR_SUSFS_RUN_COMMAND) {\n		return susfs_run_command((void __user *)arg2, (uint32_t)arg3);\n	}\n#endif' kernel/sys.c
+          fi
+
+          if [ -f fs/proc/task_mmu.c.rej ]; then
+            sed -i '/#include <linux\/mm_inline.h>/a #ifdef CONFIG_KSU_SUSFS\n#include <linux/susfs.h>\n#endif' fs/proc/task_mmu.c
+            sed -i 's|if (vma->vm_file) {|if (vma->vm_file) {\n#ifdef CONFIG_KSU_SUSFS\n		susfs_sus_map(vma->vm_file, \&path);\n#endif|' fs/proc/task_mmu.c
+          fi
+          
+          rm -f kernel/sys.c.rej fs/proc/task_mmu.c.rej
 
       - name: Install Dependencies
         run: |
