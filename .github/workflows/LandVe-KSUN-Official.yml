@@ -40,6 +40,16 @@ jobs:
           fi
           
           rm -f kernel/sys.c.rej fs/proc/task_mmu.c.rej
+          
+          sed -i '1i #include <linux/susfs.h>' drivers/kernelsu/supercalls.c
+
+          if [ -f include/linux/susfs.h ]; then
+            if ! grep -q "susfs_set_i_state_on_external_dir" include/linux/susfs.h; then
+              sed -i '/void susfs_set_i_state/a void susfs_set_i_state_on_external_dir(void *arg);' include/linux/susfs.h
+            fi
+          fi
+          
+          
 
       - name: Install Dependencies
         run: |
