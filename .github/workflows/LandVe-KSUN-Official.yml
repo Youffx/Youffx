@@ -64,7 +64,7 @@ jobs:
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe👺/Tengusama"'
+            echo 'CONFIG_LOCALVERSION="-LandVe🏖️/Summer"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
             
           } >> $DEFCONFIG
