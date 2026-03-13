@@ -23,9 +23,9 @@ jobs:
 
       - name: KSU Next
         run: |
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
 
-      - name: Apply SUSFS and Fix Rejects
+      - name: Manual Hook
         run: |
           curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" | bash
 
@@ -47,6 +47,8 @@ jobs:
           DEFCONFIG="arch/arm64/configs/rosemary_defconfig"
 
           sed -i '/CONFIG_KPROBES/d' $DEFCONFIG
+          sed -i '/CONFIG_KPROBE_EVENTS/d' $DEFCONFIG
+          sed -i '/CONFIG_KSU_KPROBE_HOOKS/d' $DEFCONFIG
           sed -i '/CONFIG_LOCALVERSION/d' $DEFCONFIG
           sed -i '/CONFIG_EROFS_FS/d' $DEFCONFIG
           sed -i '/CONFIG_SDCARD_FS/d' $DEFCONFIG
@@ -54,6 +56,8 @@ jobs:
           {
 
             echo "CONFIG_KPROBES=n"
+            echo "CONFIG_KPROBE_EVENTS=n"
+            echo "CONFIG_KSU_KPROBE_HOOKS=n"
             echo "CONFIG_EROFS_FS=y"
             echo "CONFIG_EROFS_FS_ZIP=y"
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
