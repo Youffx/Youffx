@@ -48,6 +48,7 @@ jobs:
           sed -i '/CONFIG_LOCALVERSION/d' $DEFCONFIG
           sed -i '/CONFIG_EROFS_FS/d' $DEFCONFIG
           sed -i '/CONFIG_SDCARD_FS/d' $DEFCONFIG
+          sed -i '/CONFIG_KSU_/d' $DEFCONFIG
           
           {
 
@@ -61,6 +62,20 @@ jobs:
             echo "CONFIG_SDCARD_FS=y"
             echo 'CONFIG_LOCALVERSION="-LandVe👺/Tengusama"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
+            echo "CONFIG_KSU_SUSFS=y"
+            echo "CONFIG_KSU_DEBUG=n"
+            echo "CONFIG_KSU_ALLOWLIST_WORKAROUND=n"
+            echo "CONFIG_KSU_MANUAL_HOOK=y"
+            echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
+            echo "CONFIG_KSU_SUSFS_SUS_MOUNT=y"
+            echo "CONFIG_KSU_SUSFS_SUS_KSTAT=y"
+            echo "CONFIG_KSU_SUSFS_TRY_UMOUNT=n"
+            echo "CONFIG_KSU_SUSFS_SPOOF_UNAME=y"
+            echo "CONFIG_KSU_SUSFS_ENABLE_LOG=n"
+            echo "CONFIG_KSU_SUSFS_HIDE_KSU_SUSFS_SYMBOLS=y"
+            echo "CONFIG_KSU_SUSFS_SPOOF_CMDLINE_OR_BOOTCONFIG=y"
+            echo "CONFIG_KSU_SUSFS_OPEN_REDIRECT=y"
+            echo "CONFIG_KSU_SUSFS_SUS_MAP=y"
           } >> $DEFCONFIG
 
       - name: Build Kernel
