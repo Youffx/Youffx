@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Youffx/4.19-rosemary-kernel
-          ref: ksun
+          ref: ksun-kprobes
           fetch-depth: 1
 
       - name: Linux Cip-129
