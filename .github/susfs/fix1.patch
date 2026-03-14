@@ -1,0 +1,53 @@
+From 3b84f09926c55c5e248be62a39d70231c871b71c Mon Sep 17 00:00:00 2001
+From: simonpunk <simonpunk2016@gmail.com>
+Date: Mon, 21 Jul 2025 05:04:44 +0000
+Subject: [PATCH] kernel: SUS_PATH: Fix leaking dentry lock ref count
+
+---
+ fs/namei.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/fs/namei.c b/fs/namei.c
+index c7c0c546ba75..1b52ae2b10ff 100644
+--- a/fs/namei.c
++++ b/fs/namei.c
+@@ -1694,6 +1694,7 @@ static struct dentry *__lookup_hash(const struct qstr *name,
+ 	if (dentry) {
+ #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 		if (!found_sus_path && !IS_ERR(dentry) && dentry->d_inode && susfs_is_inode_sus_path(dentry->d_inode)) {
++			dput(dentry);
+ 			dentry = lookup_dcache(&susfs_fake_qstr_name, base, flags);
+ 			found_sus_path = true;
+ 			goto retry;
+@@ -1769,6 +1770,7 @@ static int lookup_fast(struct nameidata *nd,
+ #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 		if (is_nd_state_lookup_last_and_open_last && dentry && !IS_ERR(dentry) && dentry->d_inode) {
+ 			if (susfs_is_inode_sus_path(dentry->d_inode)) {
++				dput(dentry);
+ 				dentry = __d_lookup_rcu(parent, &susfs_fake_qstr_name, &backup_next_seq);
+ 			}
+ 		}
+@@ -1838,6 +1840,7 @@ static int lookup_fast(struct nameidata *nd,
+ #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 		if (is_nd_state_lookup_last_and_open_last && dentry && !IS_ERR(dentry) && dentry->d_inode) {
+ 			if (susfs_is_inode_sus_path(dentry->d_inode)) {
++				dput(dentry);
+ 				dentry = __d_lookup(parent, &susfs_fake_qstr_name);
+ 			}
+ 		}
+@@ -1936,6 +1939,7 @@ static struct dentry *__lookup_slow(const struct qstr *name,
+ 	if (is_nd_flags_lookup_last && !found_sus_path) {
+ 		if (dentry && !IS_ERR(dentry) && dentry->d_inode) {
+ 			if (susfs_is_inode_sus_path(dentry->d_inode)) {
++				dput(dentry);
+ 				dentry = d_alloc_parallel(dir, &susfs_fake_qstr_name, &sus_wq);
+ 				found_sus_path = true;
+ 				goto retry;
+@@ -3535,6 +3539,7 @@ static int lookup_open(struct nameidata *nd, struct path *path,
+ #ifdef CONFIG_KSU_SUSFS_SUS_PATH
+ 	if (is_nd_state_open_last && dentry && !IS_ERR(dentry) && dentry->d_inode) {
+ 		if (susfs_is_inode_sus_path(dentry->d_inode)) {
++			dput(dentry);
+ 			dentry = d_lookup(dir, &susfs_fake_qstr_name);
+ 			found_sus_path = true;
+ 		}
