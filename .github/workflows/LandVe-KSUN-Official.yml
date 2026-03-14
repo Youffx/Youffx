@@ -67,7 +67,7 @@ jobs:
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe🪴/Plant"'
+            echo 'CONFIG_LOCALVERSION="-LandVe👺/悪魔"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
             echo "CONFIG_KSU_SUSFS=y"
             echo "CONFIG_KSU_SUSFS_SUS_PATH=y"
@@ -109,5 +109,5 @@ jobs:
       - name: Upload Image
         uses: actions/upload-artifact@v4
         with:
-            name: patch-rejections
-            path: "**/*.rej"
+          name: LandVe-Image-RKSU
+          path: out/arch/arm64/boot/Image.gz-dtb
