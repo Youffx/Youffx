@@ -30,6 +30,13 @@ jobs:
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
           curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1
 
+      - name: Upload Patch Rejects
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-rejections
+          path: "**/*.rej"
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
