@@ -1,5 +1,5 @@
 <img align="center" alt="coding" src="https://user-images.githubusercontent.com/74038190/221352995-5ac18bdf-1a19-4f99-bbb6-77559b220470.gif" width="600"></h1>
-<h1 align="center">Hi! I'm Youffx <img src="https://yt3.ggpht.com/SdjDRphRvO2twZ9b8kfs39IJIqwtHi8EsHh39VA_vPxvjfjRv5v0ejC0pC3wkm6H3iL-fCLOR96tEQ=s660-nd-v1" width="15"></h1>
+<h1 align="center">Hi! I'm Youff <img src="https://yt3.ggpht.com/SdjDRphRvO2twZ9b8kfs39IJIqwtHi8EsHh39VA_vPxvjfjRv5v0ejC0pC3wkm6H3iL-fCLOR96tEQ=s660-nd-v1" width="15"></h1>
 
 # 💫 About Me
 I'm an Agriculture grad who found a second home in the tech world! I'm highly interested in coding, software development, and figuring out how things work behind the scenes in IT. Always eager to learn and explore new tech.
