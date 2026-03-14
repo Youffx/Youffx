@@ -28,14 +28,15 @@ jobs:
       - name: Manual Hook and SUSFS
         run: |
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1
+          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1 || true
+          
+          sed -i '/#include <linux\/mm_inline.h>/a #ifdef CONFIG_KSU_SUSFS_SUS_KSTAT\n#include <linux/susfs_def.h>\n#endif' fs/proc/task_mmu.c
 
-      - name: Upload Patch Rejects
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: patch-rejections
-          path: "**/*.rej"
+          sed -i '/ANDROID_KABI_RESERVE(8);/c #ifdef CONFIG_KSU_SUSFS\n\tANDROID_KABI_USE(8, u64 susfs_last_fake_mnt_id);\n#else\n\tANDROID_KABI_RESERVE(8);\n#endif' include/linux/sched.h
+          sed -i '/randomized_struct_fields_end/i #if defined(CONFIG_KSU_SUSFS) && !defined(ANDROID_KABI_RESERVE)\n\tu64 susfs_task_state;\n#endif\n#if defined(CONFIG_KSU_SUSFS) && !defined(ANDROID_KABI_RESERVE)\n\tu64 susfs_last_fake_mnt_id;\n#endif' include/linux/sched.h
+
+          sed -i '/SYSCALL_DEFINE1(newuname/i #ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME\nextern void susfs_spoof_uname(struct new_utsname* tmp);\n#endif' kernel/sys.c
+          sed -i '/memcpy(&tmp, utsname(), sizeof(tmp));/a \tsusfs_spoof_uname(&tmp);' kernel/sys.c
 
       - name: Install Dependencies
         run: |
