@@ -8,7 +8,6 @@ I'm an Agriculture grad who found a second home in the tech world! I'm highly in
 ## <img src="https://media1.giphy.com/media/v1.Y2lkPTc5MGI3NjExYzFhYzJkMmQ2MWQ3ZGY3MDhjZTE3MDI2Mzk3NzE1OWQyZTRlMmYwMCZjdD1z/iY8CRBdQXODJSCERIr/giphy.gif" width=5% valign="bottom"> Github Stats
 ![](https://github-readme-stats.vercel.app/api?username=Youffx&theme=dark&hide_border=true&include_all_commits=false&count_private=false)<br/>
 ![](https://nirzak-streak-stats.vercel.app/?user=Youffx&theme=dark&hide_border=true)<br/>
-![](https://github-readme-stats.vercel.app/api/top-langs/?username=Youffx&theme=dark&hide_border=false&include_all_commits=false&count_private=false&layout=compact)
 ## 🤝🏼 GitHub Contribution
 <p align="center">
   <img height="280em" src="https://github-readme-activity-graph.vercel.app/graph?username=Youffx&theme=xcode&radius=10" alt="Youffx Activity Graph" />
