@@ -23,7 +23,7 @@ jobs:
 
       - name: KSU Next
         run: |
-          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/master/kernel/setup.sh" | bash
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
 
       - name: Manual Hook and SUSFS
         run: |
