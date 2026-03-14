@@ -23,11 +23,14 @@ jobs:
 
       - name: KSU Next
         run: |
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
 
-      - name: Manual Hook
+      - name: Manual Hook and SUSFS
         run: |
-          curl -LSs "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh" | bash
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/hook.patch
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch
 
       - name: Install Dependencies
         run: |
@@ -46,25 +49,18 @@ jobs:
         run: |
           DEFCONFIG="arch/arm64/configs/rosemary_defconfig"
 
-          sed -i '/CONFIG_KPROBES/d' $DEFCONFIG
-          sed -i '/CONFIG_KPROBE_EVENTS/d' $DEFCONFIG
-          sed -i '/CONFIG_KSU_KPROBE_HOOKS/d' $DEFCONFIG
           sed -i '/CONFIG_LOCALVERSION/d' $DEFCONFIG
           sed -i '/CONFIG_EROFS_FS/d' $DEFCONFIG
           sed -i '/CONFIG_SDCARD_FS/d' $DEFCONFIG
           
           {
 
-            echo "CONFIG_KPROBES=n"
-            echo "CONFIG_KSU_MANUAL_HOOK=y"
-            echo "CONFIG_KPROBE_EVENTS=n"
-            echo "CONFIG_KSU_KPROBE_HOOKS=n"
             echo "CONFIG_EROFS_FS=y"
             echo "CONFIG_EROFS_FS_ZIP=y"
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe🏖️/Summer"'
+            echo 'CONFIG_LOCALVERSION="-LandVe🪴/Plant"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
             
           } >> $DEFCONFIG
