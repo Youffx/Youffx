@@ -27,10 +27,8 @@ jobs:
 
       - name: Manual Hook and SUSFS
         run: |
-          curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/syscall_hook_patches.sh | bash
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch -o fix1.patch | patch -p1
+          curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1       
           curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch -o susfs.patch | patch -p1
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch -o fix2.patch | patch -p1
 
       - name: Install Dependencies
         run: |
