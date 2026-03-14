@@ -1,0 +1,57 @@
+name: Remote Apply SusFS Patches
+
+on:
+  workflow_dispatch:
+
+jobs:
+  remote-patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Target Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Youffx/4.19-rosemary-kernel
+          token: ${{ secrets.MY_PAT }}
+          ref: Susfs
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Download Patches
+        run: |
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/hook.patch
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch
+          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch
+
+      - name: Apply hook.patch
+        run: |
+          git apply hook.patch
+          git add .
+          git commit -m "kernel: apply susfs hook patch"
+
+      - name: Apply fix1.patch
+        run: |
+          git apply fix1.patch
+          git add .
+          git commit -m "kernel: apply susfs fix1 patch"
+
+      - name: Apply susfs.patch
+        run: |
+          git apply susfs.patch
+          git add .
+          git commit -m "kernel: apply main susfs patch"
+
+      - name: Apply fix2.patch
+        run: |
+          git apply fix2.patch
+          git add .
+          git commit -m "kernel: apply susfs fix2 patch"
+
+      - name: Push to Target Repository
+        run: |
+          git push origin Susfs
+          
