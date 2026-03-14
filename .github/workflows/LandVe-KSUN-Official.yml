@@ -31,10 +31,16 @@ jobs:
           curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch -o fix1.patch
           curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch -o susfs.patch
           curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch -o fix2.patch
-          yes | patch -p1 < hook.patch
-          yes | patch -p1 < fix1.patch
-          yes | patch -p1 < susfs.patch
-          yes | patch -p1 < fix2.patch
+          rm -f drivers/kernelsu/Makefile
+          rm -f drivers/kernelsu/Kconfig
+          rm -f drivers/kernelsu/susfs.c
+    
+          patch -p1 --batch --force < hook.patch || true
+          patch -p1 --batch --force < fix1.patch || true
+          patch -p1 --batch --force < susfs.patch || true
+          patch -p1 --batch --force < fix2.patch || true
+
+    rm *.patch
 
       - name: Install Dependencies
         run: |
