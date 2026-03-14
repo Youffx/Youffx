@@ -1,0 +1,22 @@
+From 655cef996380da761da350c6689c77d70433d614 Mon Sep 17 00:00:00 2001
+From: rsuntk <90097027+rsuntk@users.noreply.github.com>
+Date: Mon, 21 Jul 2025 13:05:31 +0700
+Subject: [PATCH] KernelSU-Next: fix undefined reference to getenforce
+
+---
+ KernelSU-Next/selinux/rules.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/KernelSU-Next/selinux/rules.c b/KernelSU-Next/selinux/rules.c
+index 722ea02c5a6c..5d8326867a29 100644
+--- a/KernelSU-Next/selinux/rules.c
++++ b/KernelSU-Next/selinux/rules.c
+@@ -42,7 +42,7 @@ void ksu_apply_kernelsu_rules()
+ {
+ 	struct policydb *db;
+ 
+-	if (!getenforce()) {
++	if (!ksu_getenforce()) {
+ 		pr_info("SELinux permissive or disabled, apply rules!\n");
+ 	}
+ 
