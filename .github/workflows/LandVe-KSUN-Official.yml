@@ -27,10 +27,14 @@ jobs:
 
       - name: Manual Hook and SUSFS
         run: |
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/hook.patch | patch -p1
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch | patch -p1
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch | patch -p1
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch | patch -p1
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/hook.patch -o hook.patch
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch -o fix1.patch
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch -o susfs.patch
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch -o fix2.patch
+          yes | patch -p1 < hook.patch
+          yes | patch -p1 < fix1.patch
+          yes | patch -p1 < susfs.patch
+          yes | patch -p1 < fix2.patch
 
       - name: Install Dependencies
         run: |
