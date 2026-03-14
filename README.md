@@ -10,5 +10,5 @@ I'm an Agriculture grad who found a second home in the tech world! I'm highly in
 ![](https://nirzak-streak-stats.vercel.app/?user=Youffx&theme=dark&hide_border=true)<br/>
 ## 🤝🏼 GitHub Contribution
 <p align="center">
-  <img height="280em" src="https://github-readme-activity-graph.vercel.app/graph?username=Youffx&theme=xcode&radius=10" alt="Youffx Activity Graph" />
+  <img height="200em" src="https://github-readme-activity-graph.vercel.app/graph?username=Youffx&theme=xcode&radius=10" alt="Youffx Activity Graph" />
 </p>
