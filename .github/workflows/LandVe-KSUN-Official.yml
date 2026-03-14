@@ -40,7 +40,7 @@ jobs:
           patch -p1 --batch --force < susfs.patch || true
           patch -p1 --batch --force < fix2.patch || true
 
-    rm *.patch
+          rm *.patch
 
       - name: Install Dependencies
         run: |
