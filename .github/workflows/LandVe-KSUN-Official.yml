@@ -109,5 +109,5 @@ jobs:
       - name: Upload Image
         uses: actions/upload-artifact@v4
         with:
-          name: LandVe-Image-RKSU
+          name: LandVe-Image-KSUN-Official
           path: out/arch/arm64/boot/Image.gz-dtb
