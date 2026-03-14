@@ -28,23 +28,23 @@ jobs:
       - name: Manual Hook and SUSFS
         run: |
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/7f2847d.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/27956d2.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/95f8be4.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/03fd2fb.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/6071a48.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/849ca8c.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/bbd5aec.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/6f94042.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/49a5115.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/37ae244.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/0a8cbf3.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/4ba6dccf73a620e565803e5995d5748ecfbb56a2.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/ed8fd10d97a50ec424ae38a40351b5de060f9838.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/e784224542fab4b3888d9103a1f678015221a7d1.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/9ba899398576d329288b023566d3a731470ad13a.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/d406904bb175cb9791b5aed4404df3268859d91b.patch | patch -p1
-          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/bb2f164bc19795ef704f17c82f04885d44421418.patch | patch -p1
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/7f2847d.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/27956d2.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/95f8be4.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/03fd2fb.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/6071a48.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/849ca8c.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/bbd5aec.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/6f94042.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/49a5115.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/37ae244.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/0a8cbf3.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/4ba6dccf73a620e565803e5995d5748ecfbb56a2.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/ed8fd10d97a50ec424ae38a40351b5de060f9838.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/e784224542fab4b3888d9103a1f678015221a7d1.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/9ba899398576d329288b023566d3a731470ad13a.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/d406904bb175cb9791b5aed4404df3268859d91b.patch | patch -p1 -f -N --no-backup-if-mismatch
+          curl -Ls https://github.com/sidex15/android_kernel_lge_sm8150/commit/bb2f164bc19795ef704f17c82f04885d44421418.patch | patch -p1 -f -N --no-backup-if-mismatch
 
       - name: Install Dependencies
         run: |
