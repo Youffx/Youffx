@@ -1,4 +1,4 @@
-<img align="center" alt="coding" src="[https://cdn.pixabay.com/animation/2025/08/12/14/05/14-05-18-640_512.gif](https://mir-s3-cdn-cf.behance.net/project_modules/max_1200_webp/4bc493165797939.647ff5181c5ac.gif)" width="600"></h1>
+<img align="center" alt="coding" src="https://mir-s3-cdn-cf.behance.net/project_modules/max_1200_webp/4bc493165797939.647ff5181c5ac.gif" width="600"></h1>
 <h1 align="center">Hi! I'm Youffx <img src="https://yt3.ggpht.com/SdjDRphRvO2twZ9b8kfs39IJIqwtHi8EsHh39VA_vPxvjfjRv5v0ejC0pC3wkm6H3iL-fCLOR96tEQ=s660-nd-v1" width="15"></h1>
 
 # 💫 About Me
