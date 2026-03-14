@@ -30,6 +30,12 @@ jobs:
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1       
           curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch | patch -p1 -N || true
 
+      - name: Fix supercalls.c for SUSFS
+        run: |
+          sed -i 's/CMD_SUSFS_HIDE_SUS_MNTS_FOR_NON_SU_PROCS/CMD_SUSFS_HIDE_SUS_MNTS_FOR_ALL_PROCS/g' drivers/kernelsu/supercalls.c
+          sed -i 's/susfs_set_hide_sus_mnts_for_non_su_procs/susfs_set_hide_sus_mnts_for_all_procs/g' drivers/kernelsu/supercalls.c
+          sed -i 's/susfs_add_try_umount/add_try_umount/g' drivers/kernelsu/supercalls.c
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
