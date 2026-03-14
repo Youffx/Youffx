@@ -28,7 +28,7 @@ jobs:
       - name: Manual Hook and SUSFS
         run: |
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1       
-          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch | patch -p1 -N --batch
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch | patch -p1 -N || true
 
       - name: Install Dependencies
         run: |
