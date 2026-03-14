@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Youffx/4.19-rosemary-kernel
-          ref: ksun-kprobes
+          ref: Susfs
           fetch-depth: 1
 
       - name: Linux Cip-129
@@ -27,10 +27,10 @@ jobs:
 
       - name: Manual Hook and SUSFS
         run: |
-          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/hook.patch
-          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch
-          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch
-          curl -LO https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/hook.patch | patch -p1
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix1.patch | patch -p1
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/susfs.patch | patch -p1
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/susfs/fix2.patch | patch -p1
 
       - name: Install Dependencies
         run: |
