@@ -28,7 +28,7 @@ jobs:
       - name: Manual Hook and SUSFS
         run: |
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1 --fuzz=3
+          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/kernel-4.19/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1
 
       - name: Install Dependencies
         run: |
@@ -101,5 +101,5 @@ jobs:
       - name: Upload Image
         uses: actions/upload-artifact@v4
         with:
-          name: LandVe-Image-RKSU
-          path: out/arch/arm64/boot/Image.gz-dtb
+            name: patch-rejections
+            path: "**/*.rej"
