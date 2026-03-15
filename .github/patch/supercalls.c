@@ -1015,11 +1015,7 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
 		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
 			return 0;
 	}
-
-	return 0;
-}
-
-	// WARNING!!! triple ptr zone! ***
+		// WARNING!!! triple ptr zone! ***
 	// https://wiki.c2.com/?ThreeStarProgrammer
 	if (magic2 == CHANGE_SPOOF_UNAME) {
 		// only root is allowed for this command 
