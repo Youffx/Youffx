@@ -13,7 +13,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Youffx/4.19-rosemary-kernel
-          ref: ksun_susfs
           fetch-depth: 1
 
       - name: Linux Cip-129
@@ -21,7 +20,7 @@ jobs:
           git branch
           git log --oneline -n 5
 
-      - name: Important Susfs
+      - name: KSU-Next Manual Hook Susfs
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
