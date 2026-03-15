@@ -1225,6 +1225,10 @@ DECLARE_RWSEM(uts_sem);
  * Instead we map 3.x to 2.6.40+x, so e.g. 3.0 would be 2.6.40
  * And we map 4.x to 2.6.60+x, so 4.0 would be 2.6.60.
  */
+#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
+extern void susfs_spoof_uname(struct new_utsname* tmp);
+#endif
+
 static int override_release(char __user *release, size_t len)
 {
 	int ret = 0;
@@ -1257,10 +1261,6 @@ static int override_release(char __user *release, size_t len)
 
 	return ret;
 }
-
-#ifdef CONFIG_KSU_SUSFS_SPOOF_UNAME
-extern void susfs_spoof_uname(struct new_utsname* tmp);
-#endif
 
 SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
 {
