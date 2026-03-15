@@ -24,14 +24,13 @@ jobs:
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-          curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1 ||true
+          curl -LSs https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/void.patch | patch -p1 ||true
 
       - name: Inject Custom Kernel Files
         run: |
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/task_mmu.c
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/sys.c
           curl -L -o drivers/kernelsu/supercalls.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/supercalls.c
-          curl -L -o drivers/kernelsu/setuid_hook.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/setuid_hook.c
 
       - name: Install Dependencies
         run: |
