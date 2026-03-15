@@ -3062,6 +3062,33 @@ index 0000000..80e624e
 +/* No module exit is needed becuase it should never be a loadable kernel module */
 +//void __init susfs_exit(void)
 +
++#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
++void susfs_try_umount(uid_t uid)
++{
++    return;
++}
++#endif
++
++#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
++void susfs_reorder_mnt_id(void)
++{
++    return;
++}
++#endif
++
++#ifdef CONFIG_KSU_SUSFS_SUS_PATH
++void susfs_set_i_state_on_external_dir(void __user **arg)
++{
++    return;
++}
++#endif
++
++#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
++void susfs_add_try_umount(void __user *arg)
++{
++    return;
++}
++#endif
 diff --git a/include/linux/susfs.h b/include/linux/susfs.h
 new file mode 100644
 index 0000000..7a8aec7
