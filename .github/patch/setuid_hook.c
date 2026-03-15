@@ -27,8 +27,15 @@
 #include "kernel_umount.h"
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs_def.h>
-#include <linux/susfs.h>
 #endif // #ifdef CONFIG_KSU_SUSFS
+
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+void susfs_try_umount(uid_t uid) {}
+#endif
+
+#ifdef CONFIG_KSU_SUSFS_SUS_MOUNT
+void susfs_reorder_mnt_id(void) {}
+#endif
 
 // force_sig kcompat, TODO: move it out of core_hook.c
 // https://elixir.bootlin.com/linux/v5.3-rc1/source/kernel/signal.c#L1613
