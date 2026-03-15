@@ -38,6 +38,14 @@ bool susfs_is_boot_completed_triggered __read_mostly = false;
 
 #include "tiny_sulog.c"
 
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+void susfs_set_i_state_on_external_dir(void __user **arg) {}
+#endif
+
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+void susfs_add_try_umount(void __user *arg) {}
+#endif
+
 // Permission check functions
 bool only_manager(void)
 {
