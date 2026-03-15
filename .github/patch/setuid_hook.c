@@ -27,6 +27,7 @@
 #include "kernel_umount.h"
 #ifdef CONFIG_KSU_SUSFS
 #include <linux/susfs_def.h>
+#include <linux/susfs.h>
 #endif // #ifdef CONFIG_KSU_SUSFS
 
 // force_sig kcompat, TODO: move it out of core_hook.c
