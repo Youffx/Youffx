@@ -844,6 +844,16 @@ static const struct ksu_ioctl_cmd_map ksu_ioctl_handlers[] = {
     { .cmd = 0, .name = NULL, .handler = NULL, .perm_check = NULL } // Sentinel
 };
 
+// --- Bolak balik error ternyata disini jirr masalahnya, modified by Youffx asa.jazal@gmail.com ---
+#ifdef CONFIG_KSU_SUSFS_SUS_PATH
+extern void susfs_set_i_state_on_external_dir(void __user **arg);
+#endif
+
+#ifdef CONFIG_KSU_SUSFS_TRY_UMOUNT
+extern void susfs_add_try_umount(void __user *arg);
+#endif
+
+// --- FUNGSI UTAMA ---
 int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
 			  void __user **arg)
 {
@@ -951,26 +961,25 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
         return 0;
     }
 #endif // #ifdef CONFIG_KSU_SUSFS
+
 	// Check if this is a request to install KSU fd
 	if (magic2 == KSU_INSTALL_MAGIC2) {
 		int fd = ksu_install_fd();
-		// downstream: dereference all arg usage!
 		if (copy_to_user((void __user *)*arg, &fd, sizeof(fd))) {
 			pr_err("install ksu fd reply err\n");
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 11, 0)
-		close_fd(fd);
+			close_fd(fd);
 #else
-		__close_fd(current->files, fd);
+			__close_fd(current->files, fd);
 #endif
 		}
 		return 0;
 	}
 
-	// extensions 
+	// extensions
 	u64 reply = (u64)*arg;
 
 	if (magic2 == CHANGE_MANAGER_UID) {
-		// only root is allowed for this command
 		if (current_uid().val != 0)
 			return 0;
 
@@ -981,12 +990,10 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
 			if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
 				pr_info("sys_reboot: reply fail\n");
 		}
-
 		return 0;
 	}
-	
+
 	if (magic2 == GET_SULOG_DUMP_V2) {
-		// only root is allowed for this command
 		if (current_uid().val != 0)
 			return 0;
 
@@ -994,21 +1001,23 @@ int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
 		if (ret)
 			return 0;
 
-		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply) ))
+		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
 			return 0;
 	}
 
 	if (magic2 == CHANGE_KSUVER) {
-		// only root is allowed for this command
 		if (current_uid().val != 0)
 			return 0;
 
 		pr_info("sys_reboot: ksu_change_ksuver to: %d\n", cmd);
 		ksuver_override = cmd;
 
-		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply) ))
+		if (copy_to_user((void __user *)*arg, &reply, sizeof(reply)))
 			return 0;
 	}
+
+	return 0;
+}
 
 	// WARNING!!! triple ptr zone! ***
 	// https://wiki.c2.com/?ThreeStarProgrammer
