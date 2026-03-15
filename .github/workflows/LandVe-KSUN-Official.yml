@@ -30,6 +30,7 @@ jobs:
         run: |
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/task_mmu.c
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/sys.c
+          curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/supercalls.c
 
       - name: Install Dependencies
         run: |
