@@ -43,8 +43,11 @@ jobs:
           BASE="https://github.com/sidex15/android_kernel_lge_sm8150/commit"
 
           patches=(
-            b58b69522b102679e94656e506ce927f3490e07d
-            054fb29e19dcf9c2c1308781e25b94de8a89f248
+            4ba6dccf73a620e565803e5995d5748ecfbb56a2
+            ed8fd10d97a50ec424ae38a40351b5de060f9838
+            e784224542fab4b3888d9103a1f678015221a7d1
+            9ba899398576d329288b023566d3a731470ad13a
+            d406904bb175cb9791b5aed4404df3268859d91b
           )
 
           for id in "${patches[@]}"; do
