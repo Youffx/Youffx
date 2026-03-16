@@ -27,7 +27,7 @@ jobs:
 
       - name: SUSFS Adjustments
         run: |
-          curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1 || true
+          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch | patch -p1
           curl -L -o include/linux/mount.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/mount.h
           curl -L -o fs/namespace.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/namespace.c
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
