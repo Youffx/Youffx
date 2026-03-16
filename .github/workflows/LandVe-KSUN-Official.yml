@@ -22,7 +22,7 @@ jobs:
 
       - name: KSU-Next Manual Hook
         run: |
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s 5f4c923db1d85c63b7f809663816917b24e25ffc
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s b8db8c84917ee0ca06e5b8163dbfe7c984e35714
           curl -LS https://github.com/sidex15/KernelSU-Next/commit/a93da680ebada5f56c31c14c1bef76f71f0729cf.patch | patch -p1 -d KernelSU-Next
           curl -LS https://github.com/sidex15/KernelSU-Next/commit/7200f73a7b4d0777217ead34fe9322978840df88.patch | patch -p1 -d KernelSU-Next
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
