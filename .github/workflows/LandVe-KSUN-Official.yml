@@ -30,8 +30,6 @@ jobs:
         run: |
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/task_mmu.c
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch/sys.c
-          curl -L -o drivers/kernelsu/supercalls.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch0/supercalls.c
-          curl -L -o drivers/kernelsu/setuid_hook.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/patch0/setuid_hook.c
 
       - name: Install Dependencies
         run: |
@@ -61,7 +59,7 @@ jobs:
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe👺/悪魔"'
+            echo 'CONFIG_LOCALVERSION="-LandVe👺/Akuma"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
 
           } >> $DEFCONFIG
