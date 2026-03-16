@@ -25,7 +25,7 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
 
-      - name: SUSFS Adjustments
+      - name: SUSFS 2.0.0
         run: |
           curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1 || true
           curl -L -o include/linux/mount.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/mount.h
