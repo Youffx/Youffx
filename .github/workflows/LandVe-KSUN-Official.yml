@@ -29,6 +29,7 @@ jobs:
       - name: Some Adjustments
         run: |
           curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/d93ec6fa7c9152c16668fd18ec6fb04f6415bafc.patch | patch -p1
+          curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/03dfb735ac04649b768a77a03acf88cd4528c855.patch | patch -p1
 
       - name: Install Dependencies
         run: |
