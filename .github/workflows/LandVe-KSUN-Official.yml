@@ -22,7 +22,7 @@ jobs:
 
       - name: KSU-Next Manual Hook
         run: |
-          curl -LSs "https://raw.githubusercontent.com/sidex15/KernelSU-Next/legacy-susfs-v2/kernel/setup.sh" | bash
+          git clone --depth=1 --branch legacy-susfs-v2 https://github.com/sidex15/KernelSU-Next
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
 
       - name: SUSFS 2.0.0
