@@ -27,7 +27,7 @@ jobs:
 
       - name: SUSFS Adjustments
         run: |
-          curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1
+          curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1 || true
 
       - name: Upload patch debug files
         uses: actions/upload-artifact@v4
