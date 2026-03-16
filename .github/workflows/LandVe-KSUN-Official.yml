@@ -36,7 +36,7 @@ jobs:
           path: |
             kernel/sys.c
             kernel/sys.c.rej
-            fs/proc/task_mmu.c.
+            fs/proc/task_mmu.c
             fs/proc/task_mmu.c.rej
 
       - name: Install Dependencies
