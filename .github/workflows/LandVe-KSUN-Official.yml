@@ -27,16 +27,7 @@ jobs:
 
       - name: SUSFS 2.0.0
         run: |
-          curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1 || true
-          curl -L -o include/linux/mount.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/mount.h
-          curl -L -o fs/namespace.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/namespace.c
-          curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
-          curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/task_mmu.c
-
-      - name: Fix All Procs and Fix Try Umount
-        run: |
-          curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b052cc180226f02767c53f9e56493c69ceaeb9b5.patch | patch -p1
-          curl -LSs https://github.com/Youffx/Youffx/commit/ae41e3b16c66fd41355736d4645a21194ecc6389.patch | sed 's|\.github/|drivers/kernelsu/|g' | patch -p1
+          curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1
 
       - name: Install Dependencies
         run: |
