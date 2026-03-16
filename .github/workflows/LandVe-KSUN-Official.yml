@@ -26,6 +26,10 @@ jobs:
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
           curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/a71982fa542cdf57a74cb95a9fcbe54d5316c2e2.patch | patch -p1
 
+      - name: Some Adjustments
+        run: |
+          curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/d93ec6fa7c9152c16668fd18ec6fb04f6415bafc.patch | patch -p1
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
