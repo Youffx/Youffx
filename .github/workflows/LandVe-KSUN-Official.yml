@@ -41,15 +41,8 @@ jobs:
       - name: Fix Vfs sdcard
         run: |
           curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b58b69522b102679e94656e506ce927f3490e07d.patch | patch -p1 || true
-
-      - name: Upload failed patch files
-        uses: actions/upload-artifact@v4
-        with:
-          name: patch-debug
-          path: |
-            fs/namespace.c
-            fs/namespace.c.rej
-          
+          curl -L -o fs/namespace.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/namespace.c
+   
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
