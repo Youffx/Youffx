@@ -29,12 +29,9 @@ jobs:
         run: |
           curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch | patch -p1
           curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1
-          curl -L -o include/linux/mount.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/mount.h
-          curl -L -o fs/namespace.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/namespace.c
-          curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
-          curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/task_mmu.c
-          curl -L -o drivers/kernelsu/supercalls.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/supercalls.c
-          
+          curl -L -o include/linux/susfs.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/susfs.h
+          curl -L -o fs/susfs.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/susfs.c
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
