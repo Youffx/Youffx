@@ -28,9 +28,6 @@ jobs:
       - name: SUSFS Adjustments
         run: |
           curl -LSs https://raw.githubusercontent.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1
-          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1
-          curl -L -o include/linux/susfs.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/susfs.h
-          curl -L -o fs/susfs.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/susfs.c
 
       - name: Install Dependencies
         run: |
