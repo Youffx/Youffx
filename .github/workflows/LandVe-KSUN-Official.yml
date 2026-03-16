@@ -33,6 +33,18 @@ jobs:
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/task_mmu.c
 
+      - name: satu
+        run: |
+          curl -LSs  | patch -p1 || true
+
+      - name: dua
+        run: |
+          curl -LSs  | patch -p1 || true
+
+      - name: tiga
+        run: |
+          curl -LSs  | patch -p1 || true
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
