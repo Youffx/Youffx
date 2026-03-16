@@ -20,17 +20,15 @@ jobs:
           git branch
           git log --oneline -n 5
 
-      - name: KSU-Next Manual Hook Susfs
+      - name: KSU-Next Manual Hook
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-          curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/a71982fa542cdf57a74cb95a9fcbe54d5316c2e2.patch | patch -p1
 
-      - name: Some Adjustments
+      - name: SUSFS Adjustments
         run: |
-          curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/d93ec6fa7c9152c16668fd18ec6fb04f6415bafc.patch | patch -p1
-          curl -LSs https://github.com/kylieeXD/android_kernel_xiaomi_rosemary/commit/03dfb735ac04649b768a77a03acf88cd4528c855.patch | patch -p1
-
+          curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1
+          
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
