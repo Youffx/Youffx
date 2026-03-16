@@ -32,6 +32,7 @@ jobs:
           curl -L -o fs/namespace.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/namespace.c
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/task_mmu.c
+          curl -L -o drivers/kernelsu/supercalls.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/supercalls.c
           
       - name: Install Dependencies
         run: |
