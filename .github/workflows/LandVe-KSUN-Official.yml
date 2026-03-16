@@ -33,9 +33,10 @@ jobs:
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/task_mmu.c
 
-      - name: Fix All Procs, Try Umount
+      - name: Fix All Procs and Fix Try Umount
         run: |
           curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b052cc180226f02767c53f9e56493c69ceaeb9b5.patch | patch -p1
+          curl -LSs https://github.com/Youffx/Youffx/commit/ae41e3b16c66fd41355736d4645a21194ecc6389.patch | sed 's|\.github/|drivers/kernelsu/|g' | patch -p1
 
       - name: Install Dependencies
         run: |
