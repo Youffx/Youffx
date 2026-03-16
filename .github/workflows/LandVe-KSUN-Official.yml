@@ -28,6 +28,16 @@ jobs:
       - name: SUSFS Adjustments
         run: |
           curl -LSs https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/e542e0010c6b755c97175a42f628e78f842f9683.patch | patch -p1
+
+      - name: Upload patch debug files
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-debug
+          path: |
+            **/*.rej
+            fs/**/*.c
+            include/**/*.h
+            kernel/**/*.c
           
       - name: Install Dependencies
         run: |
