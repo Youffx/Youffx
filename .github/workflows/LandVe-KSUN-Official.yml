@@ -35,15 +35,7 @@ jobs:
 
       - name: satu
         run: |
-          curl -LSs  | patch -p1 || true
-
-      - name: dua
-        run: |
-          curl -LSs  | patch -p1 || true
-
-      - name: tiga
-        run: |
-          curl -LSs  | patch -p1 || true
+          curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b052cc180226f02767c53f9e56493c69ceaeb9b5.patch | patch -p1
 
       - name: Install Dependencies
         run: |
