@@ -40,7 +40,7 @@ jobs:
 
       - name: Fix Vfs sdcard
         run: |
-          curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/054fb29e19dcf9c2c1308781e25b94de8a89f248.patch | patch -p1
+          curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b58b69522b102679e94656e506ce927f3490e07d.patch | patch -p1
           
       - name: Install Dependencies
         run: |
