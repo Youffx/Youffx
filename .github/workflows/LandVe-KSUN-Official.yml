@@ -38,7 +38,20 @@ jobs:
           curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b052cc180226f02767c53f9e56493c69ceaeb9b5.patch | patch -p1
           curl -LSs https://github.com/Youffx/Youffx/commit/ae41e3b16c66fd41355736d4645a21194ecc6389.patch | sed 's|\.github/|drivers/kernelsu/|g' | patch -p1
 
-      - name: dua
+      - name: Fix Ida
+        run: |
+          BASE="https://github.com/sidex15/android_kernel_lge_sm8150/commit"
+
+          patches=(
+            b58b69522b102679e94656e506ce927f3490e07d
+            054fb29e19dcf9c2c1308781e25b94de8a89f248
+          )
+
+          for id in "${patches[@]}"; do
+            curl -LSs $BASE/$id.patch | patch -p1
+          done
+
+      - name: Fix Vfs sdcard
         run: |
           curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/b58b69522b102679e94656e506ce927f3490e07d.patch | patch -p1
           curl -LSs https://github.com/sidex15/android_kernel_lge_sm8150/commit/054fb29e19dcf9c2c1308781e25b94de8a89f248.patch | patch -p1
