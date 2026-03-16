@@ -27,6 +27,11 @@ jobs:
           git clone --depth=1 --branch legacy-susfs-v2 https://github.com/sidex15/KernelSU-Next
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
 
+      - name: Check branch KSU-Next
+        run: |
+          cd KernelSU-Next
+          git branch
+
       - name: SUSFS 2.0.0
         run: |
           curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1 || true
