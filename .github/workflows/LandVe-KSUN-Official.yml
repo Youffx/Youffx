@@ -22,6 +22,8 @@ jobs:
 
       - name: KSU-Next Manual Hook
         run: |
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+          rm -rf KernelSU-Next
           git clone --depth=1 --branch legacy-susfs-v2 https://github.com/sidex15/KernelSU-Next
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
 
