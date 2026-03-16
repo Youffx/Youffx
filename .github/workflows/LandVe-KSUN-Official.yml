@@ -51,7 +51,7 @@ jobs:
           )
 
           for id in "${patches[@]}"; do
-            curl -LSs $BASE/$id.patch | patch -p1
+            curl -LSs $BASE/$id.patch | patch -p1 || true
           done
 
       - name: Fix Vfs sdcard
