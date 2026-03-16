@@ -28,7 +28,7 @@ jobs:
       - name: SUSFS Adjustments
         run: |
           curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch | patch -p1
-          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/KernelSU/10_enable_susfs_for_ksu.patch | patch -p1
+          curl -LSs https://gitlab.com/simonpunk/susfs4ksu/-/raw/master/kernel_patches/50_add_susfs_in_kernel-4.19.patch | patch -p1
           curl -L -o include/linux/mount.h https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/mount.h
           curl -L -o fs/namespace.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/namespace.c
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/adjustment/sys.c
