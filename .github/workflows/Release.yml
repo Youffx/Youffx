@@ -24,20 +24,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           LATEST_RUN_ID=""
+          LATEST_RUN_NUMBER=""
           LATEST_TIME=""
           LATEST_WF=""
           
           WORKFLOWS=("LandVe-KSUN-Fork.yml" "LandVe-KSUN-Official.yml" "LandVe-RKSU.yml")
           
           for WF in "${WORKFLOWS[@]}"; do
-            RUN_INFO=$(gh run list --workflow "$WF" --status success --limit 1 --json databaseId,createdAt -q '.[0]')
+            RUN_INFO=$(gh run list --workflow "$WF" --status success --limit 1 --json databaseId,createdAt,runNumber -q '.[0]')
+            
             if [[ "$RUN_INFO" != "null" && -n "$RUN_INFO" ]]; then
               RUN_ID=$(echo "$RUN_INFO" | jq -r '.databaseId')
               RUN_TIME=$(echo "$RUN_INFO" | jq -r '.createdAt')
+              RUN_NUMBER=$(echo "$RUN_INFO" | jq -r '.runNumber')
               
               if [[ -z "$LATEST_TIME" ]] || [[ "$RUN_TIME" > "$LATEST_TIME" ]]; then
                 LATEST_TIME="$RUN_TIME"
                 LATEST_RUN_ID="$RUN_ID"
+                LATEST_RUN_NUMBER="$RUN_NUMBER"
                 LATEST_WF="$WF"
               fi
             fi
@@ -49,6 +53,7 @@ jobs:
           fi
           
           echo "LATEST_RUN_ID=$LATEST_RUN_ID" >> $GITHUB_ENV
+          echo "LATEST_RUN_NUMBER=$LATEST_RUN_NUMBER" >> $GITHUB_ENV
           echo "LATEST_WF=$LATEST_WF" >> $GITHUB_ENV
 
       - name: Download Latest Kernel Artifact
@@ -64,6 +69,10 @@ jobs:
           
           SUFFIX=$(echo "$LATEST_WF" | sed 's/LandVe-//;s/.yml//')
           DESC="### LandVe Kernel Release ($SUFFIX)\n\n"
+          
+          DESC+="**Build Info:**\n"
+          DESC+="- Workflow: \`${LATEST_WF}\`\n"
+          DESC+="- Run Number: \`#${LATEST_RUN_NUMBER}\`\n\n"
           
           DESC+="**Workflow Steps Applied:**\n"
           STEPS=$(grep "\- name:" "$BUILD_WF" | grep -vE "Checkout|Install Dependencies|Setup Clang|Build Kernel|Upload Image" | sed 's/- name: //g' | xargs -I {} echo "- ✅ {}")
