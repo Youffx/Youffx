@@ -35,7 +35,6 @@ jobs:
           curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1 || true
           curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/jack/sys.c
           curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/jack/task_mmu.c
-          curl -LSs https://github.com/Youffx/Youffx/commit/ae41e3b16c66fd41355736d4645a21194ecc6389.patch | sed 's|\.github/|drivers/kernelsu/|g' | patch -p1
 
       - name: Install Dependencies
         run: |
