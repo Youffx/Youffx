@@ -30,10 +30,16 @@ jobs:
           cd KernelSU-Next
           git branch
 
-      - name: SUSFS 2.0.0
+      - name: Implementation
         run: |
-         curl -LS https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/KSUN/KSUN-SUSFS-2.0.0.patch | patch -p1 -d KernelSU-Next
-                
+          curl -LS https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/KSUN/KSUN-SUSFS-2.0.0.patch | patch -p1 -d KernelSU-Next
+
+      - name: Susfs 2.0.0
+        run: |
+          curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1 || true
+          curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/jack/sys.c
+          curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/jack/task_mmu.c
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
