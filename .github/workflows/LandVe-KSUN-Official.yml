@@ -32,7 +32,7 @@ jobs:
 
       - name: SUSFS 2.0.0
         run: |
-         curl -LS https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/susfs-2.0.0.patch | patch -p1
+         curl -LS https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/susfs-2.0.0.patch | patch -p1 -f --fuzz=3
                 
       - name: Install Dependencies
         run: |
