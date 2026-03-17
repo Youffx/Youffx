@@ -31,12 +31,12 @@ jobs:
           WORKFLOWS=("LandVe-KSUN-Fork.yml" "LandVe-KSUN-Official.yml" "LandVe-RKSU.yml")
           
           for WF in "${WORKFLOWS[@]}"; do
-            RUN_INFO=$(gh run list --workflow "$WF" --status success --limit 1 --json databaseId,createdAt,runNumber -q '.[0]')
+            RUN_INFO=$(gh run list --workflow "$WF" --status success --limit 1 --json databaseId,createdAt,number -q '.[0]')
             
             if [[ "$RUN_INFO" != "null" && -n "$RUN_INFO" ]]; then
               RUN_ID=$(echo "$RUN_INFO" | jq -r '.databaseId')
               RUN_TIME=$(echo "$RUN_INFO" | jq -r '.createdAt')
-              RUN_NUMBER=$(echo "$RUN_INFO" | jq -r '.runNumber')
+              RUN_NUMBER=$(echo "$RUN_INFO" | jq -r '.number')
               
               if [[ -z "$LATEST_TIME" ]] || [[ "$RUN_TIME" > "$LATEST_TIME" ]]; then
                 LATEST_TIME="$RUN_TIME"
