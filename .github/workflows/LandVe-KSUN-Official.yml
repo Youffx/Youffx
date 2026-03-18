@@ -57,14 +57,17 @@ jobs:
             5bea39cc6e97
           )  
 
-          for id in "${patches[@]}"; do  
-            if [[ " ${allow_fail[@]} " =~ " $id " ]]; then  
-              echo "Applying $id (allow fail)"  
-              curl -LSs $BASE/$id.patch | patch -p1 || true  
-            else  
-              echo "Applying $id"  
-              curl -LSs $BASE/$id.patch | patch -p1  
-            fi  
+          for id in "${patches[@]}"; do
+            case "$id" in
+              5bea39cc6e97)
+                echo "Applying $id (allow fail)"
+                curl -LSs $BASE/$id.patch | patch -p1 || true
+                ;;
+              *)
+                echo "Applying $id"
+                curl -LSs $BASE/$id.patch | patch -p1
+                ;;
+            esac
           done
 
       - name: KSU-Next Manual Hook
