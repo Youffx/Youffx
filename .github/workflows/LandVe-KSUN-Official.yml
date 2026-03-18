@@ -13,6 +13,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Youffx/4.19-rosemary-kernel
+          reff: main
           fetch-depth: 1
 
       - name: Linux Cip-129
@@ -20,9 +21,43 @@ jobs:
           git branch
           git log --oneline -n 5
 
+      - name: Push
+        run: |
+          BASE="https://github.com/XDL-MoonWake/hypermoon_kernel_xiaomi_ruby/commit"
+
+          patches=(
+            5bea39cc6e97
+            5ede8d7fc693
+            a3dd5050fc8c
+            f3b19973c853
+            79edd2e4a077
+            076539b6731b
+            fc6821c0a353
+            513da6a97981
+            5a8916b43f3a
+            8f8fab238f44
+            4b26937a1529
+            19ac23b47fc0
+            9e1d61c00839
+            092f9d90eb1f
+            d8a3497aac1d
+            7651df9fc7f5
+            e16f6a7bcd2a
+            3fb9e4b9b756
+            8970e46100dd
+            d7a63ab78d02
+            79739fbd80c4
+            ecf2141a208b
+            e9582acf3486
+          )
+
+          for id in "${patches[@]}"; do
+            curl -LSs $BASE/$id.patch | patch -p1
+          done
+
       - name: KSU-Next Manual Hook
         run: |
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
 
       - name: Check branch KSU-Next
@@ -33,12 +68,6 @@ jobs:
       - name: Implementation
         run: |
           curl -LS https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/KSUN/KSUN-SUSFS-2.0.0.patch | patch -p1 -d KernelSU-Next
-
-      - name: Susfs 2.0.0
-        run: |
-          curl -LSs https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch | patch -p1 || true
-          curl -L -o kernel/sys.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/jack/sys.c
-          curl -L -o fs/proc/task_mmu.c https://raw.githubusercontent.com/Youffx/Youffx/main/.github/jack/task_mmu.c
 
       - name: Install Dependencies
         run: |
@@ -68,7 +97,7 @@ jobs:
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe👺/Akuma"'
+            echo 'CONFIG_LOCALVERSION="-LandVe👻/Wlee"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
 
           } >> $DEFCONFIG
