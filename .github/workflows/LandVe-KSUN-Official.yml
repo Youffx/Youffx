@@ -21,6 +21,11 @@ jobs:
           git branch
           git log --oneline -n 5
 
+      - name: Install patchutils
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y patchutils
+
       - name: Push
         run: |
           BASE="https://github.com/XDL-MoonWake/hypermoon_kernel_xiaomi_ruby/commit"
