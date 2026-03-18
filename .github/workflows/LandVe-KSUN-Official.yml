@@ -60,11 +60,11 @@ jobs:
             case "$id" in
               5bea39cc6e97|f3b19973c853|fc6821c0a353|79edd2e4a077)
                 echo "Applying $id (allow fail)"
-                curl -LSs $BASE/$id.patch | \ filterdiff -x include/linux/susfs.h -x fs/namespace.c | patch -p1 || true
+                curl -LSs $BASE/$id.patch | filterdiff -x include/linux/susfs.h -x fs/namespace.c | patch -p1 || true
                 ;;
               *)
                 echo "Applying $id"
-                curl -LSs $BASE/$id.patch | \ filterdiff -x include/linux/susfs.h -x fs/namespace.c | patch -p1 || true
+                curl -LSs $BASE/$id.patch | filterdiff -x include/linux/susfs.h -x fs/namespace.c | patch -p1 || true
                 ;;
             esac
           done
