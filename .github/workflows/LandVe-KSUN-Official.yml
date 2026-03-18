@@ -53,7 +53,7 @@ jobs:
 
           for id in "${patches[@]}"; do
             case "$id" in
-              5bea39cc6e97|f3b19973c853)
+              5bea39cc6e97|f3b19973c853|fc6821c0a353)
                 echo "Applying $id (allow fail)"
                 curl -LSs $BASE/$id.patch | patch -p1 || true
                 ;;
