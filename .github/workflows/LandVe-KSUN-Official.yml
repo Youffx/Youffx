@@ -25,7 +25,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y patchutils
 
-      - name: KSU-Next Manual Hook
+      - name: KSU-Next
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1 || true
@@ -58,7 +58,7 @@ jobs:
             echo "CONFIG_EROFS_FS_POSIX_ACL=y"
             echo "CONFIG_EROFS_FS_SECURITY=y"
             echo "CONFIG_SDCARD_FS=y"
-            echo 'CONFIG_LOCALVERSION="-LandVe👻/Wlee"'
+            echo 'CONFIG_LOCALVERSION="-LandVe👺/Akuma"'
             echo "CONFIG_LOCALVERSION_AUTO=n"
 
           } >> $DEFCONFIG
