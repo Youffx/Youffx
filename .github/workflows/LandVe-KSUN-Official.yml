@@ -26,6 +26,9 @@ jobs:
           BASE="https://github.com/XDL-MoonWake/hypermoon_kernel_xiaomi_ruby/commit"
 
           patches=(
+            be4613236790
+
+            
             5bea39cc6e97
             5ede8d7fc693
             a3dd5050fc8c
