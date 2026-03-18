@@ -16,72 +16,19 @@ jobs:
           ref: main
           fetch-depth: 1
 
-      - name: Linux Cip-129
+      - name: Branch
         run: |
           git branch
-          git log --oneline -n 5
 
       - name: Install patchutils
         run: |
           sudo apt-get update -y
           sudo apt-get install -y patchutils
 
-      - name: Push
-        run: |
-          BASE="https://github.com/XDL-MoonWake/hypermoon_kernel_xiaomi_ruby/commit"
-
-          patches=(
-            be4613236790
-            5bea39cc6e97
-            5ede8d7fc693
-            f3b19973c853
-            79edd2e4a077
-            076539b6731b
-            fc6821c0a353
-            513da6a97981
-            5a8916b43f3a
-            8f8fab238f44
-            4b26937a1529
-            19ac23b47fc0
-            9e1d61c00839
-            092f9d90eb1f
-            d8a3497aac1d
-            7651df9fc7f5
-            e16f6a7bcd2a
-            3fb9e4b9b756
-            8970e46100dd
-            d7a63ab78d02
-            79739fbd80c4
-            ecf2141a208b
-            e9582acf3486
-          )
-
-          for id in "${patches[@]}"; do
-            case "$id" in
-              5bea39cc6e97|f3b19973c853|fc6821c0a353|79edd2e4a077)
-                echo "Applying $id (allow fail)"
-                curl -LSs $BASE/$id.patch | filterdiff -x include/linux/susfs.h -x fs/namespace.c | patch -p1 || true
-                ;;
-              *)
-                echo "Applying $id"
-                curl -LSs $BASE/$id.patch | filterdiff -x include/linux/susfs.h -x fs/namespace.c | patch -p1 || true
-                ;;
-            esac
-          done
-
       - name: KSU-Next Manual Hook
         run: |
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s legacy_susfs
           curl -LSs https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch | patch -p1
-
-      - name: Check branch KSU-Next
-        run: |
-          cd KernelSU-Next
-          git branch
-
-      - name: Implementation
-        run: |
-          curl -LS https://raw.githubusercontent.com/TheSillyOk/kernel_ls_patches/master/KSUN/KSUN-SUSFS-2.0.0.patch | patch -p1 -d KernelSU-Next
 
       - name: Install Dependencies
         run: |
