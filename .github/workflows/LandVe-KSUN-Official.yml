@@ -51,7 +51,7 @@ jobs:
             79739fbd80c4
             ecf2141a208b
             e9582acf3486
-           )
+          )
 
           for id in "${patches[@]}"; do
             case "$id" in
