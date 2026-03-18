@@ -51,11 +51,7 @@ jobs:
             79739fbd80c4
             ecf2141a208b
             e9582acf3486
-          )
-
-          allow_fail=(  
-            5bea39cc6e97
-          )  
+           )
 
           for id in "${patches[@]}"; do
             case "$id" in
