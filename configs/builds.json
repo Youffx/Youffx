@@ -1,0 +1,83 @@
+[
+  {
+    "name": "NoRoot-NoSusfs",
+    "kernel": {
+      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
+      "branch": "master",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "none"
+    },
+    "defconfig": "rosemary_defconfig",
+    "susfs": false
+  },
+
+  {
+    "name": "KSU-Next",
+    "kernel": {
+      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
+      "branch": "master",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "arg": "legacy",
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+    },
+    "defconfig": "ksun_defconfig",
+    "susfs": false
+  },
+
+  {
+    "name": "KSU-Next-SUSFS",
+    "kernel": {
+      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
+      "branch": "susfs",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "arg": "legacy_susfs",
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+    },
+    "defconfig": "ksunpro_defconfig",
+    "susfs": true
+  },
+
+  {
+    "name": "RKSU",
+    "kernel": {
+      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
+      "branch": "master",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "rksu",
+      "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
+      "arg": "",
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+    },
+    "defconfig": "rksu_defconfig",
+    "susfs": false
+  },
+
+  {
+    "name": "RKSU-SUSFS",
+    "kernel": {
+      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
+      "branch": "susfs",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "rksu",
+      "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
+      "arg": "susfs-rksu-master",
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+    },
+    "defconfig": "rksupro_defconfig",
+    "susfs": true
+  }
+]
