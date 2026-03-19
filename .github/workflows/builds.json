@@ -1,0 +1,111 @@
+name: Advanced Kernel Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      config_index:
+        description: "Select config index (0,1,2,3...)"
+        required: true
+        default: "0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev
+
+      - name: Load Config
+        id: cfg
+        run: |
+          CONFIG=$(jq ".[$CONFIG_INDEX]" configs/builds.json)
+          echo "config<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONFIG" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        env:
+          CONFIG_INDEX: ${{ github.event.inputs.config_index }}
+
+      - name: Clone Kernel
+        run: |
+          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
+          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
+          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
+
+          git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
+
+      - name: Setup Clang
+        run: |
+          mkdir clang
+          curl -L https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260208-release/Clang-15.0.7-20260208.tar.gz | tar -xz -C clang
+          echo "$PWD/clang/bin" >> $GITHUB_PATH
+
+      - name: Apply Root Method
+        run: |
+          ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
+
+          if [ "$ROOT_TYPE" = "none" ]; then
+            echo "No root selected"
+          else
+            SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
+            ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
+
+            echo "Applying root: $ROOT_TYPE"
+            curl -LSs "$SETUP" | bash -s $ARG
+          fi
+
+      - name: Apply Manual Patch
+        run: |
+          PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
+
+          if [ "$PATCH" != "null" ]; then
+            curl -LSs $PATCH | patch -p1
+          fi
+
+      - name: Build Kernel
+        run: |
+          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.defconfig')
+
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$PWD/clang/bin:$PATH"
+
+          cd kernel
+
+          make O=out $DEFCONFIG
+
+          make -j$(nproc) O=out \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC=clang \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu-
+
+      - name: Prepare AnyKernel3
+        run: |
+          git clone https://github.com/Youffx/Youffx.git ak3
+          mkdir -p ak3/.github/Flash/kernels
+
+          cp kernel/out/arch/arm64/boot/Image* ak3/.github/Flash/kernels/
+
+      - name: Zip Flashable
+        run: |
+          cd ak3/.github/Flash
+          zip -r ../../kernel-flashable.zip .
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel
+          path: kernel-flashable.zip
