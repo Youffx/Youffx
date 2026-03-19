@@ -56,7 +56,9 @@ jobs:
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
 
             echo "Applying root: $ROOT_TYPE"
+            cd kernel
             curl -LSs "$SETUP" | bash -s $ARG
+            cd ..
           fi
 
       - name: Apply Manual Patch
