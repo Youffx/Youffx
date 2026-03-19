@@ -94,20 +94,42 @@ jobs:
             STRIP=llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu-
 
-      - name: Prepare AnyKernel3
+      - name: Package Flashable Zip
+        id: package
         run: |
-          git clone https://github.com/Youffx/Youffx.git ak3
-          mkdir -p ak3/.github/Flash/kernels
+          DATE=$(date +"%Y%m%d-%H%M")
+          CONF_NAME="${{ steps.cfg.outputs.name }}"
+          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-${DATE}"
+          
+          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
+          if [ ! -f "$IMAGE" ]; then
+            echo "Kernel image not found!"
+            exit 1
+          fi
 
-          cp kernel/out/arch/arm64/boot/Image* ak3/.github/Flash/kernels/
+          mkdir -p output
+          cp "$IMAGE" .github/Flash/kernels/
+          cd .github/Flash/
+          zip -r "../../output/${ZIP_NAME}.zip" ./*
+          cd ../../
 
-      - name: Zip Flashable
-        run: |
-          cd ak3/.github/Flash
-          zip -r ../../kernel-flashable.zip .
+          echo "ZIP_FINAL_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "RELEASE_TAG=Release-${CONF_NAME}-${DATE}" >> $GITHUB_ENV
 
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v4
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
         with:
-          name: kernel
-          path: kernel-flashable.zip
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: ${{ env.ZIP_FINAL_NAME }}
+          body: |
+            ### LandVe Kernel Release
+            
+            **Build Details:**
+            - **Variant:** `${{ steps.cfg.outputs.name }}`
+            - **Defconfig:** `${{ fromJson(steps.cfg.outputs.config).defconfig }}`
+            - **Root Method:** `${{ fromJson(steps.cfg.outputs.config).root.type }}`
+            - **SusFS:** `${{ fromJson(steps.cfg.outputs.config).susfs }}`
+            - **Build Date:** $(date +"%Y-%m-%d %H:%M")
+          files: output/${{ env.ZIP_FINAL_NAME }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
