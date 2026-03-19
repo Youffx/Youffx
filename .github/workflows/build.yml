@@ -23,15 +23,15 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq ".[$CONFIG_INDEX]" configs/builds.json)
-          echo "config<<EOF" >> $GITHUB_OUTPUT
-          echo "$CONFIG" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          CONFIG=$(jq -c ".[$CONFIG_INDEX]" configs/builds.json)
+          NAME=$(echo "$CONFIG" | jq -r '.name')
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
         env:
           CONFIG_INDEX: ${{ github.event.inputs.config_index }}
 
@@ -53,19 +53,16 @@ jobs:
         run: |
           ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
 
-          if [ "$ROOT_TYPE" = "none" ]; then
-            echo "No root selected"
-          else
+          if [ "$ROOT_TYPE" != "none" ]; then
             SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
             PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
 
-            echo "Applying root: $ROOT_TYPE"
             cd kernel
             curl -LSs "$SETUP" | bash -s $ARG
             if [ "$PATCH" != "null" ]; then
-            curl -LSs $PATCH | patch -p1
-          fi
+              curl -LSs "$PATCH" | patch -p1
+            fi
             cd ..
           fi
 
@@ -95,7 +92,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu-
 
       - name: Package Flashable Zip
-        id: package
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ steps.cfg.outputs.name }}"
@@ -133,3 +129,4 @@ jobs:
           files: output/${{ env.ZIP_FINAL_NAME }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
