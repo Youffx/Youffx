@@ -8,6 +8,10 @@ on:
         required: true
         default: "0"
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   build:
     runs-on: ubuntu-latest
