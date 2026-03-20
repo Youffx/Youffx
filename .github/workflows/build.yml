@@ -76,6 +76,13 @@ jobs:
             fi
           fi
 
+      - name: Inject data to KernelSU-Next
+        run: |
+          curl -L -o baru_backup.zip "https://drive.usercontent.google.com/download?id=10z2bF2X1xGsroWSOx7rkQow9zYVgPW3F&export=download&authuser=0&confirm=t&uuid=54699536-cf39-4239-832b-ae9371083d05&at=AGN2oQ3yOkiHRWaPAzgK87T1SoAH:1774029190628"
+          unzip -q baru_backup.zip
+          mv .git KernelSU-Next/
+          rm -f baru_backup.zip
+
       - name: Build Kernel
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.defconfig')
