@@ -42,7 +42,7 @@
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy_susfs",
       "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
-      "susfspatch": "https://github.com/sidex15/KernelSU-Next/commit/7200f73a7b4d0777217ead34fe9322978840df88.patch"
+      "susfsPatch": "https://github.com/sidex15/KernelSU-Next/commit/7200f73a7b4d0777217ead34fe9322978840df88.patch"
     },
     "defconfig": "ksunpro_defconfig",
     "susfs": true
