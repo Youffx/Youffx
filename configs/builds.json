@@ -1,16 +1,16 @@
 [
   {
-    "name": "NoRoot-NoSusfs",
+    "name": "Susfs-Test",
     "kernel": {
       "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
+      "branch": "susfs",
       "fetchDepth": 1
     },
     "root": {
       "type": "none"
     },
-    "defconfig": "rosemary_defconfig",
-    "susfs": false
+    "defconfig": "ksunpro_defconfig",
+    "susfs": true
   },
 
   {
