@@ -75,15 +75,6 @@ jobs:
               cd ..
             fi
           fi
-
-      - name: Inject data to KernelSU-Next
-        run: |
-          curl -L -c cookies.txt "https://drive.google.com/uc?export=download&id=10z2bF2X1xGsroWSOx7rkQow9zYVgPW3F" > confirm.html
-          CONFIRM=$(grep -o 'confirm=[^&"]*' confirm.html | sed 's/confirm=//')
-          curl -L -b cookies.txt "https://drive.google.com/uc?export=download&id=10z2bF2X1xGsroWSOx7rkQow9zYVgPW3F&confirm=$CONFIRM" -o baru_backup.zip
-          unzip -q baru_backup.zip
-          mv .git KernelSU-Next/
-          rm -f baru_backup.zip cookies.txt confirm.html
  
       - name: Build Kernel
         run: |
