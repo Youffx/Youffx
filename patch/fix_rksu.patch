@@ -4,10 +4,10 @@ Date: Fri, 20 Mar 2026 12:23:27 +0700
 Subject: fix: prevent build error on 3.xx - 4.19 by guarding MODULE_IMPORT_NS
 
 ---
- patch/ksu.c | 13 ++++++-------
+ drivers/kernelsu/ksu.c | 13 ++++++-------
  1 file changed, 6 insertions(+), 7 deletions(-)
 
-diff --git a/patch/ksu.c b/patch/ksu.c
+diff --git a/drivers/kernelsu/ksu.c b/drivers/kernelsu/ksu.c
 index 7c49214..affdef3 100644
 --- a/drivers/kernelsu/ksu.c
 +++ b/drivers/kernelsu/ksu.c
