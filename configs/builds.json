@@ -9,7 +9,7 @@
     "root": {
       "type": "none"
     },
-    "defconfig": "ksunpro_defconfig",
+    "defconfig": "ksun_defconfig",
     "susfs": true
   },
 
