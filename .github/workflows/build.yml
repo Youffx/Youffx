@@ -122,10 +122,7 @@ jobs:
             
             **Build Details:**
             - **Variant:** `${{ steps.cfg.outputs.name }}`
-            - **Defconfig:** `${{ fromJson(steps.cfg.outputs.config).defconfig }}`
-            - **Root Method:** `${{ fromJson(steps.cfg.outputs.config).root.type }}`
             - **SusFS:** `${{ fromJson(steps.cfg.outputs.config).susfs }}`
-            - **Build Date:** $(date +"%Y-%m-%d %H:%M")
           files: output/${{ env.ZIP_FINAL_NAME }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
