@@ -65,7 +65,7 @@ jobs:
               curl -LSs "$PATCH" | patch -p1
             fi
             if [ -n "$EXTRA_PATCH" ] && [ "$EXTRA_PATCH" != "null" ]; then
-              curl -LSs "$EXTRA_PATCH" | patch -p1
+              curl -LSs "$EXTRA_PATCH" | git apply
             fi
             cd ..
           fi
