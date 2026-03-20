@@ -57,11 +57,15 @@ jobs:
             SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
             PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
+            EXTRA_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.extraPatch // empty')
 
             cd kernel
             curl -LSs "$SETUP" | bash -s $ARG
             if [ "$PATCH" != "null" ]; then
               curl -LSs "$PATCH" | patch -p1
+            fi
+            if [ -n "$EXTRA_PATCH" ] && [ "$EXTRA_PATCH" != "null" ]; then
+              curl -LSs "$EXTRA_PATCH" | patch -p1
             fi
             cd ..
           fi
