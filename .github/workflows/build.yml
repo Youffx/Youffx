@@ -58,6 +58,7 @@ jobs:
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
             PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
             EXTRA_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.extraPatch // empty')
+            SUSFS_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.susfsPatch // empty')
 
             cd kernel
             curl -LSs "$SETUP" | bash -s $ARG
@@ -68,6 +69,11 @@ jobs:
               curl -LSs "$EXTRA_PATCH" | patch -p1
             fi
             cd ..
+            if [ -n "$SUSFS_PATCH" ] && [ "$SUSFS_PATCH" != "null" ]; then
+              cd kernel/KernelSU-Next
+              curl -LSs "$SUSFS_PATCH" | patch -p1
+              cd ..
+            fi
           fi
 
       - name: Build Kernel
