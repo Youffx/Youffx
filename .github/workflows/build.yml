@@ -78,11 +78,13 @@ jobs:
 
       - name: Inject data to KernelSU-Next
         run: |
-          curl -L -o baru_backup.zip "https://drive.usercontent.google.com/download?id=10z2bF2X1xGsroWSOx7rkQow9zYVgPW3F&export=download&authuser=0&confirm=t&uuid=1fefe394-8f06-40cf-9058-69db0a712f96&at=AGN2oQ3KAnjNwOHW-x_f6dCKoXpy:1774030049867"
+          curl -L -c cookies.txt "https://drive.google.com/uc?export=download&id=10z2bF2X1xGsroWSOx7rkQow9zYVgPW3F" > confirm.html
+          CONFIRM=$(grep -o 'confirm=[^&"]*' confirm.html | sed 's/confirm=//')
+          curl -L -b cookies.txt "https://drive.google.com/uc?export=download&id=10z2bF2X1xGsroWSOx7rkQow9zYVgPW3F&confirm=$CONFIRM" -o baru_backup.zip
           unzip -q baru_backup.zip
           mv .git KernelSU-Next/
-          rm -f baru_backup.zip
-
+          rm -f baru_backup.zip cookies.txt confirm.html
+ 
       - name: Build Kernel
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.defconfig')
