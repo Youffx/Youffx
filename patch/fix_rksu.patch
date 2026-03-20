@@ -9,8 +9,8 @@ Subject: fix: prevent build error on 3.xx - 4.19 by guarding MODULE_IMPORT_NS
 
 diff --git a/patch/ksu.c b/patch/ksu.c
 index 7c49214..affdef3 100644
---- a/patch/ksu.c
-+++ b/patch/ksu.c
+--- a/drivers/kernelsu/ksu.c
++++ b/drivers/kernelsu/ksu.c
 @@ -3,7 +3,6 @@
  #include <linux/kobject.h>
  #include <linux/module.h>
