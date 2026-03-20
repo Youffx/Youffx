@@ -58,7 +58,7 @@
       "type": "rksu",
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
       "extraPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/patch/fix_rksu.patch"
     },
     "defconfig": "rksu_defconfig",
@@ -76,7 +76,7 @@
       "type": "rksu",
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "susfs-rksu-master",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
       "extraPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/patch/fix_rksu.patch"
     },
     "defconfig": "rksupro_defconfig",
