@@ -1,0 +1,38 @@
+From 129428155e48208ce15686de2085e07da738ac01 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Fri, 20 Mar 2026 12:23:27 +0700
+Subject: fix: prevent build error on 3.xx - 4.19 by guarding MODULE_IMPORT_NS
+
+---
+ patch/ksu.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/patch/ksu.c b/patch/ksu.c
+index 7c49214..affdef3 100644
+--- a/patch/ksu.c
++++ b/patch/ksu.c
+@@ -3,7 +3,6 @@
+ #include <linux/kobject.h>
+ #include <linux/module.h>
+ #include <linux/workqueue.h>
+-#include <linux/version.h>
+ 
+ #include "allowlist.h"
+ #include "app_profile.h"
+@@ -147,10 +146,10 @@ module_exit(kernelsu_exit);
+ MODULE_LICENSE("GPL");
+ MODULE_AUTHOR("weishu");
+ MODULE_DESCRIPTION("Android KernelSU");
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
+-MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
+-#else
+-MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
+-#endif
++#ifdef MODULE_IMPORT_NS
++    #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)
++        MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");
++    #else
++        MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);
++    #endif
+ #endif
