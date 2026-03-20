@@ -59,7 +59,7 @@
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "main",
       "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
-      "extraPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/KernelSU/kernel/rksu_fix.patch"
+      "extraPatch": "https://github.com/Youffx/Youffx/commit/8b461b409df81711e0b67d909271e7a254fe1a69.patch"
     },
     "defconfig": "rksu_defconfig",
     "susfs": false
@@ -77,7 +77,7 @@
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "susfs-rksu-master",
       "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
-      "extraPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/KernelSU/kernel/rksu_fix.patch"
+      "extraPatch": "https://github.com/Youffx/Youffx/commit/8b461b409df81711e0b67d909271e7a254fe1a69.patch"
     },
     "defconfig": "rksupro_defconfig",
     "susfs": true
