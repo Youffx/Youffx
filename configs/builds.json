@@ -34,7 +34,7 @@
     "name": "KSU-Next-SUSFS",
     "kernel": {
       "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
+      "branch": "susfs",
       "fetchDepth": 1
     },
     "root": {
