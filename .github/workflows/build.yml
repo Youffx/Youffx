@@ -7,6 +7,10 @@ on:
         description: "Select (0,1,2,3,4)"
         required: true
         default: "0"
+      localversion:
+        description: "Youffx 2026"
+        required: false
+        default: ""
 
 permissions:
   contents: write
@@ -115,6 +119,17 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
+
+          LV="${{ github.event.inputs.localversion }}"
+
+          if [ -n "$LV" ]; then
+            echo "Applying LOCALVERSION: $LV"
+  
+            sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"$LV\"/" out/.config || \
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+
+            make O=out olddefconfig
+          fi
 
           make -j$(nproc) O=out \
             ARCH=arm64 \
