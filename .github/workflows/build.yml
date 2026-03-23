@@ -70,7 +70,7 @@ jobs:
             fi
             cd ..
             if [ -n "$SUSFS_PATCH" ] && [ "$SUSFS_PATCH" != "null" ]; then
-              cd kernel/KernelSU-Next
+              cd kernel
               curl -LSs "$SUSFS_PATCH" | patch -p1
               cd ..
             fi
