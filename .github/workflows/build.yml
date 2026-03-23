@@ -163,9 +163,6 @@ jobs:
           ccache -s | grep "cache hit rate"
           ccache -s | grep "cache size"
 
-      - name: Ccache Stats
-        run: ccache -s
-
       - name: Package Flashable Zip
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
