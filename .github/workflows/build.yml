@@ -124,9 +124,12 @@ jobs:
 
           if [ -n "$LV" ]; then
             echo "Applying LOCALVERSION: $LV"
-  
-            sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"$LV\"/" out/.config || \
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+
+            if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+               sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"$LV\"/" out/.config
+            else
+              echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+            fi
 
             make O=out olddefconfig
           fi
