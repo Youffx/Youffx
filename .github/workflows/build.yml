@@ -156,6 +156,12 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb
 
+      - name: Ccache Efficiency
+        run: |
+          ccache -s
+          echo "--------------------------"
+          ccache -s | grep "cache hit rate"
+          ccache -s | grep "cache size"
 
       - name: Ccache Stats
         run: ccache -s
