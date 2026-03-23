@@ -76,7 +76,8 @@
       "type": "rksu",
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "susfs-rksu-master",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
+      "susfsPatch": "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch"
     },
     "defconfig": "rksupro_defconfig",
     "susfs": true
