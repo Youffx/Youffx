@@ -40,12 +40,12 @@
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy",
+      "arg": "legacy_susfs",
       "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
-      "susfsPatch": "https://raw.githubusercontent.com/galaxybuild-project/tools/refs/heads/main/Patches/0001_susfs_157_for_ksunext.patch"
+      "susfsPatch": "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch"
     },
     "defconfig": "ksunpro_defconfig",
-    "susfs": true
+    "susfs": false
   },
 
   {
