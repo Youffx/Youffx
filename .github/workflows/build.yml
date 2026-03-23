@@ -83,6 +83,9 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
+          export KBUILD_BUILD_USER="youffx"
+          export KBUILD_BUILD_HOST="collection"
+          export KBUILD_BUILD_VERSION=1
 
           cd kernel
 
