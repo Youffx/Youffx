@@ -71,7 +71,7 @@ jobs:
             cd ..
             if [ -n "$SUSFS_PATCH" ] && [ "$SUSFS_PATCH" != "null" ]; then
               cd kernel
-              curl -LSs "$SUSFS_PATCH" | patch -p1
+              curl -LSs "$SUSFS_PATCH" | patch -p1 || true
               cd ..
             fi
           fi
