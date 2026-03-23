@@ -132,10 +132,10 @@ jobs:
 
           echo "Applying LOCALVERSION: $LV"
 
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&|]/\\&/g')
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
 
           if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"$LV_ESCAPED\"|" out/.config
+            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
           else
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
