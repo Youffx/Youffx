@@ -142,7 +142,7 @@ jobs:
 
           make O=out olddefconfig
 
-          make -j$(nproc) O=out \
+          make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
@@ -153,7 +153,9 @@ jobs:
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu-
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            Image.gz-dtb
+
 
       - name: Ccache Stats
         run: ccache -s
