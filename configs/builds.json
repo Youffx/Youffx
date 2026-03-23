@@ -12,7 +12,6 @@
     "defconfig": "ksun_defconfig",
     "susfs": false
   },
-
   {
     "name": "KSU-Next",
     "kernel": {
@@ -29,7 +28,6 @@
     "defconfig": "ksun_defconfig",
     "susfs": false
   },
-
   {
     "name": "KSU-Next-SUSFS",
     "kernel": {
@@ -47,7 +45,6 @@
     "defconfig": "ksunpro_defconfig",
     "susfs": false
   },
-
   {
     "name": "RKSU",
     "kernel": {
@@ -64,7 +61,6 @@
     "defconfig": "rksu_defconfig",
     "susfs": false
   },
-
   {
     "name": "RKSU-SUSFS",
     "kernel": {
