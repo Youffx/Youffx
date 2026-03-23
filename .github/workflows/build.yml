@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       config_index:
-        description: "Select (zero,1n,2ns,3r,3rs)"
+        description: "Select (zero,1n,2ns,3r,4rs)"
         required: true
         default: "0"
 
