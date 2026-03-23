@@ -120,19 +120,27 @@ jobs:
 
           make O=out $DEFCONFIG
 
-          LV="${{ github.event.inputs.localversion }}"
+          LV_INPUT="${{ github.event.inputs.localversion }}"
 
-          if [ -n "$LV" ]; then
-            echo "Applying LOCALVERSION: $LV"
+          BASE="-LandVe"
 
-            if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-               sed -i "s/^CONFIG_LOCALVERSION=.*/CONFIG_LOCALVERSION=\"$LV\"/" out/.config
-            else
-              echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-            fi
-
-            make O=out olddefconfig
+          if [ -n "$LV_INPUT" ]; then
+            LV="${BASE}${LV_INPUT}"
+          else
+            LV="$BASE"
           fi
+
+          echo "Applying LOCALVERSION: $LV"
+
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&|]/\\&/g')
+
+          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+            sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"$LV_ESCAPED\"|" out/.config
+          else
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+          fi
+
+          make O=out olddefconfig
 
           make -j$(nproc) O=out \
             ARCH=arm64 \
