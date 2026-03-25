@@ -31,18 +31,17 @@
   {
     "name": "KSU-Next-SUSFS",
     "kernel": {
-      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "purity",
       "fetchDepth": 1
     },
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy_susfs",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
-      "susfsPatch": "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.14.patch"
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
     },
-    "defconfig": "ksunpro_defconfig",
+    "defconfig": "rosemary_defconfig",
     "susfs": true
   },
   {
