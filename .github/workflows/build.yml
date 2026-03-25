@@ -6,11 +6,11 @@ on:
       config_index:
         description: "Select (0,1,2,3,4)"
         required: true
-        default: "0"
+        default: "2"
       localversion:
         description: "Youffx 2026"
         required: false
-        default: ""
+        default: "Test"
 
 permissions:
   contents: write
