@@ -2,15 +2,17 @@
   {
     "name": "Test-Versions",
     "kernel": {
-      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "purity",
       "fetchDepth": 1
     },
     "root": {
-      "type": "none"
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "arg": "legacy_susfs"
     },
-    "defconfig": "ksun_defconfig",
-    "susfs": false
+    "defconfig": "rosemary_defconfig",
+    "susfs": true
   },
   {
     "name": "KSU-Next",
