@@ -159,9 +159,6 @@ jobs:
       - name: Ccache Efficiency
         run: |
           ccache -s
-          echo "--------------------------"
-          ccache -s | grep "cache hit rate"
-          ccache -s | grep "cache size"
 
       - name: Package Flashable Zip
         run: |
