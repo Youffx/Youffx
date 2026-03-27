@@ -1,9 +1,9 @@
 [
   {
-    "name": "Test-Versions",
+    "name": "Ultimate-Versions",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "purity",
+      "branch": "susfs",
       "fetchDepth": 1
     },
     "root": {
