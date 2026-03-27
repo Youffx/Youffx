@@ -80,13 +80,19 @@
     "susfs": true
   },
   {
-    "name": "Clean-Versions",
+    "name": "Master-Versions",
     "kernel": {
-      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "main",
+      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
+      "branch": "master",
       "fetchDepth": 1
     },
-    "defconfig": "rosemary_defconfig",
-    "susfs": false
+    "root": {
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "arg": "legacy_susfs",
+      "manualPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/KernelSU/kernel/susfs.patch"
+    },
+    "defconfig": "master_defconfig",
+    "susfs": true
   }
 ]
