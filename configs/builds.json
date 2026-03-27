@@ -92,7 +92,7 @@
       "arg": "legacy_susfs",
       "manualPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/KernelSU/kernel/susfs.patch"
     },
-    "defconfig": "master_defconfig",
+    "defconfig": "rosemary_defconfig",
     "susfs": true
   }
 ]
