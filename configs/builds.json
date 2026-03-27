@@ -9,8 +9,7 @@
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy_susfs",
-      "susfsPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/KernelSU/kernel/susfs.patch"
+      "arg": "legacy_susfs"
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
