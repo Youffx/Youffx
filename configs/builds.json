@@ -78,5 +78,15 @@
     },
     "defconfig": "rksupro_defconfig",
     "susfs": true
+  },
+  {
+    "name": "Clean-Versions",
+    "kernel": {
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "main",
+      "fetchDepth": 1
+    },
+    "defconfig": "rosemary_defconfig",
+    "susfs": false
   }
 ]
