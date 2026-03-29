@@ -18,6 +18,24 @@
     "susfs": true
   },
   {
+    "name": "Multi-Versions",
+    "kernel": {
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "susfs",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "rksu-fork",
+      "setup": "https://raw.githubusercontent.com/DPR-MoonWake/RKSU/refs/heads/susfs-rksu-master/kernel/setup.sh",
+      "arg": "susfs-rksu-master",
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
+    },
+    "defconfig": "rosemary_defconfig",
+    "susfs": true
+  },
+  {
     "name": "Coming-soon",
     "kernel": {
       "repo": "",
