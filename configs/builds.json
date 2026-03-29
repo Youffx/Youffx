@@ -18,111 +18,21 @@
     "susfs": true
   },
   {
-    "name": "KSU-Next",
+    "name": "Coming-soon",
     "kernel": {
-      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
+      "repo": "",
+      "branch": "",
       "fetchDepth": 1
     },
     "root": {
-      "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy",
+      "type": "",
+      "setup": "",
+      "arg": "",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
     },
-    "defconfig": "ksun_defconfig",
+    "defconfig": "",
     "susfs": false
-  },
-  {
-    "name": "KSU-Next-SUSFS",
-    "kernel": {
-      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "purity",
-      "fetchDepth": 1
-    },
-    "root": {
-      "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy_susfs",
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
-    },
-    "defconfig": "rosemary_defconfig",
-    "susfs": true
-  },
-  {
-    "name": "RKSU",
-    "kernel": {
-      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
-      "fetchDepth": 1
-    },
-    "root": {
-      "type": "rksu",
-      "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
-      "arg": "main",
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
-    },
-    "defconfig": "rksu_defconfig",
-    "susfs": false
-  },
-  {
-    "name": "RKSU-SUSFS",
-    "kernel": {
-      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "susfs",
-      "fetchDepth": 1
-    },
-    "root": {
-      "type": "rksu",
-      "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
-      "arg": "susfs-rksu-master",
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
-    },
-    "defconfig": "rksupro_defconfig",
-    "susfs": true
-  },
-  {
-    "name": "Master-Versions",
-    "kernel": {
-      "repo": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary",
-      "branch": "master",
-      "fetchDepth": 1
-    },
-    "root": {
-      "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy_susfs",
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
-    },
-    "defconfig": "rosemary_defconfig",
-    "susfs": true
-  },
-  {
-    "name": "Multi-Versions",
-    "kernel": {
-      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "susfs",
-      "fetchDepth": 1
-    },
-    "root": {
-      "type": "multi-manager",
-      "setup": "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh",
-      "arg": "v3.1.0"
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
-    },
-    "defconfig": "rosemary_defconfig",
-    "susfs": true
   }
 ]
