@@ -160,61 +160,36 @@ jobs:
         run: |
           ccache -s
 
-      - name: Package Flashable Zip (Dual Variant)
+      - name: Package Flashable Zip
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ steps.cfg.outputs.name }}"
-
-          BASE_NAME="LandVe-Kernel-${CONF_NAME}-${DATE}"
+          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           [ ! -f "$IMAGE" ] && echo "Kernel image not found!" && exit 1
 
           mkdir -p output
+          cp "$IMAGE" .github/Flash/kernels/
 
-          rm -rf .github/Flash-HyperOS
-          cp -r .github/Flash .github/Flash-HyperOS
-
-          cp "$IMAGE" .github/Flash-HyperOS/kernels/
-
-          curl -L https://raw.githubusercontent.com/Youffx/Youffx/main/configs/hyperos.sh -o .github/Flash-HyperOS/anykernel.sh
-
-          cd .github/Flash-HyperOS
-          zip -r "../../output/${BASE_NAME}-HyperOS.zip" ./*
+          cd .github/Flash/
+          zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
 
-          rm -rf .github/Flash-NonHyperOS
-          cp -r .github/Flash .github/Flash-NonHyperOS
-
-          cp "$IMAGE" .github/Flash-NonHyperOS/kernels/
-
-          curl -L https://raw.githubusercontent.com/Youffx/Youffx/main/configs/non_hyperos.sh -o .github/Flash-NonHyperOS/anykernel.sh
-
-          cd .github/Flash-NonHyperOS
-          zip -r "../../output/${BASE_NAME}-NonHyperOS.zip" ./*
-          cd ../../
-
-          echo "ZIP_NAME_BASE=${BASE_NAME}" >> $GITHUB_ENV
+          echo "ZIP_FINAL_NAME=${ZIP_NAME}" >> $GITHUB_ENV
           echo "RELEASE_TAG=Release-${CONF_NAME}-${DATE}" >> $GITHUB_ENV
-
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.ZIP_NAME_BASE }}
+          name: ${{ env.ZIP_FINAL_NAME }}
           body: |
             ### LandVe Kernel Release
 
             **Build Details:**
             - Variant: `${{ steps.cfg.outputs.name }}`
             - SusFS: `${{ fromJson(steps.cfg.outputs.config).susfs }}`
-
-            **Downloads:**
-            - HyperOS version
-            - Non-HyperOS version
-          files: |
-            output/${{ env.ZIP_NAME_BASE }}-HyperOS.zip
-            output/${{ env.ZIP_NAME_BASE }}-NonHyperOS.zip
+          files: output/${{ env.ZIP_FINAL_NAME }}.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
