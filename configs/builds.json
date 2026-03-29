@@ -9,7 +9,10 @@
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy_susfs"
+      "arg": "legacy_susfs",
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
@@ -25,7 +28,9 @@
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "ksun_defconfig",
     "susfs": false
@@ -41,7 +46,9 @@
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy_susfs",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
@@ -57,7 +64,9 @@
       "type": "rksu",
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "main",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch"
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "rksu_defconfig",
     "susfs": false
@@ -73,8 +82,9 @@
       "type": "rksu",
       "setup": "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh",
       "arg": "susfs-rksu-master",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
-      "susfsPatch": "https://raw.githubusercontent.com/JackA1ltman/NonGKI_Kernel_Build_2nd/mainline/Patches/Patch/susfs_patch_to_4.19.patch"
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "rksupro_defconfig",
     "susfs": true
@@ -90,7 +100,9 @@
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy_susfs",
-      "manualPatch": "https://raw.githubusercontent.com/Youffx/Youffx/main/KernelSU/kernel/susfs.patch"
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
@@ -106,6 +118,9 @@
       "type": "multi-manager",
       "setup": "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh",
       "arg": "v3.1.0"
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
