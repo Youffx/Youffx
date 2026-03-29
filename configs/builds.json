@@ -94,5 +94,20 @@
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
+  },
+  {
+    "name": "Multi-Versions",
+    "kernel": {
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "susfs",
+      "fetchDepth": 1
+    },
+    "root": {
+      "type": "multi-manager",
+      "setup": "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh",
+      "arg": "v3.1.0"
+    },
+    "defconfig": "rosemary_defconfig",
+    "susfs": true
   }
 ]
