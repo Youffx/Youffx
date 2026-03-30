@@ -91,11 +91,11 @@ jobs:
             PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
             EXTRA_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.extraPatch // empty')
             SUSFS_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.susfsPatch // empty')
-            1_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.1Patch // empty')
-            2_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.2Patch // empty')
-            3_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.3Patch // empty')
-            4_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.4Patch // empty')
-            5_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.5Patch // empty')
+            i_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iPatch // empty')
+            ii_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iiPatch // empty')
+            iii_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iiiPatch // empty')
+            iv_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.ivPatch // empty')
+            v_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.vPatch // empty')
 
             cd kernel
 
@@ -104,11 +104,11 @@ jobs:
             [ "$PATCH" != "null" ] && curl -LSs "$PATCH" | patch -p1 || true
             [ -n "$EXTRA_PATCH" ] && curl -LSs "$EXTRA_PATCH" | patch -p1 || true
             [ -n "$SUSFS_PATCH" ] && curl -LSs "$SUSFS_PATCH" | patch -p1 || true
-            [ -n "$1_PATCH" ] && curl -LSs "$1_PATCH" | patch -p1 || true
-            [ -n "$2_PATCH" ] && curl -LSs "$2_PATCH" | patch -p1 || true
-            [ -n "$3_PATCH" ] && curl -LSs "$3_PATCH" | patch -p1 || true
-            [ -n "$4_PATCH" ] && curl -LSs "$4_PATCH" | patch -p1 || true
-            [ -n "$5_PATCH" ] && curl -LSs "$5_PATCH" | patch -p1 || true
+            [ -n "$i_PATCH" ] && curl -LSs "$i_PATCH" | patch -p1 || true
+            [ -n "$ii_PATCH" ] && curl -LSs "$ii_PATCH" | patch -p1 || true
+            [ -n "$iii_PATCH" ] && curl -LSs "$iii_PATCH" | patch -p1 || true
+            [ -n "$iv_PATCH" ] && curl -LSs "$iv_PATCH" | patch -p1 || true
+            [ -n "$v_PATCH" ] && curl -LSs "$v_PATCH" | patch -p1 || true
 
             cd ..
           fi
