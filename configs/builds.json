@@ -28,7 +28,7 @@
       "type": "rksu-fork",
       "setup": "https://raw.githubusercontent.com/DPR-MoonWake/RKSU/refs/heads/susfs-rksu-master/kernel/setup.sh",
       "arg": "susfs-rksu-master",
-      "manualPatch": "https://patch-diff.githubusercontent.com/raw/XDL-MoonWake/moonwake_kernel_xiaomi_ruby/pull/17.patch",
+      "manualPatch": "https://patch-diff.githubusercontent.com/raw/XDL-MoonWake/moonwake_kernel_xiaomi_ruby/pull/3.patch",
       "extraPatch": "https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/ab59df502791cd25f22fa50b6219065c16e3627b.patch",
       "susfsPatch": ""
     },
