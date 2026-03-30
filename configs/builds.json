@@ -29,7 +29,7 @@
       "setup": "https://raw.githubusercontent.com/DPR-MoonWake/RKSU/refs/heads/susfs-rksu-master/kernel/setup.sh",
       "arg": "susfs-rksu-master",
       "manualPatch": "",
-      "extraPatch": "",
+      "extraPatch": "https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/ab59df502791cd25f22fa50b6219065c16e3627b.patch",
       "susfsPatch": "",
       "1Patch": "https://github.com/Mayuri-Chan/android_kernel_xiaomi_gale/commit/1445112e173528f1ba7c8a012a1d1bd6b98cbb5d.patch",
       "2Patch": "https://github.com/Mayuri-Chan/android_kernel_xiaomi_gale/commit/a2c2d02f7cfe0055c8bda8ef120f3e65ca847c84.patch",
