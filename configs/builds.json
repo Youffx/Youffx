@@ -18,7 +18,7 @@
     "susfs": true
   },
   {
-    "name": "R1",
+    "name": "K1",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "susfs",
