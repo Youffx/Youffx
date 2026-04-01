@@ -14,7 +14,7 @@
       "extraPatch": "",
       "susfsPatch": ""
     },
-    "defconfig": "rosemary_defconfig",
+    "defconfig": "dev_defconfig",
     "susfs": true
   },
   {
