@@ -35,7 +35,7 @@
       "iiPatch": "https://github.com/Mayuri-Chan/android_kernel_xiaomi_gale/commit/a2c2d02f7cfe0055c8bda8ef120f3e65ca847c84.patch",
       "iiiPatch": "https://github.com/Mayuri-Chan/android_kernel_xiaomi_gale/commit/0bf5761ae2aefac24a37259bfc9d90b69f249850.patch",
       "ivPatch": "https://github.com/Mayuri-Chan/android_kernel_xiaomi_gale/commit/b918148b315cf2e2630540ba4603ce91e78cd808.patch",
-      "vPatch": ""
+      "vPatch": "https://github.com/Youffx/landve_kernel_xiaomi_rosemary/compare/2854a173c29824a04a7e7e471ae7961727ed386d..210804374b2177dec483bda62806407ff8004454.patch"
     },
     "defconfig": "rosemary_defconfig",
     "susfs": true
