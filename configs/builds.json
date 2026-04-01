@@ -18,14 +18,14 @@
     "susfs": true
   },
   {
-    "name": "Multi-Versions",
+    "name": "R1",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "susfs",
       "fetchDepth": 1
     },
     "root": {
-      "type": "rksu-fork",
+      "type": "ksun",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "e8e6836425478ee44d026576f8127936d383ded5",
       "manualPatch": "",
