@@ -26,8 +26,8 @@
     },
     "root": {
       "type": "rksu-fork",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/e8e6836425478ee44d026576f8127936d383ded5/kernel/setup.sh",
-      "arg": "legacy_susfs",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "arg": "e8e6836425478ee44d026576f8127936d383ded5",
       "manualPatch": "",
       "extraPatch": "https://github.com/Asyanx/android_kernel_xiaomi_mt6785/commit/ab59df502791cd25f22fa50b6219065c16e3627b.patch",
       "susfsPatch": "",
