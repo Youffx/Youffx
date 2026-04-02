@@ -140,8 +140,6 @@ jobs:
             LV="$BASE"
           fi
 
-          echo "Applying LOCALVERSION: $LV"
-
           LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
 
           if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
@@ -149,6 +147,22 @@ jobs:
           else
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
+
+          make O=out olddefconfig
+
+          sed -i 's/^# CONFIG_JUMP_LABEL is not set/CONFIG_JUMP_LABEL=y/' out/.config
+          sed -i 's/^CONFIG_JUMP_LABEL=.*/CONFIG_JUMP_LABEL=y/' out/.config
+          grep -q "^CONFIG_JUMP_LABEL=" out/.config || echo "CONFIG_JUMP_LABEL=y" >> out/.config
+
+          sed -i 's/^CONFIG_REFCOUNT_FULL=.*/CONFIG_REFCOUNT_FULL=n/' out/.config
+          sed -i 's/^CONFIG_REFCOUNT_FULL=y/# CONFIG_REFCOUNT_FULL is not set/' out/.config
+          grep -q "^CONFIG_REFCOUNT_FULL=" out/.config || echo "CONFIG_REFCOUNT_FULL=n" >> out/.config
+
+          sed -i 's/^# CONFIG_LTO_CLANG is not set/CONFIG_LTO_CLANG=y/' out/.config
+          sed -i 's/^CONFIG_LTO_CLANG=.*/CONFIG_LTO_CLANG=y/' out/.config
+          grep -q "^CONFIG_LTO_CLANG=" out/.config || echo "CONFIG_LTO_CLANG=y" >> out/.config
+
+          sed -i 's/^CONFIG_LTO_NONE=y/# CONFIG_LTO_NONE is not set/' out/.config || true
 
           make O=out olddefconfig
 
