@@ -156,20 +156,16 @@ jobs:
           sed -i 's/^CONFIG_REFCOUNT_FULL=y/# CONFIG_REFCOUNT_FULL is not set/' out/.config
           grep -q "^CONFIG_REFCOUNT_FULL=" out/.config || echo "CONFIG_REFCOUNT_FULL=n" >> out/.config
 
-          sed -i 's/^# CONFIG_LTO_CLANG is not set/CONFIG_LTO_CLANG=y/' out/.config
-          sed -i 's/^CONFIG_LTO_CLANG=.*/CONFIG_LTO_CLANG=y/' out/.config
-          grep -q "^CONFIG_LTO_CLANG=" out/.config || echo "CONFIG_LTO_CLANG=y" >> out/.config
-
-          sed -i 's/^# CONFIG_THINLTO is not set/CONFIG_THINLTO=y/' out/.config
-          sed -i 's/^CONFIG_THINLTO=.*/CONFIG_THINLTO=y/' out/.config
-          grep -q "^CONFIG_THINLTO=" out/.config || echo "CONFIG_THINLTO=y" >> out/.config
-
+          sed -i 's/^# CONFIG_MTK_SDA is not set/CONFIG_MTK_SDA=y/' out/.config
+          sed -i 's/^CONFIG_MTK_SDA=.*/CONFIG_MTK_SDA=y/' out/.config
+          grep -q "^CONFIG_MTK_SDA=" out/.config || echo "CONFIG_MTK_SDA=y" >> out/.config
+          
           sed -i 's/^# CONFIG_LTO is not set/CONFIG_LTO=y/' out/.config || true
           sed -i 's/^CONFIG_LTO_NONE=y/# CONFIG_LTO_NONE is not set/' out/.config || true
 
-          make O=out oldnoconfig
+          yes "" | make O=out oldconfig
           echo "===== FINAL LTO CONFIG ====="
-          grep -E "LTO|THINLTO" out/.config
+          grep -E "LTO|THINLTO|REFCOUNT|JUMP" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
