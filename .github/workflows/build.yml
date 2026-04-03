@@ -158,9 +158,21 @@ jobs:
           sed -i 's/^CONFIG_REFCOUNT_FULL=y/# CONFIG_REFCOUNT_FULL is not set/' out/.config
           grep -q "^CONFIG_REFCOUNT_FULL=" out/.config || echo "CONFIG_REFCOUNT_FULL=n" >> out/.config
 
+          sed -i 's/^# CONFIG_ARCH_SUPPORTS_LTO_CLANG is not set/CONFIG_ARCH_SUPPORTS_LTO_CLANG=y/' out/.config
+          sed -i 's/^CONFIG_ARCH_SUPPORTS_LTO_CLANG=.*/CONFIG_ARCH_SUPPORTS_LTO_CLANG=y/' out/.config
+          grep -q "^CONFIG_ARCH_SUPPORTS_LTO_CLANG=" out/.config || echo "CONFIG_ARCH_SUPPORTS_LTO_CLANG=y" >> out/.config
+
           sed -i 's/^# CONFIG_LTO_CLANG is not set/CONFIG_LTO_CLANG=y/' out/.config
           sed -i 's/^CONFIG_LTO_CLANG=.*/CONFIG_LTO_CLANG=y/' out/.config
           grep -q "^CONFIG_LTO_CLANG=" out/.config || echo "CONFIG_LTO_CLANG=y" >> out/.config
+
+          sed -i 's/^# CONFIG_ARCH_SUPPORTS_THINLTO is not set/CONFIG_ARCH_SUPPORTS_THINLTO=y/' out/.config
+          sed -i 's/^CONFIG_ARCH_SUPPORTS_THINLTO=.*/CONFIG_ARCH_SUPPORTS_THINLTO=y/' out/.config
+          grep -q "^CONFIG_ARCH_SUPPORTS_THINLTO=" out/.config || echo "CONFIG_ARCH_SUPPORTS_THINLTO=y" >> out/.config
+
+          sed -i 's/^# CONFIG_THINLTO is not set/CONFIG_THINLTO=y/' out/.config
+          sed -i 's/^CONFIG_THINLTO=.*/CONFIG_THINLTO=y/' out/.config
+          grep -q "^CONFIG_THINLTO=" out/.config || echo "CONFIG_THINLTO=y" >> out/.config
 
           sed -i 's/^CONFIG_LTO_NONE=y/# CONFIG_LTO_NONE is not set/' out/.config || true
 
@@ -177,6 +189,9 @@ jobs:
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            HOSTCC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb
 
