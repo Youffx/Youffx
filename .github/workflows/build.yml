@@ -148,24 +148,7 @@ jobs:
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
 
-          sed -i 's/^# CONFIG_JUMP_LABEL is not set/CONFIG_JUMP_LABEL=y/' out/.config
-          sed -i 's/^CONFIG_JUMP_LABEL=.*/CONFIG_JUMP_LABEL=y/' out/.config
-          grep -q "^CONFIG_JUMP_LABEL=" out/.config || echo "CONFIG_JUMP_LABEL=y" >> out/.config
-
-          sed -i 's/^CONFIG_REFCOUNT_FULL=.*/CONFIG_REFCOUNT_FULL=n/' out/.config
-          sed -i 's/^CONFIG_REFCOUNT_FULL=y/# CONFIG_REFCOUNT_FULL is not set/' out/.config
-          grep -q "^CONFIG_REFCOUNT_FULL=" out/.config || echo "CONFIG_REFCOUNT_FULL=n" >> out/.config
-
-          sed -i 's/^# CONFIG_MTK_SDA is not set/CONFIG_MTK_SDA=y/' out/.config
-          sed -i 's/^CONFIG_MTK_SDA=.*/CONFIG_MTK_SDA=y/' out/.config
-          grep -q "^CONFIG_MTK_SDA=" out/.config || echo "CONFIG_MTK_SDA=y" >> out/.config
-          
-          sed -i 's/^# CONFIG_LTO is not set/CONFIG_LTO=y/' out/.config || true
-          sed -i 's/^CONFIG_LTO_NONE=y/# CONFIG_LTO_NONE is not set/' out/.config || true
-
-          yes "" | make O=out oldconfig
-          echo "===== FINAL LTO CONFIG ====="
-          grep -E "LTO|THINLTO|REFCOUNT|JUMP" out/.config
+          make O=out olddefconfig
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -178,8 +161,6 @@ jobs:
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
-            LLVM=1 \
-            LLVM_IAS=1 \
             HOSTCC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb
