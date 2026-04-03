@@ -1,20 +1,20 @@
 [
   {
-    "name": "Ultimate-Versions",
+    "name": "Test",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "susfs",
+      "branch": "k1",
       "fetchDepth": 1
     },
     "root": {
       "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy_susfs/kernel/setup.sh",
       "arg": "legacy_susfs",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
     },
-    "defconfig": "dev_defconfig",
+    "defconfig": "rosemary_defconfig",
     "susfs": true
   },
   {
