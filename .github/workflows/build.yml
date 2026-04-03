@@ -140,6 +140,8 @@ jobs:
             LV="$BASE"
           fi
 
+          echo "Applying LOCALVERSION: $LV"
+
           LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
 
           if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
@@ -161,7 +163,6 @@ jobs:
             OBJCOPY=llvm-objcopy \
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
-            HOSTCC=clang \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb
 
