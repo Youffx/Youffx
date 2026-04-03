@@ -148,8 +148,6 @@ jobs:
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
 
-          make O=out olddefconfig
-
           sed -i 's/^# CONFIG_JUMP_LABEL is not set/CONFIG_JUMP_LABEL=y/' out/.config
           sed -i 's/^CONFIG_JUMP_LABEL=.*/CONFIG_JUMP_LABEL=y/' out/.config
           grep -q "^CONFIG_JUMP_LABEL=" out/.config || echo "CONFIG_JUMP_LABEL=y" >> out/.config
@@ -158,17 +156,15 @@ jobs:
           sed -i 's/^CONFIG_REFCOUNT_FULL=y/# CONFIG_REFCOUNT_FULL is not set/' out/.config
           grep -q "^CONFIG_REFCOUNT_FULL=" out/.config || echo "CONFIG_REFCOUNT_FULL=n" >> out/.config
 
-          sed -i 's/^# CONFIG_ARCH_SUPPORTS_LTO_CLANG is not set/CONFIG_ARCH_SUPPORTS_LTO_CLANG=y/' out/.config
-          sed -i 's/^CONFIG_ARCH_SUPPORTS_LTO_CLANG=.*/CONFIG_ARCH_SUPPORTS_LTO_CLANG=y/' out/.config
-          grep -q "^CONFIG_ARCH_SUPPORTS_LTO_CLANG=" out/.config || echo "CONFIG_ARCH_SUPPORTS_LTO_CLANG=y" >> out/.config
+          sed -i 's/^CONFIG_CC_IS_CLANG=.*/CONFIG_CC_IS_CLANG=y/' out/.config
+          grep -q "^CONFIG_CC_IS_CLANG=" out/.config || echo "CONFIG_CC_IS_CLANG=y" >> out/.config
+
+          sed -i 's/^CONFIG_LD_IS_LLD=.*/CONFIG_LD_IS_LLD=y/' out/.config
+          grep -q "^CONFIG_LD_IS_LLD=" out/.config || echo "CONFIG_LD_IS_LLD=y" >> out/.config
 
           sed -i 's/^# CONFIG_LTO_CLANG is not set/CONFIG_LTO_CLANG=y/' out/.config
           sed -i 's/^CONFIG_LTO_CLANG=.*/CONFIG_LTO_CLANG=y/' out/.config
           grep -q "^CONFIG_LTO_CLANG=" out/.config || echo "CONFIG_LTO_CLANG=y" >> out/.config
-
-          sed -i 's/^# CONFIG_ARCH_SUPPORTS_THINLTO is not set/CONFIG_ARCH_SUPPORTS_THINLTO=y/' out/.config
-          sed -i 's/^CONFIG_ARCH_SUPPORTS_THINLTO=.*/CONFIG_ARCH_SUPPORTS_THINLTO=y/' out/.config
-          grep -q "^CONFIG_ARCH_SUPPORTS_THINLTO=" out/.config || echo "CONFIG_ARCH_SUPPORTS_THINLTO=y" >> out/.config
 
           sed -i 's/^# CONFIG_THINLTO is not set/CONFIG_THINLTO=y/' out/.config
           sed -i 's/^CONFIG_THINLTO=.*/CONFIG_THINLTO=y/' out/.config
