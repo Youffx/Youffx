@@ -164,8 +164,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            KCFLAGS="-flto=thin -fsplit-lto-unit" \
-            KBUILD_LDFLAGS="--thinlto-cache-dir=$LTO_CACHE_DIR" \
+            LDFLAGS_vmlinux="--thinlto-cache-dir=$LTO_CACHE_DIR" \
             Image.gz-dtb
 
       - name: Ccache Efficiency
