@@ -37,11 +37,13 @@ jobs:
       - name: Restore ccache
         uses: actions/cache@v4
         with:
-          path: .ccache
-          key: ccache-${{ github.ref }}-${{ github.sha }}
+          path: |
+            .ccache
+            kernel/.thinlto-cache
+          key: ccache-lto-${{ github.ref }}-${{ github.sha }}
           restore-keys: |
-            ccache-${{ github.ref }}-
-            ccache-
+            ccache-lto-${{ github.ref }}-
+            ccache-lto-
 
       - name: Restore Clang
         uses: actions/cache@v4
@@ -125,6 +127,8 @@ jobs:
           export KBUILD_BUILD_VERSION=1
 
           export CC="ccache clang"
+          export LTO_CACHE_DIR="$PWD/.thinlto-cache"
+          mkdir -p "$LTO_CACHE_DIR"
 
           cd kernel
 
@@ -154,16 +158,14 @@ jobs:
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
+            CC="ccache clang" \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
+            KCFLAGS="-flto=thin -fsplit-lto-unit" \
+            KBUILD_LDFLAGS="--thinlto-cache-dir=$LTO_CACHE_DIR" \
             Image.gz-dtb
 
       - name: Ccache Efficiency
