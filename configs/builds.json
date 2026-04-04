@@ -1,9 +1,9 @@
 [
   {
-    "name": "K2",
+    "name": "K2-CASS",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "k1",
+      "branch": "cass",
       "fetchDepth": 1
     },
     "root": {
