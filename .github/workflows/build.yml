@@ -47,7 +47,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: clang
-          key: Clang-19.0.0git
+          key: Clang-15.0.7
 
       - name: Load Config
         id: cfg
@@ -71,7 +71,7 @@ jobs:
         run: |
           if [ ! -d "clang/bin" ]; then
             mkdir clang
-            curl -L https://github.com/ZyCromerZ/Clang/releases/download/19.0.0git-20240723-release/Clang-19.0.0git-20240723.tar.gz | tar -xz -C clang
+            curl -L https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260208-release/Clang-15.0.7-20260208.tar.gz | tar -xz -C clang
           fi
           echo "$PWD/clang/bin" >> $GITHUB_PATH
 
