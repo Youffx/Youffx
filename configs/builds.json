@@ -1,9 +1,9 @@
 [
   {
-    "name": "K2-CASS",
+    "name": "K2-LTO-CASS",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "cass",
+      "branch": "lto",
       "fetchDepth": 1
     },
     "root": {
