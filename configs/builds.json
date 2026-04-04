@@ -1,6 +1,6 @@
 [
   {
-    "name": "Test",
+    "name": "K2",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "k1",
