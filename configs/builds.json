@@ -18,7 +18,7 @@
     "susfs": true
   },
   {
-    "name": "K2-LTO",
+    "name": "K2",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "cass-teo",
