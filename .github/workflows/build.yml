@@ -125,8 +125,6 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
-          export CC=clang
-          export LD=ld.lld
 
           export CC="ccache clang"
           export LTO_CACHE_DIR="$PWD/.thinlto-cache"
@@ -156,23 +154,16 @@ jobs:
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
 
-          scripts/config --file out/.config \
-          -e LTO_CLANG \
-          -e THINLTO \
-          -d LTO_NONE
-
           make O=out olddefconfig
 
           scripts/config --file out/.config \
           -e LTO_CLANG \
           -e THINLTO \
           -d LTO_NONE
-
+          
           make O=out olddefconfig
-          echo "===== FINAL LTO CONFIG ====="
-          grep LTO out/.config
-          echo "===== DEBUG DEP ====="
-          grep -E "CC_IS_CLANG|LD_IS_LLD|KASAN|FTRACE_MCOUNT_RECORD|HAVE_C_RECORDMCOUNT" out/.config
+          echo "===== DEBUG LTO ====="
+          grep -E "LTO|CC_IS_CLANG|LD_IS_LLD|KASAN|FTRACE_MCOUNT_RECORD|HAVE_C_RECORDMCOUNT" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
