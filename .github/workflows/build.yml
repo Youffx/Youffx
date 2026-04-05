@@ -156,7 +156,7 @@ jobs:
           
           make O=out olddefconfig
           echo "===== DEBUG LTO ====="
-          grep -E "LTO|CC_IS_CLANG|LD_IS_LLD|KASAN|FTRACE_MCOUNT_RECORD|HAVE_C_RECORDMCOUNT" out/.config
+          grep -E "CONFIG_FTRACE|LTO|CC_IS_CLANG|LD_IS_LLD|KASAN|FTRACE_MCOUNT_RECORD|HAVE_C_RECORDMCOUNT" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
