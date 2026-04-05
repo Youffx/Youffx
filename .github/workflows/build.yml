@@ -156,14 +156,6 @@ jobs:
 
           make O=out olddefconfig
 
-          scripts/config --file out/.config \
-          -e LTO_CLANG \
-          -e THINLTO \
-          -d LTO_NONE \
-          -d FTRACE_MCOUNT_RECORD 
-
-          make O=out olddefconfig
-
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC="ccache clang" \
