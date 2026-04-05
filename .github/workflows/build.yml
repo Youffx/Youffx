@@ -125,6 +125,8 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
+          export CC=clang
+          export LD=ld.lld
 
           export CC="ccache clang"
           export LTO_CACHE_DIR="$PWD/.thinlto-cache"
