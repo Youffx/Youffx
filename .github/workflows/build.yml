@@ -154,6 +154,10 @@ jobs:
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
 
+          scripts/config --file out/.config \
+          -e LTO_CLANG \
+          -d LTO_NONE
+
           make O=out olddefconfig
 
           make -j$(nproc --all) O=out \
