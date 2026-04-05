@@ -159,7 +159,8 @@ jobs:
           scripts/config --file out/.config \
           -e LTO_CLANG \
           -e THINLTO \
-          -d LTO_NONE
+          -d LTO_NONE \
+          -d FTRACE_MCOUNT_RECORD 
 
           make O=out olddefconfig
 
