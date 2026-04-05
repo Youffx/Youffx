@@ -160,6 +160,14 @@ jobs:
 
           make O=out olddefconfig
 
+          scripts/config --file out/.config \
+          -e LTO_CLANG \
+          -d LTO_NONE
+
+          make O=out olddefconfig
+          echo "===== FINAL LTO CONFIG ====="
+          grep LTO out/.config
+
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC="ccache clang" \
