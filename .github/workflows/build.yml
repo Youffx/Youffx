@@ -156,12 +156,14 @@ jobs:
 
           scripts/config --file out/.config \
           -e LTO_CLANG \
+          -e THINLTO \
           -d LTO_NONE
 
           make O=out olddefconfig
 
           scripts/config --file out/.config \
           -e LTO_CLANG \
+          -e THINLTO \
           -d LTO_NONE
 
           make O=out olddefconfig
