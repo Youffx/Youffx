@@ -1,9 +1,9 @@
 [
   {
-    "name": "K2",
+    "name": "TEST-MODE",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "cass",
+      "branch": "rebase",
       "fetchDepth": 1
     },
     "root": {
