@@ -20,6 +20,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        variant: [ksu, nonksu]
+
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
 
