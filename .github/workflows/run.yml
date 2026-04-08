@@ -135,7 +135,7 @@ jobs:
           make O=out $DEFCONFIG
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-LandVe-ksu"
+          BASE="-LandVe"
 
           if [ -n "$LV_INPUT" ]; then
             LV="${BASE}${LV_INPUT}"
@@ -272,7 +272,7 @@ jobs:
           make O=out $DEFCONFIG
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-LandVe-nonksu"
+          BASE="-LandVe"
 
           if [ -n "$LV_INPUT" ]; then
             LV="${BASE}${LV_INPUT}"
