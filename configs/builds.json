@@ -1,9 +1,9 @@
 [
   {
-    "name": "TEST-MODE",
+    "name": "K3",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "rebase",
+      "branch": "master",
       "fetchDepth": 1
     },
     "root": {
@@ -14,7 +14,8 @@
       "extraPatch": "",
       "susfsPatch": ""
     },
-    "defconfig": "rosemary_defconfig",
+    "ksu-defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "dev_defconfig"
     "susfs": true
   },
   {
