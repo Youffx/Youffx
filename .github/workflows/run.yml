@@ -16,39 +16,32 @@ permissions:
   contents: write
   actions: read
 
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+
 jobs:
-  build:
+# =========================
+# BUILD KSU
+# =========================
+  build-ksu:
+    name: Build KSU
     runs-on: ubuntu-latest
 
-    strategy:
-      matrix:
-        variant: [ksu, nonksu]
-
-    env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex git gnupg gperf \
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf \
             libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
-      - name: Restore ccache
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: .ccache
           key: ccache-${{ github.ref }}-${{ github.sha }}
-          restore-keys: |
-            ccache-${{ github.ref }}-
-            ccache-
 
-      - name: Restore Clang
-        uses: actions/cache@v4
+      - uses: actions/cache@v4
         with:
           path: clang
           key: Clang-15.0.7
@@ -85,139 +78,168 @@ jobs:
           ccache -o compression=true
           ccache -z
 
-      - name: Apply Root Method
+      - name: Apply Root Method (KSU only)
         run: |
           ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
 
-          if [ "$ROOT_TYPE" != "none" ] && [ "${{ matrix.variant }}" = "ksu" ]; then
+          if [ "$ROOT_TYPE" != "none" ]; then
             SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
             PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
             EXTRA_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.extraPatch // empty')
             SUSFS_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.susfsPatch // empty')
-            i_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iPatch // empty')
-            ii_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iiPatch // empty')
-            iii_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iiiPatch // empty')
-            iv_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.ivPatch // empty')
-            v_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.vPatch // empty')
 
             cd kernel
-
             curl -LSs "$SETUP" | bash -s $ARG
 
             [ "$PATCH" != "null" ] && curl -LSs "$PATCH" | patch -p1 || true
             [ -n "$EXTRA_PATCH" ] && curl -LSs "$EXTRA_PATCH" | patch -p1 || true
             [ -n "$SUSFS_PATCH" ] && curl -LSs "$SUSFS_PATCH" | patch -p1 || true
-            [ -n "$i_PATCH" ] && curl -LSs "$i_PATCH" | patch -p1 || true
-            [ -n "$ii_PATCH" ] && curl -LSs "$ii_PATCH" | patch -p1 || true
-            [ -n "$iii_PATCH" ] && curl -LSs "$iii_PATCH" | patch -p1 || true
-            [ -n "$iv_PATCH" ] && curl -LSs "$iv_PATCH" | patch -p1 || true
-            [ -n "$v_PATCH" ] && curl -LSs "$v_PATCH" | patch -p1 || true
 
             cd ..
           fi
 
-      - name: Build Kernel
+      - name: Build Kernel (KSU)
         run: |
-          if [ "${{ matrix.variant }}" = "ksu" ]; then
-            DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
-          else
-            DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
-          fi
+          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
           export ARCH=arm64
-          export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
-          export KBUILD_BUILD_USER="youffx"
-          export KBUILD_BUILD_HOST="collection"
-          export KBUILD_BUILD_VERSION=1
-
           export CC="ccache clang"
 
           cd kernel
-
           make O=out $DEFCONFIG
 
-          LV_INPUT="${{ github.event.inputs.localversion }}"
-
-          VARIANT="${{ matrix.variant }}"
-          BASE="-LandVe-${VARIANT}"
-
-          if [ -n "$LV_INPUT" ]; then
-            LV="${BASE}${LV_INPUT}"
-          else
-            LV="$BASE"
-          fi
-
-          echo "Applying LOCALVERSION: $LV"
-
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
+          LV="-LandVe-ksu${{ github.event.inputs.localversion }}"
+          echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
 
           make O=out olddefconfig
-          echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_IDLE|SSG|CASS" out/.config
+          make -j$(nproc) O=out Image.gz-dtb
 
-          make -j$(nproc --all) O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            Image.gz-dtb
-
-      - name: Ccache Efficiency
-        run: |
-          ccache -s
-
-      - name: Package Flashable Zip
+      - name: Package
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ steps.cfg.outputs.name }}"
-          VARIANT="${{ matrix.variant }}"
+          NAME="${{ steps.cfg.outputs.name }}"
+          ZIP="KSU-${NAME}-${DATE}.zip"
 
-          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-${VARIANT}-${DATE}"
+          mkdir outzip
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb outzip/
 
-          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
-          [ ! -f "$IMAGE" ] && echo "Kernel image not found!" && exit 1
-
-          mkdir -p output
-
-          cp "$IMAGE" "Image-${VARIANT}.gz-dtb"
-
-          mkdir flash
-          cp Image-${VARIANT}.gz-dtb flash/
-
-          cd flash
-          zip -r "../output/${ZIP_NAME}.zip" ./*
+          cd outzip
+          zip -r "../$ZIP" ./*
           cd ..
 
-          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+          echo "ZIP=$ZIP" >> $GITHUB_ENV
 
-      - name: Upload ZIP
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: zip-${{ matrix.variant }}
-          path: output/*.zip
-      
-  release:
-    needs: build
+          name: zip-ksu
+          path: "*.zip"
+
+# =========================
+# BUILD NON-KSU
+# =========================
+  build-nonksu:
+    name: Build NONKSU
     runs-on: ubuntu-latest
 
     steps:
-      - name: Download artifacts
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf \
+            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+
+      - uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-${{ github.ref }}-${{ github.sha }}
+
+      - uses: actions/cache@v4
+        with:
+          path: clang
+          key: Clang-15.0.7
+
+      - name: Load Config
+        id: cfg
+        run: |
+          CONFIG=$(jq -c ".[$CONFIG_INDEX]" configs/builds.json)
+          NAME=$(echo "$CONFIG" | jq -r '.name')
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+        env:
+          CONFIG_INDEX: ${{ github.event.inputs.config_index }}
+
+      - name: Clone Kernel
+        run: |
+          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
+          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
+          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
+
+          git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
+
+      - name: Setup Clang
+        run: |
+          if [ ! -d "clang/bin" ]; then
+            mkdir clang
+            curl -L https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260208-release/Clang-15.0.7-20260208.tar.gz | tar -xz -C clang
+          fi
+          echo "$PWD/clang/bin" >> $GITHUB_PATH
+
+      - name: Setup ccache
+        run: |
+          ccache -M 10G
+          ccache -o compression=true
+          ccache -z
+
+      - name: Build Kernel (NONKSU)
+        run: |
+          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
+
+          export ARCH=arm64
+          export PATH="$PWD/clang/bin:$PATH"
+          export CC="ccache clang"
+
+          cd kernel
+          make O=out $DEFCONFIG
+
+          LV="-LandVe-nonksu${{ github.event.inputs.localversion }}"
+          echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+
+          make O=out olddefconfig
+          make -j$(nproc) O=out Image.gz-dtb
+
+      - name: Package
+        run: |
+          DATE=$(date +"%Y%m%d-%H%M")
+          NAME="${{ steps.cfg.outputs.name }}"
+          ZIP="NONKSU-${NAME}-${DATE}.zip"
+
+          mkdir outzip
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb outzip/
+
+          cd outzip
+          zip -r "../$ZIP" ./*
+          cd ..
+
+          echo "ZIP=$ZIP" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zip-nonksu
+          path: "*.zip"
+
+# =========================
+# RELEASE
+# =========================
+  release:
+    needs: [build-ksu, build-nonksu]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
 
       - name: Collect ZIPs
         run: |
@@ -229,14 +251,6 @@ jobs:
         with:
           tag_name: Release-${{ github.run_id }}
           name: LandVe Kernel Release
-          body: |
-            ### Build Result
-            - Config index: ${{ github.event.inputs.config_index }}
-            - LocalVersion: ${{ github.event.inputs.localversion }}
-
-            Includes:
-            - KSU Kernel
-            - NON-KSU Kernel
           files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
