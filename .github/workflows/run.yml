@@ -89,7 +89,7 @@ jobs:
         run: |
           ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
 
-          if [ "$ROOT_TYPE" != "none" ]; then
+          if [ "$ROOT_TYPE" != "none" ] && [ "${{ matrix.variant }}" = "ksu" ]; then
             SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
             PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
@@ -119,7 +119,11 @@ jobs:
 
       - name: Build Kernel
         run: |
-          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.defconfig')
+          if [ "${{ matrix.variant }}" = "ksu" ]; then
+            DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
+          else
+            DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
+          fi
 
           export ARCH=arm64
           export SUBARCH=arm64
@@ -136,7 +140,8 @@ jobs:
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
 
-          BASE="-LandVe"
+          VARIANT="${{ matrix.variant }}"
+          BASE="-LandVe-${VARIANT}"
 
           if [ -n "$LV_INPUT" ]; then
             LV="${BASE}${LV_INPUT}"
@@ -180,32 +185,58 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ steps.cfg.outputs.name }}"
-          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-${DATE}"
+          VARIANT="${{ matrix.variant }}"
+
+          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-${VARIANT}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           [ ! -f "$IMAGE" ] && echo "Kernel image not found!" && exit 1
 
           mkdir -p output
-          cp "$IMAGE" .github/Flash/kernels/
 
-          cd .github/Flash/
-          zip -r "../../output/${ZIP_NAME}.zip" ./*
-          cd ../../
+          cp "$IMAGE" "Image-${VARIANT}.gz-dtb"
 
-          echo "ZIP_FINAL_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          echo "RELEASE_TAG=Release-${CONF_NAME}-${DATE}" >> $GITHUB_ENV
+          mkdir flash
+          cp Image-${VARIANT}.gz-dtb flash/
 
-      - name: Create GitHub Release
+          cd flash
+          zip -r "../output/${ZIP_NAME}.zip" ./*
+          cd ..
+
+          echo "ZIP_NAME=${ZIP_NAME}" >> $GITHUB_ENV
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: zip-${{ matrix.variant }}
+          path: output/*.zip
+      
+  release:
+    needs: build   # 👉 TARUH DI SINI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Collect ZIPs
+        run: |
+          mkdir final
+          find . -name "*.zip" -exec cp {} final/ \;
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.ZIP_FINAL_NAME }}
+          tag_name: Release-${{ github.run_id }}
+          name: LandVe Kernel Release
           body: |
-            ### LandVe Kernel Release
+            ### Build Result
+            - Config index: ${{ github.event.inputs.config_index }}
+            - LocalVersion: ${{ github.event.inputs.localversion }}
 
-            **Build Details:**
-            - Variant: `${{ steps.cfg.outputs.name }}`
-            - SusFS: `${{ fromJson(steps.cfg.outputs.config).susfs }}`
-          files: output/${{ env.ZIP_FINAL_NAME }}.zip
+            Includes:
+            - KSU Kernel
+            - NON-KSU Kernel
+          files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
