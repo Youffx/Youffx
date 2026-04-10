@@ -43,9 +43,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ github.ref }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-${{ github.ref }}
           restore-keys: |
-            ccache-${{ github.ref }}-
+            ccache-${{ runner.os }}-${{ github.ref }}-
+            ccache-${{ runner.os }}-
             ccache-
 
       - name: Restore Clang
@@ -190,6 +191,9 @@ jobs:
           name: zip-ksu
           path: output/*.zip
 
+      - name: Show ccache statistics
+        run: ccache -s
+
 # =========================
 # BUILD NONKSU
 # =========================
@@ -212,9 +216,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ github.ref }}-${{ github.sha }}
+          key: ccache-${{ runner.os }}-${{ github.ref }}
           restore-keys: |
-            ccache-${{ github.ref }}-
+            ccache-${{ runner.os }}-${{ github.ref }}-
+            ccache-${{ runner.os }}-
             ccache-
 
       - name: Restore Clang
@@ -265,7 +270,13 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
+          export CXX="ccache clang++"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=10G
+
+          ccache -s
 
           cd kernel
 
@@ -326,6 +337,9 @@ jobs:
         with:
           name: zip-nonksu
           path: output/*.zip
+
+      - name: Show ccache statistics
+        run: ccache -s
 
 # =========================
 # RELEASE
