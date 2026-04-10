@@ -43,11 +43,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ runner.os }}-${{ github.ref }}
+          key: ccache-ksu-${{ runner.os }}-${{ github.ref }}-${{ hashFiles('configs/builds.json') }}
           restore-keys: |
-            ccache-${{ runner.os }}-${{ github.ref }}-
-            ccache-${{ runner.os }}-
-            ccache-
+            ccache-ksu-${{ runner.os }}-${{ github.ref }}-
+            ccache-ksu-${{ runner.os }}-
+            ccache-ksu-
 
       - name: Restore Clang
         uses: actions/cache@v4
@@ -222,11 +222,11 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-${{ runner.os }}-${{ github.ref }}
+          key: ccache-nonksu-${{ runner.os }}-${{ github.ref }}-${{ hashFiles('configs/builds.json') }}
           restore-keys: |
-            ccache-${{ runner.os }}-${{ github.ref }}-
-            ccache-${{ runner.os }}-
-            ccache-
+            ccache-nonksu-${{ runner.os }}-${{ github.ref }}-
+            ccache-nonksu-${{ runner.os }}-
+            ccache-nonksu-
 
       - name: Restore Clang
         uses: actions/cache@v4
