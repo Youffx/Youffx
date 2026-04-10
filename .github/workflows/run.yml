@@ -129,7 +129,13 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
+          export CXX="ccache clang++"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=10G
+
+          ccache -s
 
           cd kernel
 
