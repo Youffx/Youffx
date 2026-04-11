@@ -422,12 +422,10 @@ jobs:
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
           MESSAGE="*LandVe Kernel CI Release*
-          
-          *Device:* `${{ needs.build-ksu.outputs.device_name }}`
           *Kernel Version:* `${{ needs.build-ksu.outputs.kern_ver }}`
           *Compiler:* `${{ needs.build-ksu.outputs.compiler_ver }}`
           *Date:* `$BUILD_DATE`
-          *Build Variants:* `KernelSU and Non-KSU`
+          *Build Variants:* `KSU, Non-KSU`
           *Latest Commit:* `${{ needs.build-ksu.outputs.commit_log }}`
           
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
