@@ -430,5 +430,5 @@ jobs:
 
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
 
-                    tg "$MESSAGE"
+          tg "$MESSAGE"
           
