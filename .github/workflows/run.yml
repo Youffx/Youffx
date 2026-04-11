@@ -382,3 +382,44 @@ jobs:
           files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1"
+          }
+
+          cd kernel
+          KERN_VER=$(make kernelversion)
+          COMMIT_LOG=$(git log -1 --format='%h %s')
+          COMPILER_VER=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)
+          DEVICE_NAME=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.name')
+          CORE_COUNT=$(nproc --all)
+          BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
+          
+          # Check for KernelSU or Non-KSU
+          if [[ "${{ github.job }}" == *"ksu"* ]]; then
+            KSU_STATUS="KernelSU: Enabled"
+          else
+            KSU_STATUS="NON KernelSU: No KSU"
+          fi
+
+          MESSAGE="*LandVe CI Build Triggered*
+          *Docker OS:* Ubuntu
+          *Kernel Version:* $KERN_VER
+          *Date:* $BUILD_DATE
+          *Device:* $DEVICE_NAME
+          *Host Core Count:* $CORE_COUNT
+          *Compiler Used:* $COMPILER_VER
+          *$KSU_STATUS*
+          *Top Commit:* $COMMIT_LOG"
+
+          tg "$MESSAGE"
+          
