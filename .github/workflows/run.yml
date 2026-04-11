@@ -403,13 +403,6 @@ jobs:
           DEVICE_NAME=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.name')
           CORE_COUNT=$(nproc --all)
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
-          
-          # Check for KernelSU or Non-KSU
-          if [[ "${{ github.job }}" == *"ksu"* ]]; then
-            KSU_STATUS="KernelSU: Enabled"
-          else
-            KSU_STATUS="NON KernelSU: No KSU"
-          fi
 
           MESSAGE="*LandVe CI Build Triggered*
           *Docker OS:* Ubuntu
@@ -418,7 +411,9 @@ jobs:
           *Device:* $DEVICE_NAME
           *Host Core Count:* $CORE_COUNT
           *Compiler Used:* $COMPILER_VER
-          *$KSU_STATUS*
+          *Build Status:*
+          KernelSU Variant: Included
+          Non-KSU Variant: Included
           *Top Commit:* $COMMIT_LOG"
 
           tg "$MESSAGE"
