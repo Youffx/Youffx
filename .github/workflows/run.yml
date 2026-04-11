@@ -200,6 +200,15 @@ jobs:
       - name: Show ccache statistics
         run: ccache -s
 
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          
+
 # =========================
 # BUILD NONKSU
 # =========================
@@ -347,6 +356,15 @@ jobs:
       - name: Show ccache statistics
         run: ccache -s
 
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          
+
 # =========================
 # RELEASE
 # =========================
@@ -354,6 +372,12 @@ jobs:
     name: Release
     needs: [build-ksu, build-nonksu]
     runs-on: ubuntu-latest
+    outputs:
+      kern_ver: ${{ steps.kinfo.outputs.version }}
+      commit_log: ${{ steps.kinfo.outputs.commit }}
+      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
+      device_name: ${{ steps.cfg.outputs.name }}
+      
 
     steps:
       - name: Download all artifacts
@@ -396,25 +420,24 @@ jobs:
               -d text="$1"
           }
 
-          cd kernel
-          KERN_VER=$(make kernelversion)
-          COMMIT_LOG=$(git log -1 --format='%h %s')
-          COMPILER_VER=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)
-          DEVICE_NAME=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.name')
-          CORE_COUNT=$(nproc --all)
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
-          MESSAGE="*LandVe CI Build Triggered*
-          *Docker OS:* Ubuntu
-          *Kernel Version:* $KERN_VER
+          MESSAGE="*LandVe Kernel CI Release*
+          
+          *Device:* ${{ needs.build-ksu.outputs.device_name }}
+          *Kernel Version:* ${{ needs.build-ksu.outputs.kern_ver }}
+          *Compiler:* ${{ needs.build-ksu.outputs.compiler_ver }}
           *Date:* $BUILD_DATE
-          *Device:* $DEVICE_NAME
-          *Host Core Count:* $CORE_COUNT
-          *Compiler Used:* $COMPILER_VER
-          *Build Status:*
-          KernelSU Variant: Included
-          Non-KSU Variant: Included
-          *Top Commit:* $COMMIT_LOG"
+
+          *Build Variants:*
+          KernelSU Variant
+          Non-KSU Variant
+
+          *Latest Commit:*
+          ${{ needs.build-ksu.outputs.commit_log }}
+          
+          [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
 
           tg "$MESSAGE"
+
           
