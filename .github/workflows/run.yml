@@ -161,7 +161,7 @@ jobs:
           make O=out olddefconfig
 
           echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_IDLE|SSG|CASS" out/.config
+          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -308,7 +308,7 @@ jobs:
           make O=out olddefconfig
 
           echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_IDLE|SSG|CASS" out/.config
+          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
