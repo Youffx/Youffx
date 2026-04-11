@@ -27,6 +27,11 @@ jobs:
   build-ksu:
     name: Build KSU
     runs-on: ubuntu-latest
+    outputs:
+      kern_ver: ${{ steps.kinfo.outputs.version }}
+      commit_log: ${{ steps.kinfo.outputs.commit }}
+      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
+      device_name: ${{ steps.cfg.outputs.name }}
 
     steps:
       - name: Checkout
@@ -372,12 +377,6 @@ jobs:
     name: Release
     needs: [build-ksu, build-nonksu]
     runs-on: ubuntu-latest
-    outputs:
-      kern_ver: ${{ steps.kinfo.outputs.version }}
-      commit_log: ${{ steps.kinfo.outputs.commit }}
-      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
-      device_name: ${{ steps.cfg.outputs.name }}
-      
 
     steps:
       - name: Download all artifacts
