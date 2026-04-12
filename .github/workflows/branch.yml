@@ -1,0 +1,35 @@
+name: Create Branch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  create-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone Repository A
+        run: |
+          git clone https://github.com/Youffx/kernel_xiaomi_rosemary.git repoA
+          cd repoA
+          git fetch --all
+
+      - name: Checkout Specific Commit and Create Branch
+        run: |
+          cd repoA
+          TARGET_COMMIT="ed138210a44514e1a92771ad2804a409a1a5b7da"
+          NEW_BRANCH="new-branch-ed138210"
+          git checkout -b $NEW_BRANCH $TARGET_COMMIT
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Push Branch to Repository A
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          cd repoA
+          git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
+          git push origin new-branch-ed138210
+          
