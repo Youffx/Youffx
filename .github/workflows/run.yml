@@ -437,8 +437,7 @@ jobs:
             ### LandVe Kernel Release
 
             **Build Details:**
-            - Config index: ${{ github.event.inputs.config_index }}
-            - LocalVersion: ${{ github.event.inputs.localversion }}
+            - Version: ${{ github.event.inputs.localversion }}+
 
             **Includes:**
             - KSU Kernel
