@@ -51,6 +51,7 @@ jobs:
           key: ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
           restore-keys: |
             ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
+            ccache-ksu-${{ runner.os }}-
 
       - name: Restore Clang
         uses: actions/cache@v4
