@@ -471,7 +471,6 @@ jobs:
           *Build Statistics:*
           *• KSU:* \*${{ needs.build-ksu.outputs.build_time }}\*
             \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          
           *• Non-KSU:* \*${{ needs.build-nonksu.outputs.build_time }}\*
             \`${{ needs.build-nonksu.outputs.zip_hash }}\`
 
