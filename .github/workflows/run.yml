@@ -469,9 +469,9 @@ jobs:
           *Build Variants:* \`KSU, Non-KSU\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
-          • *KSU:* \*${{ needs.build-ksu.outputs.build_time }}\*
+          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}*
             *MD5* \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          • *Non-KSU:* \*${{ needs.build-nonksu.outputs.build_time }}\*
+          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}*
             *MD5* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
 
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
