@@ -32,8 +32,14 @@ jobs:
       commit_log: ${{ steps.kinfo.outputs.commit }}
       compiler_ver: ${{ steps.kinfo.outputs.compiler }}
       device_name: ${{ steps.cfg.outputs.name }}
+      build_time: ${{ steps.calc.outputs.duration }}
+      zip_hash: ${{ steps.calc.outputs.hash }}
 
     steps:
+      - name: Start Timer
+        id: start_timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -199,6 +205,17 @@ jobs:
           zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
 
+      - name: Calculate Metadata
+        id: calc
+        run: |
+          END=$(date +%s)
+          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          MIN=$((DIFF / 60))
+          SEC=$((DIFF % 60))
+          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
+          HASH=$(md5sum output/*.zip | awk '{print $1}')
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -223,8 +240,15 @@ jobs:
   build-nonksu:
     name: Build NONKSU
     runs-on: ubuntu-latest
+    outputs:
+      build_time: ${{ steps.calc.outputs.duration }}
+      zip_hash: ${{ steps.calc.outputs.hash }}
 
     steps:
+      - name: Start Timer
+        id: start_timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -358,6 +382,17 @@ jobs:
           zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
 
+      - name: Calculate Metadata
+        id: calc
+        run: |
+          END=$(date +%s)
+          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          MIN=$((DIFF / 60))
+          SEC=$((DIFF % 60))
+          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
+          HASH=$(md5sum output/*.zip | awk '{print $1}')
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -433,8 +468,13 @@ jobs:
           *Date:* \`$BUILD_DATE\`
           *Build Variants:* \`KSU, Non-KSU\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
+          *Build Statistics:*
+          • KSU: \`${{ needs.build-ksu.outputs.build_time }}\`
+            \`${{ needs.build-ksu.outputs.zip_hash }}\`
+          
+          • Non-KSU: \`${{ needs.build-nonksu.outputs.build_time }}\`
+            \`${{ needs.build-nonksu.outputs.zip_hash }}\`
 
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
 
           tg "$MESSAGE"
-          
