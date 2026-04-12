@@ -48,11 +48,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-ksu-${{ runner.os }}-${{ github.ref }}-${{ hashFiles('configs/builds.json') }}
+          key: ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
           restore-keys: |
-            ccache-ksu-${{ runner.os }}-${{ github.ref }}-
-            ccache-ksu-${{ runner.os }}-
-            ccache-ksu-
+            ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
 
       - name: Restore Clang
         uses: actions/cache@v4
@@ -90,6 +88,8 @@ jobs:
         run: |
           ccache -M 10G
           ccache -o compression=true
+          ccache -o base_dir=$GITHUB_WORKSPACE
+          ccache -o hash_dir=false
           ccache -z
 
       - name: Apply Root Method (KSU)
@@ -134,6 +134,8 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
+          export KCONFIG_NOTIMESTAMP=1
+          export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
           export CXX="ccache clang++"
@@ -236,11 +238,10 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-nonksu-${{ runner.os }}-${{ github.ref }}-${{ hashFiles('configs/builds.json') }}
+          key: ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
           restore-keys: |
-            ccache-nonksu-${{ runner.os }}-${{ github.ref }}-
+            ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-nonksu-${{ runner.os }}-
-            ccache-nonksu-
 
       - name: Restore Clang
         uses: actions/cache@v4
@@ -278,6 +279,8 @@ jobs:
         run: |
           ccache -M 10G
           ccache -o compression=true
+          ccache -o base_dir=$GITHUB_WORKSPACE
+          ccache -o hash_dir=false
           ccache -z
 
       - name: Build Kernel (NONKSU)
@@ -290,6 +293,8 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
+          export KCONFIG_NOTIMESTAMP=1
+          export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
           export CXX="ccache clang++"
