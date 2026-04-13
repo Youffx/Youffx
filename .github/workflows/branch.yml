@@ -16,8 +16,8 @@ jobs:
       - name: Checkout Specific Commit and Create Branch
         run: |
           cd repoA
-          TARGET_COMMIT="ed138210a44514e1a92771ad2804a409a1a5b7da"
-          NEW_BRANCH="new-branch-ed138210"
+          TARGET_COMMIT="f0963d4bf79f26547cac0faab5ef2cc2c3dba41f"
+          NEW_BRANCH="dev"
           git checkout -b $NEW_BRANCH $TARGET_COMMIT
 
       - name: Configure Git
@@ -31,5 +31,5 @@ jobs:
         run: |
           cd repoA
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
-          git push origin new-branch-ed138210
+          git push origin dev
           
