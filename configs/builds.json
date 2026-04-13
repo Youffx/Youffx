@@ -19,21 +19,22 @@
     "susfs": true
   },
   {
-    "name": "K2",
+    "name": "vanilla",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "cass-teo",
+      "branch": "dev",
       "fetchDepth": 1
     },
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy_susfs/kernel/setup.sh",
-      "arg": "legacy_susfs",
+      "arg": "legacy",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "rosemary_defconfig",
     "susfs": true
   },
   {
