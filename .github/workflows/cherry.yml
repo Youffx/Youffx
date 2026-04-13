@@ -1,0 +1,103 @@
+name: Cherry Pick
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Target branch (e.g. dev)"
+        required: true
+      source:
+        description: "Source repo (format: user/repo)"
+        required: true
+      commits:
+        description: "Commit IDs (space separated)"
+        required: true
+
+jobs:
+  cherry-pick:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Restore Repo Cache
+        uses: actions/cache@v4
+        with:
+          path: repo
+          key: repo-${{ github.event.inputs.branch }}
+
+      - name: Prepare Repository
+        run: |
+          if [ -d "repo/.git" ]; then
+            echo "Using cached repository..."
+            cd repo
+            git remote set-url origin https://github.com/Youffx/kernel_xiaomi_rosemary.git
+            git fetch origin
+          else
+            echo "Cloning fresh repository..."
+            git clone https://github.com/Youffx/kernel_xiaomi_rosemary.git repo
+            cd repo
+          fi
+
+          # checkout branch atau buat baru
+          git checkout ${{ github.event.inputs.branch }} || git checkout -b ${{ github.event.inputs.branch }}
+
+          # rebase ke remote (update terbaru)
+          git pull origin ${{ github.event.inputs.branch }} --rebase || true
+
+      - name: Add Source Repository
+        run: |
+          cd repo
+          git remote remove source || true
+          git remote add source https://github.com/${{ github.event.inputs.source }}.git
+          git fetch source
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: Cherry Pick Commits
+        run: |
+          cd repo
+
+          REJ_COUNT=0
+
+          for commit in ${{ github.event.inputs.commits }}
+          do
+            echo "Cherry-picking $commit"
+
+            git cherry-pick $commit || true
+
+            COUNT=$(find . -name "*.rej" | wc -l)
+            REJ_COUNT=$COUNT
+
+            echo "Current .rej count: $REJ_COUNT"
+
+            git add .
+            git commit -m "Cherry-pick $commit (auto)" || true
+          done
+
+          echo "FINAL_REJ_COUNT=$REJ_COUNT" >> $GITHUB_ENV
+
+      - name: Check Reject Threshold
+        run: |
+          echo "Total .rej files: $FINAL_REJ_COUNT"
+
+          if [ "$FINAL_REJ_COUNT" -gt 3 ]; then
+            echo "Too many .rej files! Cancel push."
+            exit 1
+          fi
+
+      - name: Push to Repository
+        if: success()
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          cd repo
+          git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
+          git push origin ${{ github.event.inputs.branch }}
+
+      - name: Save Repo Cache
+        uses: actions/cache@v4
+        with:
+          path: repo
+          key: repo-${{ github.event.inputs.branch }}
