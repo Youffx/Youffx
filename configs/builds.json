@@ -27,15 +27,15 @@
     },
     "root": {
       "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy_susfs/kernel/setup.sh",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy",
-      "manualPatch": "",
+      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
       "extraPatch": "",
       "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "rosemary_defconfig",
-    "susfs": true
+    "susfs": false
   },
   {
     "name": "K1",
