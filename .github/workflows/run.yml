@@ -194,8 +194,8 @@ jobs:
       - name: Package Flashable Zip (KSU)
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ steps.cfg.outputs.name }}"
-          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-KSU-${DATE}"
+          CONF_NAME="${{ github.event.inputs.localversion }}"
+          ZIP_NAME="LandVe-${CONF_NAME}-KSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -371,8 +371,8 @@ jobs:
       - name: Package Flashable Zip (NONKSU)
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ steps.cfg.outputs.name }}"
-          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-NONKSU-${DATE}"
+          CONF_NAME="${{ github.event.inputs.localversion }}"
+          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
