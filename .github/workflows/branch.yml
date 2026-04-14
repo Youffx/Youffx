@@ -2,6 +2,15 @@ name: Create Branch
 
 on:
   workflow_dispatch:
+    inputs:
+      target_commit:
+        description: "Masukkan commit hash"
+        required: true
+        default: ""
+      new_branch:
+        description: "Nama branch baru"
+        required: true
+        default: ""
 
 jobs:
   create-branch:
@@ -16,8 +25,8 @@ jobs:
       - name: Checkout Specific Commit and Create Branch
         run: |
           cd repoA
-          TARGET_COMMIT="f0963d4bf79f26547cac0faab5ef2cc2c3dba41f"
-          NEW_BRANCH="dev"
+          TARGET_COMMIT="${{ github.event.inputs.target_commit }}"
+          NEW_BRANCH="${{ github.event.inputs.new_branch }}"
           git checkout -b $NEW_BRANCH $TARGET_COMMIT
 
       - name: Configure Git
@@ -31,5 +40,4 @@ jobs:
         run: |
           cd repoA
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
-          git push origin dev
-          
+          git push origin $NEW_BRANCH
