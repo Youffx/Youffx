@@ -40,4 +40,4 @@ jobs:
         run: |
           cd repoA
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
-          git push origin $NEW_BRANCH
+          git push -u origin $NEW_BRANCH
