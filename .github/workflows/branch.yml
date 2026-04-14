@@ -39,5 +39,6 @@ jobs:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           cd repoA
+          NEW_BRANCH="${{ github.event.inputs.new_branch }}"
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
           git push -u origin $NEW_BRANCH
