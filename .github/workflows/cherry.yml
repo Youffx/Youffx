@@ -26,22 +26,37 @@ jobs:
 
       - name: Prepare Repository
         run: |
+          TARGET="${{ github.event.inputs.branch }}"
+          REPO_URL="https://github.com/Youffx/kernel_xiaomi_rosemary.git"
+
           if [ -d "repo/.git" ]; then
             echo "Using cached repository..."
             cd repo
-            git remote set-url origin https://github.com/Youffx/kernel_xiaomi_rosemary.git
-            git fetch origin
+            git remote set-url origin $REPO_URL
+            git fetch origin --prune
           else
             echo "Cloning fresh repository..."
-            git clone https://github.com/Youffx/kernel_xiaomi_rosemary.git repo
+            git clone $REPO_URL repo
             cd repo
           fi
 
-          # checkout branch atau buat baru
-          git checkout ${{ github.event.inputs.branch }} || git checkout -b ${{ github.event.inputs.branch }}
+          git fetch origin --tags
 
-          # rebase ke remote (update terbaru)
-          git pull origin ${{ github.event.inputs.branch }} --rebase || true
+          # Cek apakah TARGET adalah branch yang sudah ada di remote
+          if git ls-remote --heads origin "$TARGET" | grep -q "refs/heads/$TARGET"; then
+            echo "Target adalah branch yang sudah ada: $TARGET"
+            git checkout -B "$TARGET" "origin/$TARGET"
+            git pull origin "$TARGET" --rebase || true
+            echo "WORK_BRANCH=$TARGET" >> $GITHUB_ENV
+
+          # Jika bukan branch, anggap sebagai commit SHA
+          else
+            echo "Target dianggap sebagai commit SHA: $TARGET"
+            git fetch origin "$TARGET" || true
+            NEW_BRANCH="cherry-pick-${TARGET:0:7}"
+            git checkout -b "$NEW_BRANCH" "$TARGET"
+            echo "WORK_BRANCH=$NEW_BRANCH" >> $GITHUB_ENV
+          fi
 
       - name: Add Source Repository
         run: |
@@ -94,7 +109,7 @@ jobs:
         run: |
           cd repo
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
-          git push origin ${{ github.event.inputs.branch }}
+          git push origin $WORK_BRANCH
 
       - name: Save Repo Cache
         uses: actions/cache@v4
