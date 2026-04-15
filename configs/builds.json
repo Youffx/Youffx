@@ -34,7 +34,7 @@
       "susfsPatch": ""
     },
     "ksu-defconfig": "rosemary_defconfig",
-    "nonksu-defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "dev_defconfig",
     "susfs": false
   },
   {
