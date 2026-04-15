@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Target branch (e.g. dev)"
+        description: "Target branch (e.g. dev OR commitSHA newBranch)"
         required: true
       source:
         description: "Source repo (format: user/repo)"
@@ -26,8 +26,21 @@ jobs:
 
       - name: Prepare Repository
         run: |
-          TARGET="${{ github.event.inputs.branch }}"
+          INPUT="${{ github.event.inputs.branch }}"
           REPO_URL="https://github.com/Youffx/kernel_xiaomi_rosemary.git"
+
+          PARTS=($INPUT)
+
+          if [ ${#PARTS[@]} -eq 2 ]; then
+            TARGET="${PARTS[0]}"
+            CUSTOM_BRANCH="${PARTS[1]}"
+          else
+            TARGET="$INPUT"
+            CUSTOM_BRANCH=""
+          fi
+
+          echo "TARGET=$TARGET"
+          echo "CUSTOM_BRANCH=$CUSTOM_BRANCH"
 
           if [ -d "repo/.git" ]; then
             echo "Using cached repository..."
@@ -42,18 +55,24 @@ jobs:
 
           git fetch origin --tags
 
-          # Cek apakah TARGET adalah branch yang sudah ada di remote
           if git ls-remote --heads origin "$TARGET" | grep -q "refs/heads/$TARGET"; then
             echo "Target adalah branch yang sudah ada: $TARGET"
             git checkout -B "$TARGET" "origin/$TARGET"
             git pull origin "$TARGET" --rebase || true
             echo "WORK_BRANCH=$TARGET" >> $GITHUB_ENV
 
-          # Jika bukan branch, anggap sebagai commit SHA
           else
             echo "Target dianggap sebagai commit SHA: $TARGET"
             git fetch origin "$TARGET" || true
-            NEW_BRANCH="cherry-pick-${TARGET:0:7}"
+
+            if [ -n "$CUSTOM_BRANCH" ]; then
+              NEW_BRANCH="$CUSTOM_BRANCH"
+              echo "Menggunakan custom branch: $NEW_BRANCH"
+            else
+              NEW_BRANCH="cherry-pick-${TARGET:0:7}"
+              echo "Menggunakan auto branch: $NEW_BRANCH"
+            fi
+
             git checkout -b "$NEW_BRANCH" "$TARGET"
             echo "WORK_BRANCH=$NEW_BRANCH" >> $GITHUB_ENV
           fi
