@@ -131,17 +131,38 @@ jobs:
             cd ..
           fi
           
-          echo "=== Patching KernelSU for kernel 4.19 compatibility ==="
+          echo "=== Injecting path_umount compat for kernel 4.19 ==="
 
-          if [ -f "KernelSU/kernel/core_hook.c" ]; then
-            if grep -q "path_umount" KernelSU/kernel/core_hook.c; then
-              echo "Found path_umount usage - applying kernel 4.19 patch"
+          FILE="drivers/kernelsu/compat/kernel_compat.c"
 
-              # Replace with ksys_umount (recommended for 4.19)
-              sed -i 's/path_umount([^;]*);/ksys_umount(mnt_point, 0);/g' KernelSU/kernel/core_hook.c || true
+          if [ -f "$FILE" ]; then
+            if grep -q "int path_umount(struct path" "$FILE"; then
+              echo "path_umount already exists, skipping..."
+            else
+              echo "Adding path_umount implementation..."
 
-              echo "Patched path_umount -> ksys_umount"
+              cat << 'EOF' >> $FILE
+
+            // === KernelSU compat: path_umount for kernel 4.19 ===
+            #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+            #include <linux/mount.h>
+
+            int path_umount(struct path *path, int flags)
+            {
+                if (!path || !path->mnt)
+                    return -EINVAL;
+
+                return do_umount(path->mnt, flags);
+            }
+            #endif
+
+            EOF
+
+              echo "path_umount injected successfully"
             fi
+          else
+            echo "kernel_compat.c not found!"
+            exit 1
           fi
 
       - name: Build Kernel (KSU)
