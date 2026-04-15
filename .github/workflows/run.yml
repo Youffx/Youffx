@@ -128,7 +128,10 @@ jobs:
             [ -n "$iv_PATCH" ] && curl -LSs "$iv_PATCH" | patch -p1 || true
             [ -n "$v_PATCH" ] && curl -LSs "$v_PATCH" | patch -p1 || true
 
-            cd echo "=== Injecting path_umount compat for kernel 4.19 ==="
+            cd ..
+          fi
+          
+          cd echo "=== Injecting path_umount compat for kernel 4.19 ==="
 
           FILE="kernel/drivers/kernelsu/compat/kernel_compat.c"
 
@@ -160,8 +163,6 @@ jobs:
             exit 1
           fi..
           fi
-          
-          
 
       - name: Build Kernel (KSU)
         run: |
