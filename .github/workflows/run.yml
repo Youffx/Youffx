@@ -129,39 +129,39 @@ jobs:
             [ -n "$v_PATCH" ] && curl -LSs "$v_PATCH" | patch -p1 || true
 
             cd ..
-          fi
-          
-          cd echo "=== Injecting path_umount compat for kernel 4.19 ==="
 
-          FILE="kernel/drivers/kernelsu/compat/kernel_compat.c"
+            echo "=== Injecting path_umount compat for kernel 4.19 ==="
 
-          if [ -f "$FILE" ]; then
-            if grep -q "int path_umount(struct path" "$FILE"; then
-              echo "path_umount already exists, skipping..."
+            FILE="kernel/drivers/kernelsu/compat/kernel_compat.c"
+
+            if [ -f "$FILE" ]; then
+              if grep -q "int path_umount(struct path" "$FILE"; then
+                echo "path_umount already exists, skipping..."
+              else
+                echo "Adding path_umount implementation..."
+
+                {
+                  echo "// === KernelSU compat: path_umount for kernel 4.19 ==="
+                  echo "#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)"
+                  echo "#include <linux/mount.h>"
+                  echo ""
+                  echo "int path_umount(struct path *path, int flags)"
+                  echo "{"
+                  echo "    if (!path || !path->mnt)"
+                  echo "        return -EINVAL;"
+                  echo ""
+                  echo "    return do_umount(path->mnt, flags);"
+                  echo "}"
+                  echo "#endif"
+                } >> "$FILE"
+
+                echo "path_umount injected successfully"
+              fi
             else
-              echo "Adding path_umount implementation..."
-
-              {
-                echo "// === KernelSU compat: path_umount for kernel 4.19 ==="
-                echo "#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)"
-                echo "#include <linux/mount.h>"
-                echo ""
-                echo "int path_umount(struct path *path, int flags)"
-                echo "{"
-                echo "    if (!path || !path->mnt)"
-                echo "        return -EINVAL;"
-                echo ""
-                echo "    return do_umount(path->mnt, flags);"
-                echo "}"
-                echo "#endif"
-              } >> "$FILE"
-
-              echo "path_umount injected successfully"
+              echo "kernel_compat.c not found!"
+              exit 1
             fi
-          else
-            echo "kernel_compat.c not found!"
-            exit 1
-          fi..
+
           fi
 
       - name: Build Kernel (KSU)
