@@ -22,7 +22,7 @@
     "name": "R0-rebase",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "cherry-pick-3db308e",
+      "branch": "wave",
       "fetchDepth": 1
     },
     "root": {
