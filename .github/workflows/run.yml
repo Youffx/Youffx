@@ -133,7 +133,7 @@ jobs:
           
           echo "=== Injecting path_umount compat for kernel 4.19 ==="
 
-          FILE="drivers/kernelsu/compat/kernel_compat.c"
+          FILE="kernel/drivers/kernelsu/compat/kernel_compat.c"
 
           if [ -f "$FILE" ]; then
             if grep -q "int path_umount(struct path" "$FILE"; then
@@ -141,22 +141,22 @@ jobs:
             else
               echo "Adding path_umount implementation..."
 
-              cat << 'EOF' >> $FILE
+              cat <<- 'EOF' >> "$FILE"
 
-            // === KernelSU compat: path_umount for kernel 4.19 ===
-            #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
-            #include <linux/mount.h>
+              // === KernelSU compat: path_umount for kernel 4.19 ===
+              #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+              #include <linux/mount.h>
 
-            int path_umount(struct path *path, int flags)
-            {
-                if (!path || !path->mnt)
-                    return -EINVAL;
+              int path_umount(struct path *path, int flags)
+              {
+                  if (!path || !path->mnt)
+                      return -EINVAL;
 
-                return do_umount(path->mnt, flags);
-            }
-            #endif
+                  return do_umount(path->mnt, flags);
+              }
+              #endif
 
-            EOF
+              EOF
 
               echo "path_umount injected successfully"
             fi
