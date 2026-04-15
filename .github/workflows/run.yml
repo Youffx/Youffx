@@ -128,10 +128,7 @@ jobs:
             [ -n "$iv_PATCH" ] && curl -LSs "$iv_PATCH" | patch -p1 || true
             [ -n "$v_PATCH" ] && curl -LSs "$v_PATCH" | patch -p1 || true
 
-            cd ..
-          fi
-          
-          echo "=== Injecting path_umount compat for kernel 4.19 ==="
+            cd echo "=== Injecting path_umount compat for kernel 4.19 ==="
 
           FILE="kernel/drivers/kernelsu/compat/kernel_compat.c"
 
@@ -141,29 +138,30 @@ jobs:
             else
               echo "Adding path_umount implementation..."
 
-              cat <<- 'EOF' >> "$FILE"
-
-              // === KernelSU compat: path_umount for kernel 4.19 ===
-              #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
-              #include <linux/mount.h>
-
-              int path_umount(struct path *path, int flags)
               {
-                  if (!path || !path->mnt)
-                      return -EINVAL;
-
-                  return do_umount(path->mnt, flags);
-              }
-              #endif
-
-              EOF
+                echo "// === KernelSU compat: path_umount for kernel 4.19 ==="
+                echo "#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)"
+                echo "#include <linux/mount.h>"
+                echo ""
+                echo "int path_umount(struct path *path, int flags)"
+                echo "{"
+                echo "    if (!path || !path->mnt)"
+                echo "        return -EINVAL;"
+                echo ""
+                echo "    return do_umount(path->mnt, flags);"
+                echo "}"
+                echo "#endif"
+              } >> "$FILE"
 
               echo "path_umount injected successfully"
             fi
           else
             echo "kernel_compat.c not found!"
             exit 1
+          fi..
           fi
+          
+          
 
       - name: Build Kernel (KSU)
         run: |
