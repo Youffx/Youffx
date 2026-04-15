@@ -130,6 +130,19 @@ jobs:
 
             cd ..
           fi
+          
+          echo "=== Patching KernelSU for kernel 4.19 compatibility ==="
+
+          if [ -f "KernelSU/kernel/core_hook.c" ]; then
+            if grep -q "path_umount" KernelSU/kernel/core_hook.c; then
+              echo "Found path_umount usage - applying kernel 4.19 patch"
+
+              # Replace with ksys_umount (recommended for 4.19)
+              sed -i 's/path_umount([^;]*);/ksys_umount(mnt_point, 0);/g' KernelSU/kernel/core_hook.c || true
+
+              echo "Patched path_umount -> ksys_umount"
+            fi
+          fi
 
       - name: Build Kernel (KSU)
         run: |
