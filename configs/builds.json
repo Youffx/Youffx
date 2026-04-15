@@ -29,7 +29,7 @@
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
       "arg": "legacy",
-      "manualPatch": "https://raw.githubusercontent.com/rksuorg/kernel_patches/master/manual_hook/kernel-4.19_5.4.patch",
+      "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
     },
