@@ -33,8 +33,8 @@
       "extraPatch": "",
       "susfsPatch": ""
     },
-    "defconfig": "rosemary_defconfig",
-    "nonksu-defconfig": "dev_defconfig",
+    "ksu-defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "rosemary_defconfig",
     "susfs": false
   },
   {
