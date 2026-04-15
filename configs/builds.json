@@ -19,10 +19,10 @@
     "susfs": true
   },
   {
-    "name": "vanilla",
+    "name": "R0-rebase",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "dev",
+      "branch": "r-dev",
       "fetchDepth": 1
     },
     "root": {
@@ -34,7 +34,7 @@
       "susfsPatch": ""
     },
     "defconfig": "rosemary_defconfig",
-    "nonksu-defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "dev_defconfig",
     "susfs": false
   },
   {
