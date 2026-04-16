@@ -1,4 +1,4 @@
-name: Cherry Pick
+name: Cherry Pick & Revert
 
 on:
   workflow_dispatch:
@@ -8,10 +8,13 @@ on:
         required: true
       source:
         description: "Source repo (format: user/repo)"
-        required: true
+        required: false
       commits:
-        description: "Commit IDs (space separated)"
-        required: true
+        description: "Cherry-pick commit IDs (space separated, optional)"
+        required: false
+      revert_commits:
+        description: "Revert commit IDs (space separated, optional)"
+        required: false
 
 jobs:
   cherry-pick:
@@ -56,21 +59,16 @@ jobs:
           git fetch origin --tags
 
           if git ls-remote --heads origin "$TARGET" | grep -q "refs/heads/$TARGET"; then
-            echo "Target adalah branch yang sudah ada: $TARGET"
             git checkout -B "$TARGET" "origin/$TARGET"
             git pull origin "$TARGET" --rebase || true
             echo "WORK_BRANCH=$TARGET" >> $GITHUB_ENV
-
           else
-            echo "Target dianggap sebagai commit SHA: $TARGET"
             git fetch origin "$TARGET" || true
 
             if [ -n "$CUSTOM_BRANCH" ]; then
               NEW_BRANCH="$CUSTOM_BRANCH"
-              echo "Menggunakan custom branch: $NEW_BRANCH"
             else
               NEW_BRANCH="cherry-pick-${TARGET:0:7}"
-              echo "Menggunakan auto branch: $NEW_BRANCH"
             fi
 
             git checkout -b "$NEW_BRANCH" "$TARGET"
@@ -78,6 +76,7 @@ jobs:
           fi
 
       - name: Add Source Repository
+        if: ${{ github.event.inputs.source != '' }}
         run: |
           cd repo
           git remote remove source || true
@@ -89,7 +88,29 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
+      # =========================
+      # REVERT
+      # =========================
+      - name: Revert Commits
+        if: ${{ github.event.inputs.revert_commits != '' }}
+        run: |
+          cd repo
+
+          for commit in ${{ github.event.inputs.revert_commits }}
+          do
+            echo "Reverting $commit"
+
+            git revert --no-edit $commit || true
+
+            git add .
+            git commit -m "Revert $commit (auto)" || true
+          done
+
+      # =========================
+      # CHERRY
+      # =========================
       - name: Cherry Pick Commits
+        if: ${{ github.event.inputs.commits != '' }}
         run: |
           cd repo
 
@@ -116,7 +137,7 @@ jobs:
         run: |
           echo "Total .rej files: $FINAL_REJ_COUNT"
 
-          if [ "$FINAL_REJ_COUNT" -gt 3 ]; then
+          if [ -n "$FINAL_REJ_COUNT" ] && [ "$FINAL_REJ_COUNT" -gt 3 ]; then
             echo "Too many .rej files! Cancel push."
             exit 1
           fi
@@ -129,6 +150,10 @@ jobs:
           cd repo
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
           git push origin $WORK_BRANCH
+
+      # =================================
+      # SHIT MANN JAGO BANGET GUA ANJAY
+      # =================================
 
       - name: Save Repo Cache
         uses: actions/cache@v4
