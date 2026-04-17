@@ -90,12 +90,15 @@ jobs:
 
           echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
           gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
+          rm -f private.key
 
           git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
           git config --global commit.gpgsign true
           git config --global gpg.program gpg
           git config --global tag.gpgsign true
 
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
           echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
           echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
           gpgconf --kill gpg-agent
