@@ -83,10 +83,23 @@ jobs:
           git remote add source https://github.com/${{ github.event.inputs.source }}.git
           git fetch source
 
-      - name: Configure Git
+      - name: Configure Git + Import GPG
         run: |
           git config --global user.name "${{ secrets.USER }}"
           git config --global user.email "${{ secrets.EMAIL }}"
+
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
+          gpg --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
+
+          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+          git config --global commit.gpgsign true
+          git config --global gpg.program gpg
+          git config --global tag.gpgsign true
+
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          gpgconf --kill gpg-agent
+    
       # =========================
       # REVERT
       # =========================
