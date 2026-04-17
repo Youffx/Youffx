@@ -95,9 +95,9 @@ jobs:
           git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
           git config --global commit.gpgsign true
 
-          cat > ~/gpg-loopback.sh <<EOF
+          cat > ~/gpg-loopback.sh <<'EOF'
           #!/usr/bin/env bash
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" "$@"
+          exec gpg --batch --no-tty --pinentry-mode loopback "$@"
           EOF
 
           chmod +x ~/gpg-loopback.sh
