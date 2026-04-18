@@ -1,4 +1,4 @@
-name: Advanced Kernel Builder
+name: LTO
 
 on:
   workflow_dispatch:
