@@ -15,6 +15,9 @@ on:
       revert_commits:
         description: "Revert commit IDs (space separated, optional)"
         required: false
+      exclude_files:
+        description: "Files to exclude (space separated, optional)"
+        required: false
 
 jobs:
   cherry-pick:
@@ -110,9 +113,6 @@ jobs:
           git config --global tag.gpgsign true
           git config --global gpg.program gpg
 
-      # =========================
-      # REVERT
-      # =========================
       - name: Revert Commits
         if: ${{ github.event.inputs.revert_commits != '' }}
         run: |
@@ -122,15 +122,19 @@ jobs:
           do
             echo "Reverting $commit"
 
-            git revert --no-edit $commit || true
+            git revert --no-commit $commit || true
+
+            if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
+              for file in ${{ github.event.inputs.exclude_files }}
+              do
+                git checkout HEAD -- "$file" || true
+              done
+            fi
 
             git add .
             git commit -m "Revert $commit (auto)" || true
           done
 
-      # =========================
-      # CHERRY
-      # =========================
       - name: Cherry Pick Commits
         if: ${{ github.event.inputs.commits != '' }}
         run: |
@@ -142,7 +146,14 @@ jobs:
           do
             echo "Cherry-picking $commit"
 
-            git cherry-pick $commit || true
+            git cherry-pick -n $commit || true
+
+            if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
+              for file in ${{ github.event.inputs.exclude_files }}
+              do
+                git checkout HEAD -- "$file" || true
+              done
+            fi
 
             COUNT=$(find . -name "*.rej" | wc -l)
             REJ_COUNT=$COUNT
@@ -178,3 +189,4 @@ jobs:
         with:
           path: repo
           key: repo-${{ github.event.inputs.branch }}
+          
