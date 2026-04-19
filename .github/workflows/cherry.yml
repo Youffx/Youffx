@@ -15,6 +15,9 @@ on:
       revert_commits:
         description: "Revert commit IDs (space separated, optional)"
         required: false
+      exclude_files:
+        description: "Files to exclude after cherry-pick (space separated)"
+        required: false
 
 jobs:
   cherry-pick:
@@ -42,16 +45,11 @@ jobs:
             CUSTOM_BRANCH=""
           fi
 
-          echo "TARGET=$TARGET"
-          echo "CUSTOM_BRANCH=$CUSTOM_BRANCH"
-
           if [ -d "repo/.git" ]; then
-            echo "Using cached repository..."
             cd repo
             git remote set-url origin $REPO_URL
             git fetch origin --prune
           else
-            echo "Cloning fresh repository..."
             git clone $REPO_URL repo
             cd repo
           fi
@@ -83,98 +81,39 @@ jobs:
           git remote add source https://github.com/${{ github.event.inputs.source }}.git
           git fetch source
 
-      - name: Configure Git + Import GPG
+      - name: Configure Git
         run: |
           git config --global user.name "${{ secrets.USER }}"
           git config --global user.email "${{ secrets.EMAIL }}"
 
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
-
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
-          echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
-          rm -f private.key
-
-          gpgconf --kill gpg-agent
-          gpg-connect-agent reloadagent /bye
-
-          echo "test" | gpg --clearsign --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" > /dev/null
-
-          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
-          git config --global commit.gpgsign true
-          git config --global tag.gpgsign true
-          git config --global gpg.program gpg
-
-      # =========================
-      # REVERT
-      # =========================
-      - name: Revert Commits
-        if: ${{ github.event.inputs.revert_commits != '' }}
-        run: |
-          cd repo
-
-          for commit in ${{ github.event.inputs.revert_commits }}
-          do
-            echo "Reverting $commit"
-
-            git revert --no-edit $commit || true
-
-            git add .
-            git commit -m "Revert $commit (auto)" || true
-          done
-
-      # =========================
-      # CHERRY
-      # =========================
       - name: Cherry Pick Commits
         if: ${{ github.event.inputs.commits != '' }}
         run: |
           cd repo
 
-          REJ_COUNT=0
-
           for commit in ${{ github.event.inputs.commits }}
           do
             echo "Cherry-picking $commit"
 
-            git cherry-pick $commit || true
+            git cherry-pick --no-commit $commit || true
 
-            COUNT=$(find . -name "*.rej" | wc -l)
-            REJ_COUNT=$COUNT
-
-            echo "Current .rej count: $REJ_COUNT"
+            # Exclude files if requested
+            if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
+              for file in ${{ github.event.inputs.exclude_files }}
+              do
+                echo "Excluding $file"
+                git restore --staged --worktree "$file" 2>/dev/null || git checkout HEAD -- "$file" || true
+              done
+            fi
 
             git add .
             git commit -m "Cherry-pick $commit (auto)" || true
           done
 
-          echo "FINAL_REJ_COUNT=$REJ_COUNT" >> $GITHUB_ENV
-
-      - name: Check Reject Threshold
-        run: |
-          echo "Total .rej files: $FINAL_REJ_COUNT"
-
-          if [ -n "$FINAL_REJ_COUNT" ] && [ "$FINAL_REJ_COUNT" -gt 3 ]; then
-            echo "Too many .rej files! Cancel push."
-            exit 1
-          fi
-
       - name: Push to Repository
-        if: success()
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           cd repo
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
           git push origin $WORK_BRANCH
-
-      - name: Save Repo Cache
-        uses: actions/cache@v4
-        with:
-          path: repo
-          key: repo-${{ github.event.inputs.branch }}
