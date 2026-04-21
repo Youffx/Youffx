@@ -259,6 +259,36 @@ jobs:
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
           echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
+      - name: Telegram Fail Report
+        if: failure()
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
+
+          if [ -z "$LOG" ]; then
+            ERROR_MSG="No log found"
+          else
+            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$LOG" | tail -20)
+          fi
+
+          TEXT=$(cat <<EOF
+          Fail pak
+
+          Job: Build KSU
+          Run: #${{ github.run_number }}
+          Repo: ${{ github.repository }}
+
+          Error disini:
+          $ERROR_MSG
+          EOF
+          )
+
+          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
+            -d chat_id="$CHATID" \
+            --data-urlencode text="$TEXT"
+
   build-nonksu:
     name: Build NONKSU
     runs-on: ubuntu-latest
@@ -462,6 +492,36 @@ jobs:
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
           echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
+      - name: Telegram Fail Report
+        if: failure()
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
+
+          if [ -z "$LOG" ]; then
+            ERROR_MSG="No log found"
+          else
+            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$LOG" | tail -20)
+          fi
+
+          TEXT=$(cat <<EOF
+          Fail pak
+
+          Job: Build NONKSU
+          Run: #${{ github.run_number }}
+          Repo: ${{ github.repository }}
+
+          Error disini:
+          $ERROR_MSG
+          EOF
+          )
+
+          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
+            -d chat_id="$CHATID" \
+            --data-urlencode text="$TEXT"
+  
   release:
     name: Release
     needs: [build-ksu, build-nonksu]
