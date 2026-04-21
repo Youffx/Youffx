@@ -1,4 +1,4 @@
-name: Upload LLVM 21 to Binaries Repo
+name: Upload LLVM
 
 on:
   workflow_dispatch:
@@ -21,8 +21,10 @@ jobs:
           gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
           rm -f private.key
           
+          # Force git to use the passphrase for GPG signing
           git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
           git config --global commit.gpgsign true
+          git config --global gpg.program gpg
 
       - name: Download and Extract LLVM 21
         run: |
@@ -35,13 +37,18 @@ jobs:
       - name: Initialize and Push to Empty Repo
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+          GPG_TTY: /dev/null
         run: |
           cd llvm-bin
           git init
           git checkout -b main
           git add .
-          git commit -m "Initial commit: Add LLVM 21.1.0 Official Binaries (Linux X64)"
           
+          # Gunakan parameter --gpg-sign dengan passphrase secara eksplisit
+          git commit -S --message "Initial commit: Add LLVM 21.1.0 Official Binaries (Linux X64)" \
+          --gpg-sign="${{ secrets.GPG_KEY_ID }}" \
+          || git -c "gpg.program=gpg" -c "gpg.args=--batch --pinentry-mode=loopback --passphrase=${{ secrets.GPG_PASSPHRASE }}" commit -m "Initial commit: Add LLVM 21.1.0 Official Binaries (Linux X64)"
+
           git remote add origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/llvm-binaries.git
           git push -u origin main --force
           
