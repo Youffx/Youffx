@@ -6,49 +6,57 @@ on:
 jobs:
   upload:
     runs-on: ubuntu-latest
+
     steps:
       - name: Configure Git + Import GPG
+        env:
+          GPG_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_PASS: ${{ secrets.GPG_PASSPHRASE }}
         run: |
           git config --global user.name "${{ secrets.USER }}"
           git config --global user.email "${{ secrets.EMAIL }}"
-          
+          git config --global init.defaultBranch main
+
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+
+          echo "use-agent" > ~/.gnupg/gpg.conf
           echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
-          rm -f private.key
-          
-          # Force git to use the passphrase for GPG signing
+          echo "allow-loopback-pinentry" > ~/.gnupg/gpg-agent.conf
+
+          echo "$GPG_KEY" | gpg --batch --yes --import
+
+          echo "5" | gpg --command-fd 0 --batch --yes --expert \
+            --pinentry-mode loopback \
+            --passphrase "$GPG_PASS" \
+            --edit-key "${{ secrets.GPG_KEY_ID }}" trust quit
+
           git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
           git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
           git config --global gpg.program gpg
+
+          git config --global gpg.format openpgp
+          git config --global gpg.program "gpg --batch --pinentry-mode loopback --passphrase $GPG_PASS"
 
       - name: Download and Extract LLVM 21
         run: |
           mkdir llvm-bin
           cd llvm-bin
-          wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-Linux-X64.tar.xz
+          wget -q https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-Linux-X64.tar.xz
           tar -xf LLVM-21.1.0-Linux-X64.tar.xz --strip-components=1
-          rm LLVM-21.1.0-Linux-X64.tar.xz
+          rm -f LLVM-21.1.0-Linux-X64.tar.xz
 
-      - name: Initialize and Push to Empty Repo
+      - name: Initialize and Push Repo
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-          GPG_TTY: /dev/null
         run: |
           cd llvm-bin
+
           git init
-          git checkout -b main
           git add .
-          
-          # Gunakan parameter --gpg-sign dengan passphrase secara eksplisit
-          git commit -S --message "Initial commit: Add LLVM 21.1.0 Official Binaries (Linux X64)" \
-          --gpg-sign="${{ secrets.GPG_KEY_ID }}" \
-          || git -c "gpg.program=gpg" -c "gpg.args=--batch --pinentry-mode=loopback --passphrase=${{ secrets.GPG_PASSPHRASE }}" commit -m "Initial commit: Add LLVM 21.1.0 Official Binaries (Linux X64)"
+
+          git commit -m "Initial commit: Add LLVM 21.1.0 Official Binaries (Linux X64)"
 
           git remote add origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/llvm-binaries.git
           git push -u origin main --force
-          
