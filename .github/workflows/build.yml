@@ -1,4 +1,4 @@
-name: LTO
+name: NON LTO
 
 on:
   workflow_dispatch:
@@ -16,14 +16,30 @@ permissions:
   contents: write
   actions: read
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
 
-    env:
-      CCACHE_DIR: ${{ github.workspace }}/.ccache
+jobs:
+
+# =========================
+# BUILD KSU
+# =========================
+  build-ksu:
+    name: Build KSU
+    runs-on: ubuntu-latest
+    outputs:
+      kern_ver: ${{ steps.kinfo.outputs.version }}
+      commit_log: ${{ steps.kinfo.outputs.commit }}
+      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
+      device_name: ${{ steps.cfg.outputs.name }}
+      build_time: ${{ steps.calc.outputs.duration }}
+      zip_hash: ${{ steps.calc.outputs.hash }}
 
     steps:
+      - name: Start Timer
+        id: start_timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -37,13 +53,11 @@ jobs:
       - name: Restore ccache
         uses: actions/cache@v4
         with:
-          path: |
-            .ccache
-            kernel/.thinlto-cache
-          key: ccache-lto-${{ github.ref }}-${{ github.sha }}
+          path: .ccache
+          key: ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
           restore-keys: |
-            ccache-lto-${{ github.ref }}-
-            ccache-lto-
+            ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
+            ccache-ksu-${{ runner.os }}-
 
       - name: Restore Clang
         uses: actions/cache@v4
@@ -81,9 +95,11 @@ jobs:
         run: |
           ccache -M 10G
           ccache -o compression=true
+          ccache -o base_dir=$GITHUB_WORKSPACE
+          ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method
+      - name: Apply Root Method (KSU)
         run: |
           ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
 
@@ -115,9 +131,9 @@ jobs:
             cd ..
           fi
 
-      - name: Build Kernel
+      - name: Build Kernel (KSU)
         run: |
-          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.defconfig')
+          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
           export ARCH=arm64
           export SUBARCH=arm64
@@ -125,17 +141,21 @@ jobs:
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
-
+          export KCONFIG_NOTIMESTAMP=1
+          export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
-          export LTO_CACHE_DIR="$PWD/.thinlto-cache"
-          mkdir -p "$LTO_CACHE_DIR"
+          export CXX="ccache clang++"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=10G
+
+          ccache -s
 
           cd kernel
 
           make O=out $DEFCONFIG
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
-
           BASE="-LandVe"
 
           if [ -n "$LV_INPUT" ]; then
@@ -144,7 +164,182 @@ jobs:
             LV="$BASE"
           fi
 
-          echo "Applying LOCALVERSION: $LV"
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+
+          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+          else
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+          fi
+
+          make O=out olddefconfig
+
+          echo "===== LANDVE DEBUGS ====="
+          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
+
+          make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="ccache clang" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            Image.gz-dtb
+
+      - name: Package Flashable Zip (KSU)
+        run: |
+          DATE=$(date +"%Y%m%d-%H%M")
+          CONF_NAME="${{ github.event.inputs.localversion }}"
+          ZIP_NAME="LandVe-${CONF_NAME}-KSU-${DATE}"
+
+          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
+          mkdir -p output
+          cp "$IMAGE" .github/Flash/kernels/
+
+          cd .github/Flash/
+          zip -r "../../output/${ZIP_NAME}.zip" ./*
+          cd ../../
+
+      - name: Calculate Metadata
+        id: calc
+        run: |
+          END=$(date +%s)
+          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          MIN=$((DIFF / 60))
+          SEC=$((DIFF % 60))
+          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
+          HASH=$(md5sum output/*.zip | awk '{print $1}')
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: zip-ksu
+          path: output/*.zip
+
+      - name: Show ccache statistics
+        run: ccache -s
+
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          
+
+# =========================
+# BUILD NONKSU
+# =========================
+  build-nonksu:
+    name: Build NONKSU
+    runs-on: ubuntu-latest
+    outputs:
+      build_time: ${{ steps.calc.outputs.duration }}
+      zip_hash: ${{ steps.calc.outputs.hash }}
+
+    steps:
+      - name: Start Timer
+        id: start_timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex git gnupg gperf \
+            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
+            ccache-nonksu-${{ runner.os }}-
+
+      - name: Restore Clang
+        uses: actions/cache@v4
+        with:
+          path: clang
+          key: Clang-15.0.7
+
+      - name: Load Config
+        id: cfg
+        run: |
+          CONFIG=$(jq -c ".[$CONFIG_INDEX]" configs/builds.json)
+          NAME=$(echo "$CONFIG" | jq -r '.name')
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+        env:
+          CONFIG_INDEX: ${{ github.event.inputs.config_index }}
+
+      - name: Clone Kernel
+        run: |
+          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
+          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
+          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
+
+          git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
+
+      - name: Setup Clang
+        run: |
+          if [ ! -d "clang/bin" ]; then
+            mkdir clang
+            curl -L https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20260208-release/Clang-15.0.7-20260208.tar.gz | tar -xz -C clang
+          fi
+          echo "$PWD/clang/bin" >> $GITHUB_PATH
+
+      - name: Setup ccache
+        run: |
+          ccache -M 10G
+          ccache -o compression=true
+          ccache -o base_dir=$GITHUB_WORKSPACE
+          ccache -o hash_dir=false
+          ccache -z
+
+      - name: Build Kernel (NONKSU)
+        run: |
+          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
+
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$PWD/clang/bin:$PATH"
+          export KBUILD_BUILD_USER="youffx"
+          export KBUILD_BUILD_HOST="collection"
+          export KBUILD_BUILD_VERSION=1
+          export KCONFIG_NOTIMESTAMP=1
+          export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
+          export CC="ccache clang"
+          export CXX="ccache clang++"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=10G
+
+          ccache -s
+
+          cd kernel
+
+          make O=out $DEFCONFIG
+
+          LV_INPUT="${{ github.event.inputs.localversion }}"
+          BASE="-LandVe"
+
+          if [ -n "$LV_INPUT" ]; then
+            LV="${BASE}${LV_INPUT}"
+          else
+            LV="$BASE"
+          fi
 
           LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
 
@@ -153,35 +348,33 @@ jobs:
           else
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
-          
+
           make O=out olddefconfig
-          echo "===== DEBUG LTO ====="
-          grep -E "CONFIG_FTRACE|LTO|CC_IS_CLANG|LD_IS_LLD|KASAN|FTRACE_MCOUNT_RECORD|HAVE_C_RECORDMCOUNT" out/.config
+
+          echo "===== LANDVE DEBUGS ====="
+          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
-            CC="ccache clang" \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            LDFLAGS_vmlinux="--thinlto-cache-dir=$LTO_CACHE_DIR" \
+            CC="ccache clang" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb
 
-      - name: Ccache Efficiency
-        run: |
-          ccache -s
-
-      - name: Package Flashable Zip
+      - name: Package Flashable Zip (NONKSU)
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ steps.cfg.outputs.name }}"
-          ZIP_NAME="LandVe-Kernel-${CONF_NAME}-${DATE}"
+          CONF_NAME="${{ github.event.inputs.localversion }}"
+          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
-          [ ! -f "$IMAGE" ] && echo "Kernel image not found!" && exit 1
-
           mkdir -p output
           cp "$IMAGE" .github/Flash/kernels/
 
@@ -189,20 +382,95 @@ jobs:
           zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
 
-          echo "ZIP_FINAL_NAME=${ZIP_NAME}" >> $GITHUB_ENV
-          echo "RELEASE_TAG=Release-${CONF_NAME}-${DATE}" >> $GITHUB_ENV
+      - name: Calculate Metadata
+        id: calc
+        run: |
+          END=$(date +%s)
+          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          MIN=$((DIFF / 60))
+          SEC=$((DIFF % 60))
+          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
+          HASH=$(md5sum output/*.zip | awk '{print $1}')
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
 
-      - name: Create GitHub Release
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: zip-nonksu
+          path: output/*.zip
+
+      - name: Show ccache statistics
+        run: ccache -s
+
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          
+
+# =========================
+# RELEASE
+# =========================
+  release:
+    name: Release
+    needs: [build-ksu, build-nonksu]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Collect ZIPs
+        run: |
+          mkdir final
+          find . -name "*.zip" -exec cp {} final/ \;
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          name: ${{ env.ZIP_FINAL_NAME }}
+          tag_name: Release-${{ github.run_id }}
+          name: LandVe Kernel Release
           body: |
             ### LandVe Kernel Release
 
             **Build Details:**
-            - Variant: `${{ steps.cfg.outputs.name }}`
-            - SusFS: `${{ fromJson(steps.cfg.outputs.config).susfs }}`
-          files: output/${{ env.ZIP_FINAL_NAME }}.zip
+            - Version: ${{ github.event.inputs.localversion }}+
+
+            **Includes:**
+            - KSU Kernel
+            - NON-KSU Kernel
+          files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1"
+          }
+
+          BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
+
+          MESSAGE="*LandVe Kernel CI Release*
+          *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
+          *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
+          *Date:* \`$BUILD_DATE\`
+          *Build Variants:* \`KSU, Non-KSU\`
+          *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
+          *Build Statistics:*
+          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
+          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+
+          [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
+
+          tg "$MESSAGE"
