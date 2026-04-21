@@ -55,11 +55,11 @@ jobs:
             ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-ksu-${{ runner.os }}-
 
-      - name: Restore Clang
+      - name: Restore LLVM
         uses: actions/cache@v4
         with:
-          path: clang
-          key: Clang-r563880
+          path: llvm
+          key: LLVM-21.1.0
 
       - name: Load Config
         id: cfg
@@ -79,15 +79,13 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
 
-      - name: Setup Clang
+      - name: Setup LLVM
         run: |
-          if [ ! -d "clang/bin" ]; then
-            mkdir clang
-            git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-prebuilts
-            mv clang-prebuilts/clang-r563880/* clang/
-            rm -rf clang-prebuilts
+          if [ ! -d "llvm/bin" ]; then
+            mkdir -p llvm
+            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-Linux-X64.tar.xz | tar -xJ -C llvm --strip-components=1
           fi
-          echo "$PWD/clang/bin" >> $GITHUB_PATH
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Setup ccache
         run: |
@@ -269,11 +267,11 @@ jobs:
             ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-nonksu-${{ runner.os }}-
 
-      - name: Restore Clang
+      - name: Restore LLVM
         uses: actions/cache@v4
         with:
-          path: clang
-          key: Clang-r563880
+          path: llvm
+          key: LLVM-21.1.0
 
       - name: Load Config
         id: cfg
@@ -293,15 +291,13 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
 
-      - name: Setup Clang
+      - name: Setup LLVM
         run: |
-          if [ ! -d "clang/bin" ]; then
-            mkdir clang
-            git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang-prebuilts
-            mv clang-prebuilts/clang-r563880/* clang/
-            rm -rf clang-prebuilts
+          if [ ! -d "llvm/bin" ]; then
+            mkdir -p llvm
+            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-Linux-X64.tar.xz | tar -xJ -C llvm --strip-components=1
           fi
-          echo "$PWD/clang/bin" >> $GITHUB_PATH
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Setup ccache
         run: |
