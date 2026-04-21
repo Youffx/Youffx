@@ -1,0 +1,52 @@
+name: PUSH LLVM
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout LLVM Binaries Repo
+        uses: actions/checkout@v4
+        with:
+          repository: Youffx/llvm-binaries
+          token: ${{ secrets.REPO_A_PAT }}
+          fetch-depth: 0
+
+      - name: Configure Git + Import GPG
+        run: |
+          git config --global user.name "${{ secrets.USER }}"
+          git config --global user.email "${{ secrets.EMAIL }}"
+          
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
+          rm -f private.key
+          
+          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+          git config --global commit.gpgsign true
+
+      - name: Download and Extract LLVM
+        run: |
+          find . -maxdepth 1 ! -name '.git' ! -name '.github' ! -name '.' -exec rm -rf {} +
+          
+          wget https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-Linux-X64.tar.xz
+          
+          tar -xf LLVM-21.1.0-Linux-X64.tar.xz --strip-components=1
+          rm LLVM-21.1.0-Linux-X64.tar.xz
+
+      - name: Push Binaries
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git add .
+          git commit -m "Add LLVM 21.1.0 Official Binaries (Linux X64)" || exit 0
+          
+          git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/llvm-binaries.git
+          git push origin main
+          
