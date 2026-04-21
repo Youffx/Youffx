@@ -22,7 +22,7 @@
     "name": "R0-rebase",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "wave",
+      "branch": "e-opti",
       "fetchDepth": 1
     },
     "root": {
