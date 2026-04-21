@@ -61,6 +61,12 @@ jobs:
           path: llvm
           key: LLVM-21.1.0
 
+      - name: Restore PGO Profile
+        uses: actions/cache@v4
+        with:
+          path: profdata
+          key: pgo-profile-${{ github.event.inputs.config_index }}
+
       - name: Load Config
         id: cfg
         run: |
@@ -148,7 +154,6 @@ jobs:
           ccache -s
 
           cd kernel
-
           make O=out $DEFCONFIG
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
@@ -167,14 +172,24 @@ jobs:
           else
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
-          
-          echo "CONFIG_LTO_CLANG_THIN=y" >> out/.config
+
           echo "CONFIG_LTO=y" >> out/.config
+          echo "CONFIG_LTO_CLANG=y" >> out/.config
+          echo "CONFIG_THINLTO=y" >> out/.config
+
+          if [ -f "$GITHUB_WORKSPACE/profdata/kernel.profdata" ]; then
+            echo "CONFIG_PGO_USE=y" >> out/.config
+          else
+            echo "CONFIG_PGO_CLANG=y" >> out/.config
+          fi
 
           make O=out olddefconfig
 
-          echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
+          if [ -f "$GITHUB_WORKSPACE/profdata/kernel.profdata" ]; then
+            export PGO_FLAGS="-fprofile-use=$GITHUB_WORKSPACE/profdata/kernel.profdata"
+          else
+            export PGO_FLAGS="-fprofile-generate"
+          fi
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -190,9 +205,17 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS="-mllvm -bolt -fprofile-use -mlgo" \
-            LDFLAGS="-mllvm -bolt" \
+            KCFLAGS="$PGO_FLAGS" \
             Image.gz-dtb
+
+          if [ -f out/vmlinux ] && command -v llvm-bolt >/dev/null 2>&1; then
+            llvm-bolt out/vmlinux \
+              -o out/vmlinux.bolt \
+              -reorder-blocks=ext-tsp \
+              -reorder-functions=hfsort \
+              -split-functions \
+              -split-all-cold || true
+          fi
 
       - name: Package Flashable Zip KSU
         run: |
@@ -273,6 +296,12 @@ jobs:
           path: llvm
           key: LLVM-21.1.0
 
+      - name: Restore PGO Profile
+        uses: actions/cache@v4
+        with:
+          path: profdata
+          key: pgo-profile-${{ github.event.inputs.config_index }}
+
       - name: Load Config
         id: cfg
         run: |
@@ -328,7 +357,6 @@ jobs:
           ccache -s
 
           cd kernel
-
           make O=out $DEFCONFIG
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
@@ -347,14 +375,24 @@ jobs:
           else
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
-          
-          echo "CONFIG_LTO_CLANG_THIN=y" >> out/.config
+
           echo "CONFIG_LTO=y" >> out/.config
+          echo "CONFIG_LTO_CLANG=y" >> out/.config
+          echo "CONFIG_THINLTO=y" >> out/.config
+
+          if [ -f "$GITHUB_WORKSPACE/profdata/kernel.profdata" ]; then
+            echo "CONFIG_PGO_USE=y" >> out/.config
+          else
+            echo "CONFIG_PGO_CLANG=y" >> out/.config
+          fi
 
           make O=out olddefconfig
 
-          echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
+          if [ -f "$GITHUB_WORKSPACE/profdata/kernel.profdata" ]; then
+            export PGO_FLAGS="-fprofile-use=$GITHUB_WORKSPACE/profdata/kernel.profdata"
+          else
+            export PGO_FLAGS="-fprofile-generate"
+          fi
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -370,9 +408,17 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS="-mllvm -bolt -fprofile-use -mlgo" \
-            LDFLAGS="-mllvm -bolt" \
+            KCFLAGS="$PGO_FLAGS" \
             Image.gz-dtb
+
+          if [ -f out/vmlinux ] && command -v llvm-bolt >/dev/null 2>&1; then
+            llvm-bolt out/vmlinux \
+              -o out/vmlinux.bolt \
+              -reorder-blocks=ext-tsp \
+              -reorder-functions=hfsort \
+              -split-functions \
+              -split-all-cold || true
+          fi
 
       - name: Package Flashable Zip NONKSU
         run: |
