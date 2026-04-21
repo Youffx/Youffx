@@ -1,0 +1,66 @@
+name: Search Code
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Branch"
+        required: true
+        default: "main"
+
+      search:
+        description: "Keyword"
+        required: true
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  search:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+        with:
+          repository: Youffx/kernel_xiaomi_rosemary
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: -1
+
+      - name: Show branch info
+        run: |
+          echo "Repository : Youffx/kernel_xiaomi_rosemary"
+          echo "Branch     : ${{ github.event.inputs.branch }}"
+          echo "Search     : ${{ github.event.inputs.search }}"
+          echo ""
+
+      - name: Search keyword in source
+        run: |
+          KEY="${{ github.event.inputs.search }}"
+
+          echo "======================================"
+          echo "FILES CONTAINING: $KEY"
+          echo "======================================"
+
+          grep -RIl --exclude-dir=.git "$KEY" . || true
+
+          echo ""
+          echo "======================================"
+          echo "DETAILED MATCHES (file:line:number)"
+          echo "======================================"
+
+          grep -RIn --exclude-dir=.git "$KEY" . || true
+
+          echo ""
+          echo "======================================"
+          echo "ONE LINE CODE MATCH"
+          echo "======================================"
+
+          grep -RIn --exclude-dir=.git "$KEY" . | while IFS=: read -r file line text
+          do
+            echo ""
+            echo "File : $file"
+            echo "Line : $line"
+            echo "Code : $text"
+          done || true
