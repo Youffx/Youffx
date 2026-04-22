@@ -206,7 +206,7 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             KCFLAGS="$PGO_FLAGS" \
-            Image.gz-dtb
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
           if [ -f out/vmlinux ] && command -v llvm-bolt >/dev/null 2>&1; then
             llvm-bolt out/vmlinux \
@@ -267,10 +267,10 @@ jobs:
         run: |
           LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
 
-          if [ -z "$LOG" ]; then
+          if [ ! -f "$GITHUB_WORKSPACE/build-ksu.log" ]; then
             ERROR_MSG="but there ain’t no logs tho.."
           else
-            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$LOG" | tail -20)
+            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$GITHUB_WORKSPACE/build-ksu.log" | tail -20)
           fi
 
           TEXT=$(cat <<EOF
@@ -433,7 +433,7 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             KCFLAGS="$PGO_FLAGS" \
-            Image.gz-dtb
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
           if [ -f out/vmlinux ] && command -v llvm-bolt >/dev/null 2>&1; then
             llvm-bolt out/vmlinux \
@@ -494,10 +494,10 @@ jobs:
         run: |
           LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
 
-          if [ -z "$LOG" ]; then
+          if [ ! -f "$GITHUB_WORKSPACE/build-nonksu.log" ]; then
             ERROR_MSG="but there ain’t no logs tho.."
           else
-            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$LOG" | tail -20)
+            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$GITHUB_WORKSPACE/build-nonksu.log" | tail -20)
           fi
 
           TEXT=$(cat <<EOF
