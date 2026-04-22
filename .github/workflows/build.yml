@@ -274,13 +274,7 @@ jobs:
           fi
 
           TEXT=$(cat <<EOF
-          Fail pak
-
-          Job: Build KSU
-          Run: #${{ github.run_number }}
-          Repo: ${{ github.repository }}
-
-          Error disini:
+          build KSU failed sir
           $ERROR_MSG
           EOF
           )
@@ -507,13 +501,7 @@ jobs:
           fi
 
           TEXT=$(cat <<EOF
-          Fail pak
-
-          Job: Build NONKSU
-          Run: #${{ github.run_number }}
-          Repo: ${{ github.repository }}
-
-          Error disini:
+          build NONKSU failed sir
           $ERROR_MSG
           EOF
           )
