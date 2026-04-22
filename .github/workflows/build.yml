@@ -268,13 +268,13 @@ jobs:
           LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
 
           if [ -z "$LOG" ]; then
-            ERROR_MSG="No log found"
+            ERROR_MSG="but there ain’t no logs tho.."
           else
             ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$LOG" | tail -20)
           fi
 
           TEXT=$(cat <<EOF
-          build KSU failed sir
+          yoo build KSU flopped
           $ERROR_MSG
           EOF
           )
@@ -495,13 +495,13 @@ jobs:
           LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
 
           if [ -z "$LOG" ]; then
-            ERROR_MSG="No log found"
+            ERROR_MSG="but there ain’t no logs tho.."
           else
             ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$LOG" | tail -20)
           fi
 
           TEXT=$(cat <<EOF
-          build NONKSU failed sir
+          yoo build NONKSU flopped
           $ERROR_MSG
           EOF
           )
