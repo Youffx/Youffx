@@ -59,7 +59,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: llvm
-          key: LLVM-21.1.0
+          key: clang+llvm-17.0.6
 
       - name: Restore PGO Profile
         uses: actions/cache@v4
@@ -89,7 +89,7 @@ jobs:
         run: |
           if [ ! -d "llvm/bin" ]; then
             mkdir -p llvm
-            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-21.1.0/LLVM-21.1.0-Linux-X64.tar.xz | tar -xJ -C llvm --strip-components=1
+            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz | tar -xJ -C llvm --strip-components=1
           fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
