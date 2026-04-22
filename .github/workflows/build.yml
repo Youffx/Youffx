@@ -179,6 +179,10 @@ jobs:
             echo "CONFIG_PGO_CLANG=y" >> out/.config
           fi
 
+          ./scripts/config --file out/.config -d LTO
+          ./scripts/config --file out/.config -d LTO_CLANG
+          ./scripts/config --file out/.config -d THINLTO
+
           make O=out olddefconfig
 
           if [ -f "$GITHUB_WORKSPACE/profdata/kernel.profdata" ]; then
@@ -391,6 +395,10 @@ jobs:
           else
             echo "CONFIG_PGO_CLANG=y" >> out/.config
           fi
+
+          ./scripts/config --file out/.config -d LTO
+          ./scripts/config --file out/.config -d LTO_CLANG
+          ./scripts/config --file out/.config -d THINLTO
 
           make O=out olddefconfig
 
