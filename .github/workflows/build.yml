@@ -265,8 +265,6 @@ jobs:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
-
           if [ ! -f "$GITHUB_WORKSPACE/build-ksu.log" ]; then
             ERROR_MSG="but there ain’t no logs tho.."
           else
@@ -492,8 +490,6 @@ jobs:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          LOG=$(find /home/runner/work/_temp -name "*.log" 2>/dev/null | tail -n 1)
-
           if [ ! -f "$GITHUB_WORKSPACE/build-nonksu.log" ]; then
             ERROR_MSG="but there ain’t no logs tho.."
           else
