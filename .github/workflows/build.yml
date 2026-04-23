@@ -61,12 +61,6 @@ jobs:
           path: llvm
           key: clang+llvm-17.0.6
 
-      - name: Restore PGO Profile
-        uses: actions/cache@v4
-        with:
-          path: profdata
-          key: pgo-profile-${{ github.event.inputs.config_index }}
-
       - name: Load Config
         id: cfg
         run: |
@@ -292,12 +286,6 @@ jobs:
         with:
           path: llvm
           key: clang+llvm-17.0.6
-
-      - name: Restore PGO Profile
-        uses: actions/cache@v4
-        with:
-          path: profdata
-          key: pgo-profile-${{ github.event.inputs.config_index }}
 
       - name: Load Config
         id: cfg
