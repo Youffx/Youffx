@@ -161,7 +161,7 @@ jobs:
             echo "Current .rej count: $REJ_COUNT"
 
             git add .
-            git commit -m "Cherry-pick $commit (auto)" || true
+            git commit --no-edit -C $commit || true
           done
 
           echo "FINAL_REJ_COUNT=$REJ_COUNT" >> $GITHUB_ENV
