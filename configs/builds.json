@@ -22,7 +22,7 @@
     "name": "R0-rebase",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "pgo-deprecated",
+      "branch": "pgo",
       "fetchDepth": 1
     },
     "root": {
