@@ -21,46 +21,74 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout selected branch
-        uses: actions/checkout@v4
+      - name: Cache Repository
+        id: cache-repo
+        uses: actions/cache@v4
         with:
-          repository: Youffx/kernel_xiaomi_rosemary
-          ref: ${{ github.event.inputs.branch }}
-          fetch-depth: -1
+          path: repo-src
+          key: rosemary-${{ github.event.inputs.branch }}
 
-      - name: Show branch info
+      - name: Clone or Update Repository
         run: |
-          echo "Repository : Youffx/kernel_xiaomi_rosemary"
-          echo "Branch     : ${{ github.event.inputs.branch }}"
-          echo "Search     : ${{ github.event.inputs.search }}"
-          echo ""
+          if [ -d "repo-src/.git" ]; then
+            cd repo-src
+            git fetch origin ${{ github.event.inputs.branch }} --depth 1
+            git reset --hard origin/${{ github.event.inputs.branch }}
+          else
+            git clone --depth 1 --branch ${{ github.event.inputs.branch }} https://github.com/Youffx/kernel_xiaomi_rosemary repo-src
+          fi
 
       - name: Search keyword in source
         run: |
           KEY="${{ github.event.inputs.search }}"
+          cd repo-src
 
-          echo "======================================"
-          echo "FILES CONTAINING: $KEY"
-          echo "======================================"
+          echo "======================================" > ../search_report.txt
+          echo "FILES CONTAINING: $KEY" >> ../search_report.txt
+          echo "======================================" >> ../search_report.txt
+          grep -RIl --exclude-dir=.git "$KEY" . >> ../search_report.txt || true
 
-          grep -RIl --exclude-dir=.git "$KEY" . || true
+          echo "" >> ../search_report.txt
+          echo "======================================" >> ../search_report.txt
+          echo "DETAILED MATCHES (file:line:number)" >> ../search_report.txt
+          echo "======================================" >> ../search_report.txt
+          grep -RIn --exclude-dir=.git "$KEY" . >> ../search_report.txt || true
 
-          echo ""
-          echo "======================================"
-          echo "DETAILED MATCHES (file:line:number)"
-          echo "======================================"
-
-          grep -RIn --exclude-dir=.git "$KEY" . || true
-
-          echo ""
-          echo "======================================"
-          echo "ONE LINE CODE MATCH"
-          echo "======================================"
-
+          echo "" >> ../search_report.txt
+          echo "======================================" >> ../search_report.txt
+          echo "ONE LINE CODE MATCH" >> ../search_report.txt
+          echo "======================================" >> ../search_report.txt
           grep -RIn --exclude-dir=.git "$KEY" . | while IFS=: read -r file line text
           do
-            echo ""
-            echo "File : $file"
-            echo "Line : $line"
-            echo "Code : $text"
+            echo "" >> ../search_report.txt
+            echo "File : $file" >> ../search_report.txt
+            echo "Line : $line" >> ../search_report.txt
+            echo "Code : $text" >> ../search_report.txt
           done || true
+
+      - name: Send Report to Telegram
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          KEY="${{ github.event.inputs.search }}"
+          BRANCH="${{ github.event.inputs.branch }}"
+          REPORT_CONTENT=$(head -c 3500 search_report.txt)
+          
+          if grep -q "======================================" search_report.txt && [ $(wc -l < search_report.txt) -le 12 ]; then
+            REPORT_CONTENT="Tidak ada hasil yang ditemukan untuk keyword: $KEY"
+          fi
+          
+          TEXT=$(cat <<EOF
+          yoo search done!
+          Branch: $BRANCH
+          Keyword: $KEY
+
+          $REPORT_CONTENT
+          EOF
+          )
+
+          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
+            -d chat_id="$CHATID" \
+            --data-urlencode text="$TEXT"
+            
