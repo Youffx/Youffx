@@ -95,6 +95,13 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
+      - name: Prepare PGO Profile
+        env:
+          PGO_URL: ${{ secrets.PGO_FILE }}
+        run: |
+          curl -L -o vmlinux.profraw "$PGO_URL"
+          $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
+
       - name: Apply Root Method
         run: |
           ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
@@ -150,15 +157,20 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
-          sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=3000/' out/.config
-          sed -i 's/CONFIG_RANDOMIZE_BASE=y/CONFIG_RANDOMIZE_BASE=n/' out/.config
-          sed -i 's/CONFIG_STRICT_KERNEL_RWX=y/CONFIG_STRICT_KERNEL_RWX=n/' out/.config
-          sed -i 's/CONFIG_STRICT_MODULE_RWX=y/CONFIG_STRICT_MODULE_RWX=n/' out/.config
+          sed -i 's/.*CONFIG_FRAME_WARN.*/CONFIG_FRAME_WARN=3000/' out/.config
+          sed -i 's/.*CONFIG_PGO_CLANG.*/CONFIG_PGO_CLANG=y/' out/.config
+          sed -i 's/.*CONFIG_PGO_GEN.*/CONFIG_PGO_GEN=n/' out/.config
+          sed -i 's/.*CONFIG_PGO_USE.*/CONFIG_PGO_USE=y/' out/.config
+          sed -i 's/.*CONFIG_RANDOMIZE_BASE.*/CONFIG_RANDOMIZE_BASE=y/' out/.config
+          sed -i 's/.*CONFIG_STRICT_KERNEL_RWX.*/CONFIG_STRICT_KERNEL_RWX=y/' out/.config
+          sed -i 's/.*CONFIG_STRICT_MODULE_RWX.*/CONFIG_STRICT_MODULE_RWX=y/' out/.config
 
           echo "CONFIG_FRAME_WARN=3000" >> out/.config
-          echo "CONFIG_RANDOMIZE_BASE=n" >> out/.config
-          echo "CONFIG_STRICT_KERNEL_RWX=n" >> out/.config
-          echo "CONFIG_STRICT_MODULE_RWX=n" >> out/.config
+          echo "CONFIG_PGO_CLANG=y" >> out/.config
+          echo "CONFIG_PGO_USE=y" >> out/.config
+          echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
+          echo "CONFIG_STRICT_KERNEL_RWX=y" >> out/.config
+          echo "CONFIG_STRICT_MODULE_RWX=y" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
@@ -331,6 +343,13 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
+      - name: Prepare PGO Profile
+        env:
+          PGO_URL: ${{ secrets.PGO_FILE }}
+        run: |
+          curl -L -o vmlinux.profraw "$PGO_URL"
+          $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
+
       - name: Build Kernel NONKSU
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
@@ -354,15 +373,20 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
-          sed -i 's/CONFIG_FRAME_WARN=.*/CONFIG_FRAME_WARN=3000/' out/.config
-          sed -i 's/CONFIG_RANDOMIZE_BASE=y/CONFIG_RANDOMIZE_BASE=n/' out/.config
-          sed -i 's/CONFIG_STRICT_KERNEL_RWX=y/CONFIG_STRICT_KERNEL_RWX=n/' out/.config
-          sed -i 's/CONFIG_STRICT_MODULE_RWX=y/CONFIG_STRICT_MODULE_RWX=n/' out/.config
+          sed -i 's/.*CONFIG_FRAME_WARN.*/CONFIG_FRAME_WARN=3000/' out/.config
+          sed -i 's/.*CONFIG_PGO_CLANG.*/CONFIG_PGO_CLANG=y/' out/.config
+          sed -i 's/.*CONFIG_PGO_GEN.*/CONFIG_PGO_GEN=n/' out/.config
+          sed -i 's/.*CONFIG_PGO_USE.*/CONFIG_PGO_USE=y/' out/.config
+          sed -i 's/.*CONFIG_RANDOMIZE_BASE.*/CONFIG_RANDOMIZE_BASE=y/' out/.config
+          sed -i 's/.*CONFIG_STRICT_KERNEL_RWX.*/CONFIG_STRICT_KERNEL_RWX=y/' out/.config
+          sed -i 's/.*CONFIG_STRICT_MODULE_RWX.*/CONFIG_STRICT_MODULE_RWX=y/' out/.config
 
           echo "CONFIG_FRAME_WARN=3000" >> out/.config
-          echo "CONFIG_RANDOMIZE_BASE=n" >> out/.config
-          echo "CONFIG_STRICT_KERNEL_RWX=n" >> out/.config
-          echo "CONFIG_STRICT_MODULE_RWX=n" >> out/.config
+          echo "CONFIG_PGO_CLANG=y" >> out/.config
+          echo "CONFIG_PGO_USE=y" >> out/.config
+          echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
+          echo "CONFIG_STRICT_KERNEL_RWX=y" >> out/.config
+          echo "CONFIG_STRICT_MODULE_RWX=y" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
