@@ -202,6 +202,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            KCFLAGS="-fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date" \
             KBUILD_LDFLAGS="--emit-relocs" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
@@ -415,6 +416,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            KCFLAGS="-fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date" \
             KBUILD_LDFLAGS="--emit-relocs" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
