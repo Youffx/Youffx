@@ -147,6 +147,8 @@ jobs:
           export KCONFIG_NOTIMESTAMP=1
           export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
+          export CC="ccache clang"
+          export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
 
@@ -154,10 +156,6 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-
-          # Disable KASLR for PGO stability
-          sed -i 's/CONFIG_RANDOMIZE_BASE=y/CONFIG_RANDOMIZE_BASE=n/' out/.config
-          echo "CONFIG_RANDOMIZE_BASE=n" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
@@ -227,7 +225,7 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="LandVe-${CONF_NAME}-KSU-PGO-${DATE}"
+          ZIP_NAME="LandVe-${CONF_NAME}-KSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -378,6 +376,8 @@ jobs:
           export KCONFIG_NOTIMESTAMP=1
           export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
+          export CC="ccache clang"
+          export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
 
@@ -385,10 +385,6 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-
-          # Disable KASLR for PGO stability
-          sed -i 's/CONFIG_RANDOMIZE_BASE=y/CONFIG_RANDOMIZE_BASE=n/' out/.config
-          echo "CONFIG_RANDOMIZE_BASE=n" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
@@ -458,7 +454,7 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-PGO-${DATE}"
+          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
