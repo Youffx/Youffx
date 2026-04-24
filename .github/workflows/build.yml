@@ -182,6 +182,12 @@ jobs:
 
           make O=out olddefconfig
 
+          echo "==============================================="
+          echo "      CHECKING CRITICAL CONFIGURATIONS         "
+          echo "==============================================="
+          grep -E "CONFIG_PGO_CLANG|CONFIG_PGO_GEN|CONFIG_PGO_USE|CONFIG_RANDOMIZE_BASE|CONFIG_STRICT_KERNEL_RWX|CONFIG_STRICT_MODULE_RWX|CONFIG_DEBUG_FS" out/.config || true
+          echo "==============================================="
+
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -388,6 +394,12 @@ jobs:
           fi
 
           make O=out olddefconfig
+
+          echo "==============================================="
+          echo "      CHECKING CRITICAL CONFIGURATIONS         "
+          echo "==============================================="
+          grep -E "CONFIG_PGO_CLANG|CONFIG_PGO_GEN|CONFIG_PGO_USE|CONFIG_RANDOMIZE_BASE|CONFIG_STRICT_KERNEL_RWX|CONFIG_STRICT_MODULE_RWX|CONFIG_DEBUG_FS" out/.config || true
+          echo "==============================================="
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
