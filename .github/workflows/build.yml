@@ -157,6 +157,10 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
+          echo "CONFIG_LTO=y" >> out/.config
+          echo "CONFIG_LTO_CLANG=y" >> out/.config
+          echo "CONFIG_THINLTO=y" >> out/.config
+
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
 
@@ -385,6 +389,10 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
+
+          echo "CONFIG_LTO=y" >> out/.config
+          echo "CONFIG_LTO_CLANG=y" >> out/.config
+          echo "CONFIG_THINLTO=y" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
