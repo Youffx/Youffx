@@ -1,4 +1,4 @@
-name: LTO
+name: PGO
 
 on:
   workflow_dispatch:
@@ -147,8 +147,6 @@ jobs:
           export KCONFIG_NOTIMESTAMP=1
           export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CC="ccache clang"
-          export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
 
@@ -156,6 +154,10 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
+
+          # Disable KASLR for PGO stability
+          sed -i 's/CONFIG_RANDOMIZE_BASE=y/CONFIG_RANDOMIZE_BASE=n/' out/.config
+          echo "CONFIG_RANDOMIZE_BASE=n" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
@@ -176,11 +178,12 @@ jobs:
 
           make O=out olddefconfig
 
+          # FORCE PGO via CC variable to ensure compiler doesn't skip it
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
+            CC="ccache clang -fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date -Wno-error=profile-instr-unprofiled" \
             LD=ld.lld \
             AR=llvm-ar \
             NM=llvm-nm \
@@ -190,7 +193,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS="-fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date" \
             KBUILD_LDFLAGS="--emit-relocs" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
@@ -203,11 +205,11 @@ jobs:
           if grep -q "fprofile-use" $GITHUB_WORKSPACE/build-ksu.log; then
             echo "✅ SUCCESS: Compiler flag -fprofile-use was detected."
           else
-            echo "FAILURE: Compiler flag -fprofile-use was NOT found in logs."
+            echo "❌ FAILURE: Compiler flag -fprofile-use was NOT found in logs."
           fi
 
           if grep -q "vmlinux.profdata: No such file" $GITHUB_WORKSPACE/build-ksu.log; then
-            echo "WARNING: Profil data file was MISSING during build!"
+            echo "⚠️ WARNING: Profil data file was MISSING during build!"
           fi
 
           if [ -f "kernel/out/vmlinux" ]; then
@@ -215,10 +217,10 @@ jobs:
               echo "✅ SUCCESS: PGO Symbols (__llvm_prf_) found in vmlinux!"
               echo "   Total PGO symbols: $($GITHUB_WORKSPACE/llvm/bin/llvm-nm kernel/out/vmlinux | grep "__llvm_prf_" | wc -l)"
             else
-              echo "FAILURE: No PGO symbols found. Optimization NOT applied."
+              echo "❌ FAILURE: No PGO symbols found. Optimization NOT applied."
             fi
           else
-            echo "vmlinux not found, skipping symbol check."
+            echo "⚠️ vmlinux not found, skipping symbol check."
           fi
           echo "==============================================="
 
@@ -226,7 +228,7 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="LandVe-${CONF_NAME}-KSU-${DATE}"
+          ZIP_NAME="LandVe-${CONF_NAME}-KSU-PGO-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -377,8 +379,6 @@ jobs:
           export KCONFIG_NOTIMESTAMP=1
           export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CC="ccache clang"
-          export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
 
@@ -386,6 +386,10 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
+
+          # Disable KASLR for PGO stability
+          sed -i 's/CONFIG_RANDOMIZE_BASE=y/CONFIG_RANDOMIZE_BASE=n/' out/.config
+          echo "CONFIG_RANDOMIZE_BASE=n" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
           BASE="-LandVe"
@@ -406,11 +410,12 @@ jobs:
 
           make O=out olddefconfig
 
+          # FORCE PGO via CC variable
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
+            CC="ccache clang -fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date -Wno-error=profile-instr-unprofiled" \
             LD=ld.lld \
             AR=llvm-ar \
             NM=llvm-nm \
@@ -420,7 +425,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS="-fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date" \
             KBUILD_LDFLAGS="--emit-relocs" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
@@ -433,11 +437,11 @@ jobs:
           if grep -q "fprofile-use" $GITHUB_WORKSPACE/build-nonksu.log; then
             echo "✅ SUCCESS: Compiler flag -fprofile-use was detected."
           else
-            echo "FAILURE: Compiler flag -fprofile-use was NOT found in logs."
+            echo "❌ FAILURE: Compiler flag -fprofile-use was NOT found in logs."
           fi
 
           if grep -q "vmlinux.profdata: No such file" $GITHUB_WORKSPACE/build-nonksu.log; then
-            echo "WARNING: Profil data file was MISSING during build!"
+            echo "⚠️ WARNING: Profil data file was MISSING during build!"
           fi
 
           if [ -f "kernel/out/vmlinux" ]; then
@@ -445,10 +449,10 @@ jobs:
               echo "✅ SUCCESS: PGO Symbols (__llvm_prf_) found in vmlinux!"
               echo "   Total PGO symbols: $($GITHUB_WORKSPACE/llvm/bin/llvm-nm kernel/out/vmlinux | grep "__llvm_prf_" | wc -l)"
             else
-              echo "FAILURE: No PGO symbols found. Optimization NOT applied."
+              echo "❌ FAILURE: No PGO symbols found. Optimization NOT applied."
             fi
           else
-            echo "vmlinux not found, skipping symbol check."
+            echo "⚠️ vmlinux not found, skipping symbol check."
           fi
           echo "==============================================="
 
@@ -456,7 +460,7 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-${DATE}"
+          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-PGO-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -576,4 +580,3 @@ jobs:
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
 
           tg "$MESSAGE"
-          
