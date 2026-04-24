@@ -178,12 +178,11 @@ jobs:
 
           make O=out olddefconfig
 
-          # FORCE PGO via CC variable to ensure compiler doesn't skip it
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang -fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date -Wno-error=profile-instr-unprofiled" \
+            CC="ccache clang" \
             LD=ld.lld \
             AR=llvm-ar \
             NM=llvm-nm \
@@ -410,12 +409,11 @@ jobs:
 
           make O=out olddefconfig
 
-          # FORCE PGO via CC variable
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang -fprofile-use=$GITHUB_WORKSPACE/kernel/vmlinux.profdata -Wno-error=profile-instr-out-of-date -Wno-error=profile-instr-unprofiled" \
+            CC="ccache clang" \
             LD=ld.lld \
             AR=llvm-ar \
             NM=llvm-nm \
