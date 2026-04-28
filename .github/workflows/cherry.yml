@@ -156,7 +156,7 @@ jobs:
               echo "$CONFLICTED"
 
               CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
-              CONFLICT_FILES="$CONFLICT_FILES Commit $commit: $CONFLICTED"
+              CONFLICT_FILES+=$'Commit '$commit$':\n'$CONFLICTED$'\n\n'
             fi
 
             if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
@@ -167,7 +167,6 @@ jobs:
             fi
 
             AUTHOR=$(git log -1 --pretty='%an <%ae>' $commit)
-
             COMMIT_MSG=$(git log -1 --pretty=%B $commit)
 
             if echo "$COMMIT_MSG" | grep -q "Signed-off-by:"; then
@@ -175,12 +174,12 @@ jobs:
             fi
 
             git add -A
-            echo "$COMMIT_MSG" | git commit -F - || true
+            echo "$COMMIT_MSG" | git commit --author="$AUTHOR" -F - || true
           done
 
           echo "CONFLICT_COUNT=$CONFLICT_COUNT" >> $GITHUB_ENV
           echo "CONFLICT_FILES<<EOF" >> $GITHUB_ENV
-          echo -e "$CONFLICT_FILES" >> $GITHUB_ENV
+          echo "$CONFLICT_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
       - name: Push to Repository
@@ -202,14 +201,17 @@ jobs:
               -d chat_id="${CHATID}" \
               -d parse_mode=Markdown \
               -d disable_web_page_preview=true \
-              -d text="$1"
+              --data-urlencode text="$1"
           }
 
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
           if [ "${{ env.CONFLICT_COUNT }}" -gt 0 ]; then
             STATUS="⚠️ *Cherry-pick finished with conflicts*"
-            CONFLICT_INFO="*Conflicted files:*\n\`\`\`\n${{ env.CONFLICT_FILES }}\n\`\`\`"
+            CONFLICT_INFO="*Conflicted files:*
+          \`\`\`
+          ${{ env.CONFLICT_FILES }}
+          \`\`\`"
           else
             STATUS="✅ *Cherry-pick success (no conflicts)*"
             CONFLICT_INFO=""
@@ -220,12 +222,10 @@ jobs:
 
           *Date:* \`$BUILD_DATE\`
 
-          $CONFLICT_INFO
-
-          Repo: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          $CONFLICT_INFO"
 
           tg "$MESSAGE"
-
+    
       - name: Save Repo Cache
         uses: actions/cache@v4
         with:
