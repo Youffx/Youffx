@@ -180,6 +180,10 @@ jobs:
 
           make O=out olddefconfig
 
+          echo "--- DEBUG ---"
+          grep -E "CONFIG_DEFAULT_TCP_CONG|CONFIG_TCP_CONG_BBR|CONFIG_NET_SCH_FQ" out/.config
+          echo "---------------------------------"
+
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -197,37 +201,9 @@ jobs:
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
-      - name: Audit PGO Implementation
-        run: |
-          echo "==============================================="
-          echo "      PGO BINARY AUDIT REPORT                 "
-          echo "==============================================="
-          
-          if grep -q "fprofile-use" $GITHUB_WORKSPACE/build-ksu.log; then
-            echo "✅ SUCCESS: Compiler flag -fprofile-use was detected."
-          else
-            echo "❌ FAILURE: Compiler flag -fprofile-use was NOT found in logs."
-          fi
-
-          if grep -q "vmlinux.profdata: No such file" $GITHUB_WORKSPACE/build-ksu.log; then
-            echo "⚠️ WARNING: Profil data file was MISSING during build!"
-          fi
-
-          if [ -f "kernel/out/vmlinux" ]; then
-            if $GITHUB_WORKSPACE/llvm/bin/llvm-nm kernel/out/vmlinux | grep -q "__llvm_prf_"; then
-              echo "✅ SUCCESS: PGO Symbols (__llvm_prf_) found in vmlinux!"
-              echo "   Total PGO symbols: $($GITHUB_WORKSPACE/llvm/bin/llvm-nm kernel/out/vmlinux | grep "__llvm_prf_" | wc -l)"
-            else
-              echo "❌ FAILURE: No PGO symbols found. Optimization NOT applied."
-            fi
-          else
-            echo "⚠️ vmlinux not found, skipping symbol check."
-          fi
-          echo "==============================================="
-
       - name: Package Flashable Zip KSU
         run: |
-          DATE=$(date +"%Y%m%d-%H%M")
+          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
           ZIP_NAME="LandVe-${CONF_NAME}-KSU-${DATE}"
 
@@ -430,37 +406,9 @@ jobs:
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
-      - name: Audit PGO Implementation
-        run: |
-          echo "==============================================="
-          echo "      PGO BINARY AUDIT REPORT                 "
-          echo "==============================================="
-          
-          if grep -q "fprofile-use" $GITHUB_WORKSPACE/build-nonksu.log; then
-            echo "✅ SUCCESS: Compiler flag -fprofile-use was detected."
-          else
-            echo "❌ FAILURE: Compiler flag -fprofile-use was NOT found in logs."
-          fi
-
-          if grep -q "vmlinux.profdata: No such file" $GITHUB_WORKSPACE/build-nonksu.log; then
-            echo "⚠️ WARNING: Profil data file was MISSING during build!"
-          fi
-
-          if [ -f "kernel/out/vmlinux" ]; then
-            if $GITHUB_WORKSPACE/llvm/bin/llvm-nm kernel/out/vmlinux | grep -q "__llvm_prf_"; then
-              echo "✅ SUCCESS: PGO Symbols (__llvm_prf_) found in vmlinux!"
-              echo "   Total PGO symbols: $($GITHUB_WORKSPACE/llvm/bin/llvm-nm kernel/out/vmlinux | grep "__llvm_prf_" | wc -l)"
-            else
-              echo "❌ FAILURE: No PGO symbols found. Optimization NOT applied."
-            fi
-          else
-            echo "⚠️ vmlinux not found, skipping symbol check."
-          fi
-          echo "==============================================="
-
       - name: Package Flashable Zip NONKSU
         run: |
-          DATE=$(date +"%Y%m%d-%H%M")
+          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
           ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-${DATE}"
 
@@ -567,7 +515,7 @@ jobs:
               -d text="$1"
           }
 
-          BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
+          BUILD_DATE=$(TZ='Asia/Jakarta' date +"%a %b %d %H:%M:%S WIB %Y")
 
           MESSAGE="*LandVe Kernel CI Release*
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
