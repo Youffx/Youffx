@@ -156,7 +156,7 @@ jobs:
               echo "$CONFLICTED"
 
               CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
-              CONFLICT_FILES="$CONFLICT_FILES\nCommit $commit:\n$CONFLICTED\n"
+              CONFLICT_FILES="$CONFLICT_FILES Commit $commit: $CONFLICTED"
             fi
 
             if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
@@ -165,6 +165,8 @@ jobs:
                 git checkout HEAD -- "$file" || true
               done
             fi
+
+            AUTHOR=$(git log -1 --pretty='%an <%ae>' $commit)
 
             COMMIT_MSG=$(git log -1 --pretty=%B $commit)
 
