@@ -132,7 +132,7 @@ jobs:
             fi
 
             git add .
-            git commit -m "Revert $commit (auto)" || true
+            git commit --no-edit -C $commit || true
           done
 
       - name: Cherry Pick Commits
