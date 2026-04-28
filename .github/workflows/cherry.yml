@@ -140,13 +140,24 @@ jobs:
         run: |
           cd repo
 
-          REJ_COUNT=0
+          CONFLICT_COUNT=0
+          CONFLICT_FILES=""
 
           for commit in ${{ github.event.inputs.commits }}
           do
             echo "Cherry-picking $commit"
 
             git cherry-pick -n $commit || true
+
+            CONFLICTED=$(git diff --name-only --diff-filter=U)
+
+            if [ -n "$CONFLICTED" ]; then
+              echo "Conflict detected in:"
+              echo "$CONFLICTED"
+
+              CONFLICT_COUNT=$((CONFLICT_COUNT + 1))
+              CONFLICT_FILES="$CONFLICT_FILES\nCommit $commit:\n$CONFLICTED\n"
+            fi
 
             if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
               for file in ${{ github.event.inputs.exclude_files }}
@@ -155,25 +166,20 @@ jobs:
               done
             fi
 
-            COUNT=$(find . -name "*.rej" | wc -l)
-            REJ_COUNT=$COUNT
+            COMMIT_MSG=$(git log -1 --pretty=%B $commit)
 
-            echo "Current .rej count: $REJ_COUNT"
+            if echo "$COMMIT_MSG" | grep -q "Signed-off-by:"; then
+              COMMIT_MSG="$COMMIT_MSG"$'\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"
+            fi
 
-            git add .
-            git commit --no-edit -C $commit || true
+            git add -A
+            echo "$COMMIT_MSG" | git commit -F - || true
           done
 
-          echo "FINAL_REJ_COUNT=$REJ_COUNT" >> $GITHUB_ENV
-
-      - name: Check Reject Threshold
-        run: |
-          echo "Total .rej files: $FINAL_REJ_COUNT"
-
-          if [ -n "$FINAL_REJ_COUNT" ] && [ "$FINAL_REJ_COUNT" -gt 3 ]; then
-            echo "Too many .rej files! Cancel push."
-            exit 1
-          fi
+          echo "CONFLICT_COUNT=$CONFLICT_COUNT" >> $GITHUB_ENV
+          echo "CONFLICT_FILES<<EOF" >> $GITHUB_ENV
+          echo -e "$CONFLICT_FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
       - name: Push to Repository
         if: success()
@@ -183,6 +189,40 @@ jobs:
           cd repo
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
           git push origin $WORK_BRANCH
+
+      - name: Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1"
+          }
+
+          BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
+
+          if [ "${{ env.CONFLICT_COUNT }}" -gt 0 ]; then
+            STATUS="⚠️ *Cherry-pick finished with conflicts*"
+            CONFLICT_INFO="*Conflicted files:*\n\`\`\`\n${{ env.CONFLICT_FILES }}\n\`\`\`"
+          else
+            STATUS="✅ *Cherry-pick success (no conflicts)*"
+            CONFLICT_INFO=""
+          fi
+
+          MESSAGE="*Cherry Pick Report*
+          $STATUS
+
+          *Date:* \`$BUILD_DATE\`
+
+          $CONFLICT_INFO
+
+          Repo: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          tg "$MESSAGE"
 
       - name: Save Repo Cache
         uses: actions/cache@v4
