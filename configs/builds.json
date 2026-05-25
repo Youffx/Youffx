@@ -22,13 +22,13 @@
     "name": "R0-rebase",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "ipv",
+      "branch": "e-susfs",
       "fetchDepth": 1
     },
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy",
+      "arg": "legacy_susfs",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
