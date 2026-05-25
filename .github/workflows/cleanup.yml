@@ -1,0 +1,164 @@
+name: Cleanup
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: "Target branch"
+        required: true
+
+      target_files:
+        description: "Files to clean conflict markers (newline separated)"
+        required: true
+
+jobs:
+  clean-conflicts:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          repository: Youffx/kernel_xiaomi_rosemary
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0
+          token: ${{ secrets.REPO_A_PAT }}
+
+      - name: Configure Git + Import GPG
+        run: |
+          git config --global user.name "${{ secrets.USER }}"
+          git config --global user.email "${{ secrets.EMAIL }}"
+
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+          echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
+
+          gpg --batch --yes \
+            --pinentry-mode loopback \
+            --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --import private.key
+
+          rm -f private.key
+
+          gpgconf --kill gpg-agent
+          gpg-connect-agent reloadagent /bye
+
+          echo "test" | gpg --clearsign \
+            --batch \
+            --pinentry-mode loopback \
+            --passphrase "${{ secrets.GPG_PASSPHRASE }}" > /dev/null
+
+          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+          git config --global gpg.program gpg
+
+      - name: Clean Conflict Markers
+        id: cleanup
+        run: |
+          echo "Cleaning conflict markers..."
+
+          CLEANED_FILES=""
+
+          while IFS= read -r file
+          do
+            [ -z "$file" ] && continue
+
+            if [ ! -f "$file" ]; then
+              echo "Skipping missing file: $file"
+              continue
+            fi
+
+            echo "Processing: $file"
+
+            BEFORE_HASH=$(sha1sum "$file")
+
+            sed -i '/^<<<<<<< HEAD$/d' "$file"
+            sed -i '/^=======$/d' "$file"
+            sed -i '/^>>>>>>> .*$/d' "$file"
+
+            AFTER_HASH=$(sha1sum "$file")
+
+            if [ "$BEFORE_HASH" != "$AFTER_HASH" ]; then
+              CLEANED_FILES+="$file"$'\n'
+            fi
+
+          done <<< "${{ github.event.inputs.target_files }}"
+
+          echo "CLEANED_FILES<<EOF" >> $GITHUB_ENV
+          echo "$CLEANED_FILES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Check Changes
+        id: changes
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Commit Changes
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          git add .
+
+          git commit -S -m "treewide: cleanup leftover merge conflict markers"
+
+      - name: Push Changes
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
+
+          git push origin ${{ github.event.inputs.branch }}
+
+      - name: Telegram Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              --data-urlencode text="$1"
+          }
+
+          BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
+
+          if [ "${{ steps.changes.outputs.changed }}" = "true" ]; then
+            STATUS="✅ *Conflict markers cleaned successfully*"
+
+            FILES="*Cleaned files:*
+          \`\`\`
+          ${{ env.CLEANED_FILES }}
+          \`\`\`"
+          else
+            STATUS="⚠️ *No conflict markers found*"
+            FILES=""
+          fi
+
+          MESSAGE="*Conflict Cleanup Report*
+
+          $STATUS
+
+          *Branch:* \`${{ github.event.inputs.branch }}\`
+          *Date:* \`$BUILD_DATE\`
+
+          $FILES"
+
+          tg "$MESSAGE"
+
+      - name: No Changes
+        if: steps.changes.outputs.changed == 'false'
+        run: |
+          echo "No conflict markers found."
