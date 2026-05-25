@@ -191,6 +191,8 @@ jobs:
         run: |
           cd repo
 
+          mkdir -p ../patch_rejects
+
           for patch_url in ${{ github.event.inputs.patch_urls }}
           do
             echo "Applying patch: $patch_url"
@@ -210,8 +212,15 @@ jobs:
 
             curl -L "$RAW_URL" -o "$TEMP_PATCH"
 
-            git apply --check "$TEMP_PATCH" || true
-            git am "$TEMP_PATCH" || git apply "$TEMP_PATCH"
+            git am "$TEMP_PATCH" 2>/dev/null || {
+              git am --abort || true
+
+              git apply --reject --whitespace=fix "$TEMP_PATCH" || true
+            }
+
+            find . -name "*.rej" -exec cp --parents {} ../patch_rejects/ \;
+
+            find . -name "*.rej" -delete
 
             git add -A
 
@@ -223,6 +232,8 @@ jobs:
               fi
 
               git commit -m "$PATCH_TITLE"$'\n\n'"Patch source: $patch_url" || true
+            else
+              echo "No changes to commit"
             fi
 
             rm -f "$TEMP_PATCH"
@@ -236,6 +247,14 @@ jobs:
           cd repo
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
           git push origin $WORK_BRANCH
+
+      - name: Upload Reject Files
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: patch-reject-files
+          path: patch_rejects
+          if-no-files-found: ignore
 
       - name: Notification
         env:
@@ -253,22 +272,42 @@ jobs:
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
           if [ "${{ env.CONFLICT_COUNT }}" -gt 0 ]; then
-            STATUS="⚠️ *Cherry-pick finished with conflicts*"
-            CONFLICT_INFO="*Conflicted files:*
+            CHERRY_STATUS="⚠️ *Cherry-pick finished with conflicts*"
+            CHERRY_INFO="*Conflicted files:*
           \`\`\`
           ${{ env.CONFLICT_FILES }}
           \`\`\`"
           else
-            STATUS="✅ *Cherry-pick success (no conflicts)*"
-            CONFLICT_INFO=""
+            CHERRY_STATUS="✅ *Cherry-pick success (no conflicts)*"
+            CHERRY_INFO=""
           fi
 
-          MESSAGE="*Cherry Pick Report*
-          $STATUS
+          REJ_FILES=$(find patch_rejects -type f 2>/dev/null)
+
+          if [ -n "$REJ_FILES" ]; then
+            PATCH_STATUS="⚠️ *Patch applied with reject files (.rej)*"
+
+            PATCH_INFO="*Reject files:*
+          \`\`\`
+          $REJ_FILES
+          \`\`\`
+
+          *Artifact:* \`patch-reject-files\`"
+          else
+            PATCH_STATUS="✅ *All patches applied successfully*"
+            PATCH_INFO=""
+          fi
+
+          MESSAGE="*Cherry Pick & Patch Report*
+
+          $CHERRY_STATUS
+          $PATCH_STATUS
 
           *Date:* \`$BUILD_DATE\`
 
-          $CONFLICT_INFO"
+          $CHERRY_INFO
+
+          $PATCH_INFO"
 
           tg "$MESSAGE"
     
