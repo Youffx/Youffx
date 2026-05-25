@@ -61,12 +61,14 @@ jobs:
 
       - name: Clean Conflict Markers
         id: cleanup
+        env:
+          TARGET_FILES: ${{ github.event.inputs.target_files }}
         run: |
           echo "Cleaning conflict markers..."
 
           CLEANED_FILES=""
 
-          while IFS= read -r file
+          while IFS= read -r file || [ -n "$file" ]
           do
             [ -z "$file" ] && continue
 
@@ -79,9 +81,9 @@ jobs:
 
             BEFORE_HASH=$(sha1sum "$file")
 
-            sed -i '/^<<<<<<< HEAD$/d' "$file"
-            sed -i '/^=======$/d' "$file"
-            sed -i '/^>>>>>>> .*$/d' "$file"
+            sed -i '/^<<<<<<< HEAD/d' "$file"
+            sed -i '/^=======/d' "$file"
+            sed -i '/^>>>>>>>/d' "$file"
 
             AFTER_HASH=$(sha1sum "$file")
 
@@ -89,7 +91,7 @@ jobs:
               CLEANED_FILES+="$file"$'\n'
             fi
 
-          done <<< "${{ github.event.inputs.target_files }}"
+          done <<< "$TARGET_FILES"
 
           echo "CLEANED_FILES<<EOF" >> $GITHUB_ENV
           echo "$CLEANED_FILES" >> $GITHUB_ENV
@@ -162,3 +164,4 @@ jobs:
         if: steps.changes.outputs.changed == 'false'
         run: |
           echo "No conflict markers found."
+          
