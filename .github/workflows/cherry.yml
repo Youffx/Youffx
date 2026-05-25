@@ -132,7 +132,8 @@ jobs:
             fi
 
             git add .
-            git commit --no-edit -C $commit || true
+            ORIG_SUBJECT=$(git log -1 --pretty=%s $commit)
+            git commit -m "Revert \"$ORIG_SUBJECT\""$'\n\n'"This reverts commit $commit." || true
           done
 
       - name: Cherry Pick Commits
