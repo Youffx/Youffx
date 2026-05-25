@@ -68,8 +68,10 @@ jobs:
 
           CLEANED_FILES=""
 
-          while IFS= read -r file || [ -n "$file" ]
+          while IFS= read -r raw_file || [ -n "$raw_file" ]
           do
+            file=$(echo "$raw_file" | tr -d '\r')
+            
             [ -z "$file" ] && continue
 
             if [ ! -f "$file" ]; then
@@ -81,9 +83,9 @@ jobs:
 
             BEFORE_HASH=$(sha1sum "$file")
 
-            sed -i '/^<<<<<<< HEAD/d' "$file"
-            sed -i '/^=======/d' "$file"
-            sed -i '/^>>>>>>>/d' "$file"
+            sed -i '/^[[:space:]]*<<<<<<< HEAD/d' "$file"
+            sed -i '/^[[:space:]]*=======/d' "$file"
+            sed -i '/^[[:space:]]*>>>>>>>/d' "$file"
 
             AFTER_HASH=$(sha1sum "$file")
 
