@@ -4,19 +4,22 @@ on:
   workflow_dispatch:
     inputs:
       branch:
-        description: "Target branch (e.g. dev OR commitSHA newBranch)"
+        description: "Target branch"
         required: true
       source:
         description: "Source repo (format: user/repo)"
         required: false
       commits:
-        description: "Cherry-pick commit IDs (space separated, optional)"
+        description: "Cherry-pick"
+        required: false
+      patch_urls:
+        description: "Patch URLs"
         required: false
       revert_commits:
-        description: "Revert commit IDs (space separated, optional)"
+        description: "Revert commit"
         required: false
       exclude_files:
-        description: "Files to exclude (space separated, optional)"
+        description: "exclude Files"
         required: false
 
 jobs:
@@ -182,6 +185,48 @@ jobs:
           echo "CONFLICT_FILES<<EOF" >> $GITHUB_ENV
           echo "$CONFLICT_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+
+      - name: Apply Patch URLs
+        if: ${{ github.event.inputs.patch_urls != '' }}
+        run: |
+          cd repo
+
+          for patch_url in ${{ github.event.inputs.patch_urls }}
+          do
+            echo "Applying patch: $patch_url"
+
+            PATCH_NAME=$(basename "$patch_url")
+            TEMP_PATCH="/tmp/$PATCH_NAME"
+
+            RAW_URL="$patch_url"
+
+            if echo "$RAW_URL" | grep -q "github.com"; then
+              RAW_URL=$(echo "$RAW_URL" | \
+                sed 's|https://github.com/|https://raw.githubusercontent.com/|' | \
+                sed 's|/blob/|/|')
+            fi
+
+            echo "Downloading from: $RAW_URL"
+
+            curl -L "$RAW_URL" -o "$TEMP_PATCH"
+
+            git apply --check "$TEMP_PATCH" || true
+            git am "$TEMP_PATCH" || git apply "$TEMP_PATCH"
+
+            git add -A
+
+            if ! git diff --cached --quiet; then
+              PATCH_TITLE=$(grep -m1 "^Subject:" "$TEMP_PATCH" | sed 's/^Subject: \[PATCH\] //')
+
+              if [ -z "$PATCH_TITLE" ]; then
+                PATCH_TITLE="Apply patch: $PATCH_NAME"
+              fi
+
+              git commit -m "$PATCH_TITLE"$'\n\n'"Patch source: $patch_url" || true
+            fi
+
+            rm -f "$TEMP_PATCH"
+          done
 
       - name: Push to Repository
         if: success()
