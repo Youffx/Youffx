@@ -68,10 +68,12 @@ jobs:
 
           CLEANED_FILES=""
 
+          echo "$TARGET_FILES" | tr ' ' '\n' > files.txt
+
           while IFS= read -r raw_file || [ -n "$raw_file" ]
           do
             file=$(echo "$raw_file" | tr -d '\r')
-            
+
             [ -z "$file" ] && continue
 
             if [ ! -f "$file" ]; then
@@ -93,7 +95,9 @@ jobs:
               CLEANED_FILES+="$file"$'\n'
             fi
 
-          done <<< "$TARGET_FILES"
+          done < files.txt
+
+          rm -f files.txt
 
           echo "CLEANED_FILES<<EOF" >> $GITHUB_ENV
           echo "$CLEANED_FILES" >> $GITHUB_ENV
