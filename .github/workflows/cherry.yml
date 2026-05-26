@@ -15,7 +15,7 @@ on:
       patch_urls:
         description: "Patch URLs"
         required: false
-      paste_zip:
+      zip_url:
         description: "ZIP URL"
         required: false
       revert_commits:
