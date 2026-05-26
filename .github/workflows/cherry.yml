@@ -333,20 +333,26 @@ jobs:
             CHERRY_INFO=""
           fi
 
-          REJ_FILES=$(find patch_rejects -type f 2>/dev/null)
+          PATCH_STATUS=""
+          PATCH_INFO=""
 
-          if [ -n "$REJ_FILES" ]; then
-            PATCH_STATUS="⚠️ *Patch applied with reject files (.rej)*"
+          if [ -d "patch_rejects" ]; then
+            REJ_FILES=$(find patch_rejects -type f)
 
-            PATCH_INFO="*Reject files:*
+            if [ -n "$REJ_FILES" ]; then
+              PATCH_STATUS="⚠️ *Patch applied with reject files (.rej)*"
+
+              PATCH_INFO="*Reject files:*
           \`\`\`
           $REJ_FILES
           \`\`\`
 
           *Artifact:* \`patch-reject-files\`"
+            else
+              PATCH_STATUS="✅ *All patches applied successfully*"
+            fi
           else
-            PATCH_STATUS="✅ *All patches applied successfully*"
-            PATCH_INFO=""
+            PATCH_STATUS="✅ *No reject files detected*"
           fi
 
           MESSAGE="*Cherry Pick & Patch Report*
