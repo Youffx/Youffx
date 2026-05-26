@@ -15,6 +15,9 @@ on:
       patch_urls:
         description: "Patch URLs"
         required: false
+      paste_zip:
+        description: "ZIP URL"
+        required: false
       revert_commits:
         description: "Revert commit"
         required: false
@@ -238,6 +241,57 @@ jobs:
 
             rm -f "$TEMP_PATCH"
           done
+
+      - name: Apply ZIP Overlay
+        if: ${{ github.event.inputs.zip_url != '' }}
+        run: |
+          cd repo
+
+          ZIP_URL="${{ github.event.inputs.zip_url }}"
+          TEMP_DIR="/tmp/zip_overlay"
+          ZIP_FILE="/tmp/overlay.zip"
+
+          rm -rf "$TEMP_DIR"
+          mkdir -p "$TEMP_DIR"
+
+          if echo "$ZIP_URL" | grep -q "drive.google.com"; then
+            FILE_ID=$(echo "$ZIP_URL" | sed -n 's#.*\/d\/\([^/]*\)\/.*#\1#p')
+
+            curl -L "https://drive.google.com/uc?export=download&id=$FILE_ID" \
+              -o "$ZIP_FILE"
+          else
+            curl -L "$ZIP_URL" -o "$ZIP_FILE"
+          fi
+
+          unzip -o "$ZIP_FILE" -d "$TEMP_DIR"
+
+          INNER_DIR=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+
+          if [ -n "$INNER_DIR" ]; then
+            cp -rf "$INNER_DIR"/. .
+          else
+            cp -rf "$TEMP_DIR"/. .
+          fi
+
+          if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
+            for file in ${{ github.event.inputs.exclude_files }}
+            do
+              git checkout HEAD -- "$file" || true
+            done
+          fi
+
+          git add -A
+
+          if ! git diff --cached --quiet; then
+            BASE_HEAD=$(git rev-parse --short HEAD)
+
+            git commit -m "kernel: sync overlay adjustments from latest upstream state"$'\n\n'"Continuation and compatibility adjustments based on latest HEAD commits."$'\n'"Base HEAD: $BASE_HEAD"$'\n\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>" || true
+          else
+            echo "No overlay changes detected"
+          fi
+
+          rm -rf "$TEMP_DIR"
+          rm -f "$ZIP_FILE"
 
       - name: Push to Repository
         if: success()
