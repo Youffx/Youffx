@@ -265,13 +265,7 @@ jobs:
 
           unzip -o "$ZIP_FILE" -d "$TEMP_DIR"
 
-          INNER_DIR=$(find "$TEMP_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
-
-          if [ -n "$INNER_DIR" ]; then
-            cp -rf "$INNER_DIR"/. .
-          else
-            cp -rf "$TEMP_DIR"/. .
-          fi
+          cp -rf "$TEMP_DIR"/. .
 
           if [ -n "${{ github.event.inputs.exclude_files }}" ]; then
             for file in ${{ github.event.inputs.exclude_files }}
@@ -325,7 +319,10 @@ jobs:
 
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
-          if [ "${{ env.CONFLICT_COUNT }}" -gt 0 ]; then
+          CONFLICT_COUNT="${{ env.CONFLICT_COUNT }}"
+          CONFLICT_COUNT=${CONFLICT_COUNT:-0}
+
+          if [ "$CONFLICT_COUNT" -gt 0 ]; then
             CHERRY_STATUS="⚠️ *Cherry-pick finished with conflicts*"
             CHERRY_INFO="*Conflicted files:*
           \`\`\`
