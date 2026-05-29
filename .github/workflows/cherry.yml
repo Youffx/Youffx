@@ -229,42 +229,19 @@ jobs:
 
             git reset --hard HEAD || true
 
-            if git apply --index "$TEMP_PATCH"; then
+            if git am --3way "$TEMP_PATCH"; then
 
-              AUTHOR=$(awk '
-              /^From:/ { sub(/^From: /, "", $0); print $0; exit }
-              ' "$TEMP_PATCH")
+              git commit --amend -C HEAD --no-edit --trailer "Signed-off-by: Youffx <asa.jazal@gmail.com>" || true
 
-              COMMIT_MSG=$(awk '
-              BEGIN { body=0 }
-              /^Subject:/ {
-                sub(/^Subject: \[PATCH[^]]*\] /, "", $0)
-                sub(/^Subject: /, "", $0)
-                printf "%s", $0
-                subject=1
-                next
-              }
-              subject==1 && $0 ~ /^[[:space:]]/ {
-                printf " %s", $0
-                next
-              }
-              subject==1 && $0 !~ /^$/ { print ""; body=1; print $0; subject=2; next }
-              subject>=2 { print }
-              ' "$TEMP_PATCH")
+              LAST_MSG=$(git log -1 --pretty=%B)
+              CLEAN_MSG=$(printf "%s" "$LAST_MSG" | sed 's/  / /g')
 
-              if [ -z "$COMMIT_MSG" ]; then
-                COMMIT_MSG="Apply patch: $PATCH_NAME"
-              fi
-
-              if [ -n "$AUTHOR" ]; then
-                git commit --author "$AUTHOR" -F <(printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG")
-              else
-                git commit -F <(printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG")
-              fi
+              printf "%s" "$CLEAN_MSG" | git commit --amend -F -
 
             else
               echo "Patch FAILED → SKIP: $PATCH_NAME"
 
+              git am --abort || true
               git reset --hard HEAD || true
 
               if echo "$RAW_URL" | grep -q "git.kernel.org"; then
