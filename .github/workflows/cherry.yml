@@ -482,10 +482,20 @@ jobs:
             PATCH_STATUS="✅ *No reject files detected*"
           fi
 
+          # ================================
+          # FIX IMPORTANT: MERGE FAIL FILE
+          # ================================
+          MERGE_FAIL_INFO=$(cat ../merge_fail_info.txt 2>/dev/null || true)
+
           MESSAGE="*Cherry Pick & Patch Report*
 
           $CHERRY_STATUS
           $PATCH_STATUS
+
+          *Merge Failures:*
+          \`\`\`
+          $MERGE_FAIL_INFO
+          \`\`\`
 
           *Date:* \`$BUILD_DATE\`
 
