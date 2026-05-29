@@ -196,7 +196,10 @@ jobs:
 
           mkdir -p ../patch_rejects  
 
-          for patch_url in ${{ github.event.inputs.patch_urls }}  
+          # FIX: safe split input (biar & tidak error + multi URL aman)
+          IFS=' ' read -r -a PATCH_LIST <<< "${{ github.event.inputs.patch_urls }}"
+
+          for patch_url in "${PATCH_LIST[@]}"
           do  
             echo "Applying patch: $patch_url"  
 
@@ -257,7 +260,7 @@ jobs:
                 COMMIT_MSG="Apply patch: $PATCH_NAME"  
               fi  
 
-              # Signed-off
+              # Signed-off-by kamu (paling bawah + jarak 1 line)
               COMMIT_MSG="$COMMIT_MSG"$'\n\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"  
 
               printf "%s" "$COMMIT_MSG" | git commit -F - || true  
