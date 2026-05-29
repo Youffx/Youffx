@@ -201,14 +201,26 @@ jobs:
             echo "Applying patch: $patch_url"
 
             PATCH_NAME=$(basename "$patch_url")
-            TEMP_PATCH="/tmp/$PATCH_NAME"
+            TEMP_PATCH="/tmp/${PATCH_NAME}.patch"
 
             RAW_URL="$patch_url"
 
+            # GitHub commit / blob support
             if echo "$RAW_URL" | grep -q "github.com"; then
-              RAW_URL=$(echo "$RAW_URL" | \
-                sed 's|https://github.com/|https://raw.githubusercontent.com/|' | \
-                sed 's|/blob/|/|')
+              if echo "$RAW_URL" | grep -q "/commit/"; then
+                RAW_URL="${RAW_URL}.patch"
+              else
+                RAW_URL=$(echo "$RAW_URL" | \
+                  sed 's|https://github.com/|https://raw.githubusercontent.com/|' | \
+                  sed 's|/blob/|/|')
+              fi
+            fi
+
+            # kernel.org cgit commit support
+            if echo "$RAW_URL" | grep -q "git.kernel.org"; then
+              if echo "$RAW_URL" | grep -q "/commit/"; then
+                RAW_URL="${RAW_URL}&format=patch"
+              fi
             fi
 
             echo "Downloading from: $RAW_URL"
@@ -228,13 +240,14 @@ jobs:
             git add -A
 
             if ! git diff --cached --quiet; then
-              PATCH_TITLE=$(grep -m1 "^Subject:" "$TEMP_PATCH" | sed 's/^Subject: \[PATCH\] //')
+              PATCH_TITLE=$(grep -m1 "^Subject:" "$TEMP_PATCH" | \
+                sed 's/^Subject: \[PATCH[^]]*\] //')
 
               if [ -z "$PATCH_TITLE" ]; then
                 PATCH_TITLE="Apply patch: $PATCH_NAME"
               fi
 
-              git commit -m "$PATCH_TITLE"$'\n\n'"Patch source: $patch_url" || true
+              git commit -m "$PATCH_TITLE"$'\n\n'"Patch source: $patch_url"$'\n\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>" || true
             else
               echo "No changes to commit"
             fi
