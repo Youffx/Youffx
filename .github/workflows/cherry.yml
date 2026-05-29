@@ -218,13 +218,13 @@ jobs:
                   sed 's|/blob/|/|')  
               fi  
             fi  
-
-            # kernel.org cgit commit support  
-            if echo "$RAW_URL" | grep -q "git.kernel.org"; then  
-              if echo "$RAW_URL" | grep -q "/commit/"; then  
-                RAW_URL="${RAW_URL}&format=patch"  
-              fi  
-            fi  
+            
+            # kernel.org cgit commit support
+            if echo "$RAW_URL" | grep -q "git.kernel.org"; then
+              if echo "$RAW_URL" | grep -q "/commit/"; then
+                RAW_URL=$(echo "$RAW_URL" | sed 's|/commit/|/patch/?id=|')
+              fi
+            fi
 
             echo "Downloading from: $RAW_URL"  
 
