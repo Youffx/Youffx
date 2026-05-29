@@ -57,8 +57,6 @@ jobs:
           if [ -d "repo/.git" ]; then
             echo "Using cached repository..."
             cd repo
-            git reset --hard
-            git clean -fdx
             git remote set-url origin $REPO_URL
             git fetch origin --prune
           else
@@ -71,6 +69,7 @@ jobs:
 
           if git ls-remote --heads origin "$TARGET" | grep -q "refs/heads/$TARGET"; then
             git checkout -B "$TARGET" "origin/$TARGET"
+            git pull origin "$TARGET" --rebase || true
             echo "WORK_BRANCH=$TARGET" >> $GITHUB_ENV
           else
             git fetch origin "$TARGET" || true
@@ -81,7 +80,7 @@ jobs:
               NEW_BRANCH="cherry-pick-${TARGET:0:7}"
             fi
 
-            git checkout -B "$NEW_BRANCH" "$TARGET"
+            git checkout -b "$NEW_BRANCH" "$TARGET"
             echo "WORK_BRANCH=$NEW_BRANCH" >> $GITHUB_ENV
           fi
 
@@ -307,7 +306,7 @@ jobs:
         run: |
           cd repo
           git remote set-url origin https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
-          git push origin $WORK_BRANCH --force
+          git push origin $WORK_BRANCH
 
       - name: Upload Reject Files
         if: always()
