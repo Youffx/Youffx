@@ -264,10 +264,12 @@ jobs:
 
           mkdir -p ../merge_rejects
 
+          MERGE_FAIL_FILE="../merge_fail_info.txt"
+          echo "" > "$MERGE_FAIL_FILE"
+
           IFS=' ' read -r -a MERGE_LIST <<< "${{ github.event.inputs.merge }}"
 
           MERGE_FAIL_COUNT=0
-          MERGE_FAIL_INFO=""
 
           for merge_url in "${MERGE_LIST[@]}"
           do
@@ -280,7 +282,9 @@ jobs:
             TEMP_PATCH="/tmp/${PATCH_NAME}.patch"
 
             if echo "$RAW_URL" | grep -q "github.com"; then
-              RAW_URL=$(echo "$RAW_URL" | sed 's|https://github.com/|https://raw.githubusercontent.com/|' | sed 's|/blob/|/|')
+              RAW_URL=$(echo "$RAW_URL" \
+                | sed 's|https://github.com/|https://raw.githubusercontent.com/|' \
+                | sed 's|/blob/|/|')
             fi
 
             echo "Downloading: $RAW_URL"
@@ -306,7 +310,8 @@ jobs:
                 continue
               fi
 
-              SUBJECT=$(grep -m1 "^Subject:" "$split_patch" | sed 's/^Subject:[[:space:]]*//')
+              SUBJECT=$(grep -m1 "^Subject:" "$split_patch" \
+                | sed 's/^Subject:[[:space:]]*//')
 
               echo "Applying commit: $SUBJECT"
 
@@ -330,7 +335,8 @@ jobs:
                   fi
                 fi
 
-                git commit --amend -C HEAD --no-edit --trailer "Signed-off-by: Youffx <asa.jazal@gmail.com>" || true
+                git commit --amend -C HEAD --no-edit \
+                  --trailer "Signed-off-by: Youffx <asa.jazal@gmail.com>" || true
 
                 LAST_MSG=$(git log -1 --pretty=%B)
                 CLEAN_MSG=$(printf "%s" "$LAST_MSG" | sed 's/  / /g')
@@ -348,11 +354,12 @@ jobs:
 
                 MERGE_FAIL_COUNT=$((MERGE_FAIL_COUNT + 1))
 
-                FAILED_SUBJECT=$(grep -m1 "^Subject:" "$split_patch" | sed 's/^Subject:[[:space:]]*//')
+                FAILED_SUBJECT=$(echo "$SUBJECT" | tr -d '\r')
 
-                MERGE_FAIL_INFO+=$'FAILED:\n'"$FAILED_SUBJECT"$'\n\n'
+                echo -e "FAILED:\n$FAILED_SUBJECT\n" >> "$MERGE_FAIL_FILE"
 
-                cp "$split_patch" ../merge_rejects/$(basename "$split_patch").patch || true
+                cp "$split_patch" ../merge_rejects/ \
+                  "$(basename "$split_patch").patch" || true
               fi
             done
 
@@ -361,10 +368,6 @@ jobs:
           done
 
           echo "MERGE_FAIL_COUNT=$MERGE_FAIL_COUNT" >> $GITHUB_ENV
-
-          echo "MERGE_FAIL_INFO<<EOF" >> $GITHUB_ENV
-          echo "$MERGE_FAIL_INFO" >> $GITHUB_ENV
-          echo "EOF"
 
       - name: Apply ZIP Overlay
         if: ${{ github.event.inputs.zip_url != '' }}
