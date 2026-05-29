@@ -188,7 +188,7 @@ jobs:
           echo "CONFLICT_FILES<<EOF" >> $GITHUB_ENV
           echo "$CONFLICT_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
+          
       - name: Apply Patch URLs
         if: ${{ github.event.inputs.patch_urls != '' }}
         run: |
@@ -231,22 +231,36 @@ jobs:
 
             if git apply --index "$TEMP_PATCH"; then
 
+              AUTHOR=$(awk '
+              /^From:/ { sub(/^From: /, "", $0); print $0; exit }
+              ' "$TEMP_PATCH")
+
               COMMIT_MSG=$(awk '
-              BEGIN { subject=0 }
+              BEGIN { body=0 }
               /^Subject:/ {
                 sub(/^Subject: \[PATCH[^]]*\] /, "", $0)
                 sub(/^Subject: /, "", $0)
-                print $0
+                printf "%s", $0
                 subject=1
-                exit
+                next
               }
+              subject==1 && $0 ~ /^[[:space:]]/ {
+                printf " %s", $0
+                next
+              }
+              subject==1 && $0 !~ /^$/ { print ""; body=1; print $0; subject=2; next }
+              subject>=2 { print }
               ' "$TEMP_PATCH")
 
               if [ -z "$COMMIT_MSG" ]; then
                 COMMIT_MSG="Apply patch: $PATCH_NAME"
               fi
 
-              printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG" | git commit -F -
+              if [ -n "$AUTHOR" ]; then
+                git commit --author "$AUTHOR" -F <(printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG")
+              else
+                git commit -F <(printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG")
+              fi
 
             else
               echo "Patch FAILED → SKIP: $PATCH_NAME"
