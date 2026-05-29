@@ -188,7 +188,7 @@ jobs:
           echo "CONFLICT_FILES<<EOF" >> $GITHUB_ENV
           echo "$CONFLICT_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-          
+
       - name: Apply Patch URLs
         if: ${{ github.event.inputs.patch_urls != '' }}
         run: |
@@ -232,15 +232,14 @@ jobs:
             if git apply --index "$TEMP_PATCH"; then
 
               COMMIT_MSG=$(awk '
-              BEGIN { skip=0 }
+              BEGIN { subject=0 }
               /^Subject:/ {
                 sub(/^Subject: \[PATCH[^]]*\] /, "", $0)
                 sub(/^Subject: /, "", $0)
                 print $0
-                next
+                subject=1
+                exit
               }
-              /^---$/ { skip=1; next }
-              skip==0 { print }
               ' "$TEMP_PATCH")
 
               if [ -z "$COMMIT_MSG" ]; then
