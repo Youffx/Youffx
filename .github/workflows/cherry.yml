@@ -189,90 +189,79 @@ jobs:
           echo "$CONFLICT_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           
-      - name: Apply Patch URLs    
-        if: ${{ github.event.inputs.patch_urls != '' }}    
-        run: |    
-          cd repo    
+      - name: Apply Patch URLs
+        if: ${{ github.event.inputs.patch_urls != '' }}
+        run: |
+          cd repo
 
-          mkdir -p ../patch_rejects    
+          mkdir -p ../patch_rejects
 
-          # Safe split input  
-          IFS=' ' read -r -a PATCH_LIST <<< "${{ github.event.inputs.patch_urls }}"  
+          IFS=' ' read -r -a PATCH_LIST <<< "${{ github.event.inputs.patch_urls }}"
 
-          for patch_url in "${PATCH_LIST[@]}"  
-          do    
-            echo "Applying patch: $patch_url"    
+          for patch_url in "${PATCH_LIST[@]}"
+          do
+            echo "Applying patch: $patch_url"
 
-            PATCH_NAME=$(basename "$patch_url")    
-            TEMP_PATCH="/tmp/${PATCH_NAME}.patch"    
+            RAW_URL="$patch_url"
 
-            RAW_URL="$patch_url"    
+            SAFE_NAME=$(echo "$RAW_URL" | sed 's/[?&=/:]/_/g')
+            PATCH_NAME=$(basename "$SAFE_NAME")
+            TEMP_PATCH="/tmp/${PATCH_NAME}.patch"
 
-            # GitHub commit / blob support    
-            if echo "$RAW_URL" | grep -q "github.com"; then    
-              if echo "$RAW_URL" | grep -q "/commit/"; then    
-                RAW_URL="${RAW_URL}.patch"    
-              else    
-                RAW_URL=$(echo "$RAW_URL" | \    
-                  sed 's|https://github.com/|https://raw.githubusercontent.com/|' | \    
-                  sed 's|/blob/|/|')    
-              fi    
-            fi    
+            if echo "$RAW_URL" | grep -q "github.com"; then
+              if echo "$RAW_URL" | grep -q "/commit/"; then
+                RAW_URL="${RAW_URL}.patch"
+              else
+                RAW_URL=$(echo "$RAW_URL" | sed 's|https://github.com/|https://raw.githubusercontent.com/|' | sed 's|/blob/|/|')
+              fi
+            fi
 
-            # kernel.org
-            if echo "$RAW_URL" | grep -q "git.kernel.org"; then  
-              RAW_URL=$(echo "$RAW_URL" | sed 's|/commit/|/patch/?id=|')  
-            fi    
+            if echo "$RAW_URL" | grep -q "git.kernel.org"; then
+              RAW_URL=$(echo "$RAW_URL" | sed 's|/commit/|/patch/?id=|')
+            fi
 
-            echo "Downloading from: $RAW_URL"    
+            echo "Downloading from: $RAW_URL"
 
-            curl -L --fail "$RAW_URL" -o "$TEMP_PATCH" || {  
-              echo "Download failed: $patch_url"  
-              continue  
-            }  
+            curl -L --fail "$RAW_URL" -o "$TEMP_PATCH" || {
+              echo "Download failed: $patch_url"
+              continue
+            }
 
-            # RESET STATE before apply  
-            git reset --hard HEAD || true  
+            git reset --hard HEAD || true
 
-            # APPLY PATCH CLEAN ONLY  
-            if git am "$TEMP_PATCH"; then  
+            if git apply --index "$TEMP_PATCH"; then
 
-              git add -A    
+              COMMIT_MSG=$(awk '
+              BEGIN { skip=0 }
+              /^Subject:/ {
+                sub(/^Subject: \[PATCH[^]]*\] /, "", $0)
+                sub(/^Subject: /, "", $0)
+                print $0
+                next
+              }
+              /^---$/ { skip=1; next }
+              skip==0 { print }
+              ' "$TEMP_PATCH")
 
-              if ! git diff --cached --quiet; then    
+              if [ -z "$COMMIT_MSG" ]; then
+                COMMIT_MSG="Apply patch: $PATCH_NAME"
+              fi
 
-                COMMIT_MSG=$(awk '  
-                BEGIN { skip=0 }  
-                /^Subject:/ {  
-                  sub(/^Subject: \[PATCH[^]]*\] /, "", $0);  
-                  sub(/^Subject: /, "", $0);  
-                  print $0  
-                  next  
-                }  
-                /^---$/ { skip=1; next }  
-                skip==0 { print }  
-                ' "$TEMP_PATCH")    
+              printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG" | git commit -F -
 
-                if [ -z "$COMMIT_MSG" ]; then    
-                  COMMIT_MSG="Apply patch: $PATCH_NAME"    
-                fi    
+            else
+              echo "Patch FAILED → SKIP: $PATCH_NAME"
 
-                printf "%s\nSigned-off-by: Youffx <asa.jazal@gmail.com>" "$COMMIT_MSG" | \
-                git commit -F -    
+              git reset --hard HEAD || true
 
-              else    
-                echo "No changes to commit"    
-              fi    
+              if echo "$RAW_URL" | grep -q "git.kernel.org"; then
+                echo "Skip saving reject for kernel.org"
+              else
+                cp "$TEMP_PATCH" ../patch_rejects/ || true
+              fi
+            fi
 
-            else    
-              echo "Patch FAILED → SKIP: $PATCH_NAME"  
-              git am --abort || true  
-              git reset --hard HEAD || true  
-
-              cp "$TEMP_PATCH" ../patch_rejects/ || true  
-            fi    
-
-            rm -f "$TEMP_PATCH"    
+            rm -f "$TEMP_PATCH"
           done
 
       - name: Apply ZIP Overlay
