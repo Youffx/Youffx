@@ -134,7 +134,12 @@ jobs:
           PGO_URL: ${{ secrets.PGO_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
-          $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
+          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
+            sudo apt-get install -y llvm-17
+            llvm-profdata-17 merge -o kernel/vmlinux.profdata vmlinux.profraw
+          else
+            $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
+          fi
 
       - name: Apply Root Method
         run: |
@@ -404,7 +409,12 @@ jobs:
           PGO_URL: ${{ secrets.PGO_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
-          $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
+          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
+            sudo apt-get install -y llvm-17
+            llvm-profdata-17 merge -o kernel/vmlinux.profdata vmlinux.profraw
+          else
+            $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
+          fi
 
       - name: Build Kernel NONKSU
         run: |
