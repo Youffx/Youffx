@@ -6,11 +6,16 @@ on:
       config_index:
         description: "Select (0,1,2,3,4)"
         required: true
-        default: "0"
+        default: "1"
       localversion:
         description: "Youffx 2026"
         required: false
         default: ""
+      use_llvm22:
+        description: "LLVM 22"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -55,11 +60,48 @@ jobs:
             ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-ksu-${{ runner.os }}-
 
-      - name: Restore LLVM
+      - name: Restore LLVM 17
+        if: github.event.inputs.use_llvm22 != 'true'
         uses: actions/cache@v4
         with:
           path: llvm
           key: clang+llvm-17.0.6
+
+      - name: Setup LLVM 17
+        if: github.event.inputs.use_llvm22 != 'true'
+        run: |
+          if [ ! -d "llvm/bin" ]; then
+            mkdir -p llvm
+            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz | tar -xJ -C llvm --strip-components=1
+          fi
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
+      - name: Cache LLVM 22 DEBs
+        if: github.event.inputs.use_llvm22 == 'true'
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: llvm-22-debs
+          key: llvm-22-debs-${{ runner.os }}
+
+      - name: Setup LLVM 22
+        if: github.event.inputs.use_llvm22 == 'true'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          CODENAME=$(lsb_release -cs)
+          sudo add-apt-repository -y "deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-22 main"
+          sudo apt-get update -y
+          if [ "${{ steps.cache-llvm.outputs.cache-hit }}" != "true" ]; then
+            mkdir -p llvm-22-debs
+            sudo apt-get install --download-only -y clang-22 lld-22 llvm-22
+            cp /var/cache/apt/archives/*22*.deb llvm-22-debs/ 2>/dev/null || cp /var/cache/apt/archives/*.deb llvm-22-debs/
+          fi
+          sudo dpkg -i llvm-22-debs/*.deb || sudo apt-get install -f -y
+          mkdir -p llvm/bin
+          for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
+            ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
+          done
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
         id: cfg
@@ -78,14 +120,6 @@ jobs:
           DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
 
           git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
-
-      - name: Setup LLVM
-        run: |
-          if [ ! -d "llvm/bin" ]; then
-            mkdir -p llvm
-            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz | tar -xJ -C llvm --strip-components=1
-          fi
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Setup ccache
         run: |
@@ -296,11 +330,48 @@ jobs:
             ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-nonksu-${{ runner.os }}-
 
-      - name: Restore LLVM
+      - name: Restore LLVM 17
+        if: github.event.inputs.use_llvm22 != 'true'
         uses: actions/cache@v4
         with:
           path: llvm
           key: clang+llvm-17.0.6
+
+      - name: Setup LLVM 17
+        if: github.event.inputs.use_llvm22 != 'true'
+        run: |
+          if [ ! -d "llvm/bin" ]; then
+            mkdir -p llvm
+            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz | tar -xJ -C llvm --strip-components=1
+          fi
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
+      - name: Cache LLVM 22 DEBs
+        if: github.event.inputs.use_llvm22 == 'true'
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: llvm-22-debs
+          key: llvm-22-debs-${{ runner.os }}
+
+      - name: Setup LLVM 22
+        if: github.event.inputs.use_llvm22 == 'true'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          CODENAME=$(lsb_release -cs)
+          sudo add-apt-repository -y "deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-22 main"
+          sudo apt-get update -y
+          if [ "${{ steps.cache-llvm.outputs.cache-hit }}" != "true" ]; then
+            mkdir -p llvm-22-debs
+            sudo apt-get install --download-only -y clang-22 lld-22 llvm-22
+            cp /var/cache/apt/archives/*22*.deb llvm-22-debs/ 2>/dev/null || cp /var/cache/apt/archives/*.deb llvm-22-debs/
+          fi
+          sudo dpkg -i llvm-22-debs/*.deb || sudo apt-get install -f -y
+          mkdir -p llvm/bin
+          for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
+            ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
+          done
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
         id: cfg
@@ -319,14 +390,6 @@ jobs:
           DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
 
           git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
-
-      - name: Setup LLVM
-        run: |
-          if [ ! -d "llvm/bin" ]; then
-            mkdir -p llvm
-            curl -L https://github.com/llvm/llvm-project/releases/download/llvmorg-17.0.6/clang+llvm-17.0.6-x86_64-linux-gnu-ubuntu-22.04.tar.xz | tar -xJ -C llvm --strip-components=1
-          fi
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Setup ccache
         run: |
