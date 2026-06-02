@@ -179,7 +179,7 @@ jobs:
             AUTHOR=$(git log -1 --pretty='%an <%ae>' $commit)
             COMMIT_MSG=$(git log -1 --pretty=%B $commit)
 
-            if echo "$COMMIT_MSG" | grep -q "Signed-off-by:"; then
+            if echo "$COMMIT_MSG" | grep -q "Signed-off-by:" && ! echo "$COMMIT_MSG" | grep -q "Signed-off-by: Youffx <asa.jazal@gmail.com>"; then
               COMMIT_MSG="$COMMIT_MSG"$'\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"
             fi
 
