@@ -1,0 +1,4287 @@
+From d658e8b35897a4277feac62d532f79f049b0ec4a Mon Sep 17 00:00:00 2001
+From: Youffx <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 05:17:53 +0000
+Subject: [PATCH 01/46] sched/cass: Introduce the Capacity Aware Superset
+ Scheduler
+
+The Capacity Aware Superset Scheduler (CASS) optimizes runqueue selection
+of CFS tasks. By using CPU capacity as a basis for comparing the relative
+utilization between different CPUs, CASS fairly balances load across CPUs
+of varying capacities. This results in improved multi-core performance,
+especially when CPUs are overutilized because CASS doesn't clip a CPU's
+utilization when it eclipses the CPU's capacity.
+
+As a superset of capacity aware scheduling, CASS implements a hierarchy of
+criteria to determine the better CPU to wake a task upon between CPUs that
+have the same relative utilization. This way, single-core performance,
+latency, and cache affinity are all optimized where possible.
+
+CASS doesn't feature explicit energy awareness but its basic load balancing
+principle results in decreased overall energy, often better than what is
+possible with explicit energy awareness. By fairly balancing load based on
+relative utilization, all CPUs are kept at their lowest P-state necessary
+to satisfy the overall load at any given moment.
+
+Signed-off-by: Youffx <asa.jazal@gmail.com>
+---
+ init/Kconfig        |  25 ++++++
+ kernel/sched/cass.c | 205 ++++++++++++++++++++++++++++++++++++++++++++
+ kernel/sched/fair.c |  11 +++
+ 3 files changed, 241 insertions(+)
+ create mode 100644 kernel/sched/cass.c
+
+diff --git a/init/Kconfig b/init/Kconfig
+index 9d82650167ff..0df5b98f4385 100644
+--- a/init/Kconfig
++++ b/init/Kconfig
+@@ -1120,6 +1120,31 @@ config CHECKPOINT_RESTORE
+ 
+ 	  If unsure, say N here.
+ 
++config SCHED_CASS
++	bool "Capacity Aware Superset Scheduler"
++	depends on SMP
++	help
++	  This enables the Capacity Aware Superset Scheduler (CASS), which
++	  optimizes runqueue selection of CFS tasks. By using CPU capacity as a
++	  basis for comparing the relative utilization between different CPUs,
++	  CASS fairly balances load across CPUs of varying capacities. This
++	  results in improved multi-core performance, especially when CPUs are
++	  overutilized because CASS doesn't clip a CPU's utilization when it
++	  eclipses the CPU's capacity.
++
++	  As a superset of capacity aware scheduling, CASS implements a
++	  hierarchy of criteria to determine the better CPU to wake a task upon
++	  between CPUs that have the same relative utilization. This way,
++	  single-core performance, latency, and cache affinity are all optimized
++	  where possible.
++
++	  CASS doesn't feature explicit energy awareness but its basic load
++	  balancing principle results in decreased overall energy, often better
++	  than what is possible with explicit energy awareness. By fairly
++	  balancing load based on relative utilization, all CPUs are kept at
++	  their lowest P-state necessary to satisfy the overall load at any
++	  given moment.
++
+ config SCHED_AUTOGROUP
+ 	bool "Automatic process group scheduling"
+ 	select CGROUPS
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+new file mode 100644
+index 000000000000..327c58d0132b
+--- /dev/null
++++ b/kernel/sched/cass.c
+@@ -0,0 +1,205 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Copyright (C) 2023 Sultan Alsawaf <sultan@kerneltoast.com>.
++ */
++
++/**
++ * DOC: Capacity Aware Superset Scheduler (CASS) description
++ *
++ * The Capacity Aware Superset Scheduler (CASS) optimizes runqueue selection of
++ * CFS tasks. By using CPU capacity as a basis for comparing the relative
++ * utilization between different CPUs, CASS fairly balances load across CPUs of
++ * varying capacities. This results in improved multi-core performance,
++ * especially when CPUs are overutilized because CASS doesn't clip a CPU's
++ * utilization when it eclipses the CPU's capacity.
++ *
++ * As a superset of capacity aware scheduling, CASS implements a hierarchy of
++ * criteria to determine the better CPU to wake a task upon between CPUs that
++ * have the same relative utilization. This way, single-core performance,
++ * latency, and cache affinity are all optimized where possible.
++ *
++ * CASS doesn't feature explicit energy awareness but its basic load balancing
++ * principle results in decreased overall energy, often better than what is
++ * possible with explicit energy awareness. By fairly balancing load based on
++ * relative utilization, all CPUs are kept at their lowest P-state necessary to
++ * satisfy the overall load at any given moment.
++ */
++
++struct cass_cpu_cand {
++	int cpu;
++	unsigned int exit_lat;
++	unsigned long cap;
++	unsigned long util;
++};
++
++static __always_inline
++unsigned long cass_cpu_util(int cpu, bool sync)
++{
++	struct cfs_rq *cfs_rq = &cpu_rq(cpu)->cfs;
++	unsigned long util = READ_ONCE(cfs_rq->avg.util_avg);
++
++	/* Deduct @current's util from this CPU if this is a sync wake */
++	if (sync && cpu == smp_processor_id())
++		lsub_positive(&util, task_util(current));
++
++	if (sched_feat(UTIL_EST))
++		util = max_t(unsigned long, util,
++			     READ_ONCE(cfs_rq->avg.util_est.enqueued));
++
++	return util;
++}
++
++/* Returns true if @a is a better CPU than @b */
++static __always_inline
++bool cass_cpu_better(const struct cass_cpu_cand *a,
++		     const struct cass_cpu_cand *b,
++		     int prev_cpu, bool sync)
++{
++#define cass_cmp(a, b) ({ res = (a) - (b); })
++#define cass_eq(a, b) ({ res = (a) == (b); })
++	long res;
++
++	/* Prefer the CPU with lower relative utilization */
++	if (cass_cmp(b->util, a->util))
++		goto done;
++
++	/* Prefer the current CPU for sync wakes */
++	if (sync && (cass_eq(a->cpu, smp_processor_id()) ||
++		     !cass_cmp(b->cpu, smp_processor_id())))
++		goto done;
++
++	/* Prefer the CPU with higher capacity */
++	if (cass_cmp(a->cap, b->cap))
++		goto done;
++
++	/* Prefer the CPU with lower idle exit latency */
++	if (cass_cmp(b->exit_lat, a->exit_lat))
++		goto done;
++
++	/* Prefer the previous CPU */
++	if (cass_eq(a->cpu, prev_cpu) || !cass_cmp(b->cpu, prev_cpu))
++		goto done;
++
++	/* Prefer the CPU that shares a cache with the previous CPU */
++	if (cass_cmp(cpus_share_cache(a->cpu, prev_cpu),
++		     cpus_share_cache(b->cpu, prev_cpu)))
++		goto done;
++
++	/* @a isn't a better CPU than @b. @res must be <=0 to indicate such. */
++done:
++	/* @a is a better CPU than @b if @res is positive */
++	return res > 0;
++}
++
++static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
++{
++	/* Initialize @best such that @best always has a valid CPU at the end */
++	struct cass_cpu_cand cands[2], *best = cands, *curr;
++	struct cpuidle_state *idle_state;
++	bool has_idle = false;
++	unsigned long p_util;
++	int cidx = 0, cpu;
++
++	/* Get the utilization for this task */
++	p_util = clamp(task_util_est(p),
++		       uclamp_eff_value(p, UCLAMP_MIN),
++		       uclamp_eff_value(p, UCLAMP_MAX));
++
++	/*
++	 * Find the best CPU to wake @p on. Although idle_get_state() requires
++	 * an RCU read lock, an RCU read lock isn't needed because we're not
++	 * preemptible and RCU-sched is unified with normal RCU. Therefore,
++	 * non-preemptible contexts are implicitly RCU-safe.
++	 */
++	for_each_cpu_and(cpu, p->cpus_ptr, cpu_active_mask) {
++		/* Use the free candidate slot */
++		curr = &cands[cidx];
++		curr->cpu = cpu;
++
++		/*
++		 * Check if this CPU is idle or only has SCHED_IDLE tasks. For
++		 * sync wakes, always treat the current CPU as idle.
++		 */
++		if ((sync && cpu == smp_processor_id()) ||
++		    available_idle_cpu(cpu) || sched_idle_cpu(cpu)) {
++			/* Discard any previous non-idle candidate */
++			if (!has_idle) {
++				best = curr;
++				cidx ^= 1;
++			}
++			has_idle = true;
++
++			/* Nonzero exit latency indicates this CPU is idle */
++			curr->exit_lat = 1;
++
++			/* Add on the actual idle exit latency, if any */
++			idle_state = idle_get_state(cpu_rq(cpu));
++			if (idle_state)
++				curr->exit_lat += idle_state->exit_latency;
++		} else {
++			/* Skip non-idle CPUs if there's an idle candidate */
++			if (has_idle)
++				continue;
++
++			/* Zero exit latency indicates this CPU isn't idle */
++			curr->exit_lat = 0;
++		}
++
++		/* Get this CPU's utilization, possibly without @current */
++		curr->util = cass_cpu_util(cpu, sync);
++
++		/*
++		 * Add @p's utilization to this CPU if it's not @p's CPU, to
++		 * find what this CPU's relative utilization would look like
++		 * if @p were on it.
++		 */
++		if (cpu != task_cpu(p))
++			curr->util += p_util;
++
++		/*
++		 * Get the current capacity of this CPU adjusted for thermal
++		 * pressure as well as IRQ and RT-task time.
++		 */
++		curr->cap = capacity_of(cpu);
++
++		/* Calculate the relative utilization for this CPU candidate */
++		curr->util = curr->util * SCHED_CAPACITY_SCALE / curr->cap;
++
++		/* If @best == @curr then there's no need to compare them */
++		if (best == curr)
++			continue;
++
++		/* Check if this CPU is better than the best CPU found */
++		if (cass_cpu_better(curr, best, prev_cpu, sync)) {
++			best = curr;
++			cidx ^= 1;
++		}
++	}
++
++	return best->cpu;
++}
++
++static int cass_select_task_rq_fair(struct task_struct *p, int prev_cpu,
++				    int sd_flag, int wake_flags)
++{
++	bool sync;
++
++	/* Don't balance on exec since we don't know what @p will look like */
++	if (sd_flag & SD_BALANCE_EXEC)
++		return prev_cpu;
++
++	/*
++	 * If there aren't any valid CPUs which are active, then just return the
++	 * first valid CPU since it's possible for certain types of tasks to run
++	 * on inactive CPUs.
++	 */
++	if (unlikely(!cpumask_intersects(p->cpus_ptr, cpu_active_mask)))
++		return cpumask_first(p->cpus_ptr);
++
++	/* cass_best_cpu() needs the task's utilization, so sync it up */
++	if (!(sd_flag & SD_BALANCE_FORK))
++		sync_entity_load_avg(&p->se);
++
++	sync = (wake_flags & WF_SYNC) && !(current->flags & PF_EXITING);
++	return cass_best_cpu(p, prev_cpu, sync);
++}
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 0593149221df..49fcb9f9779f 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -12155,6 +12155,17 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
+ 	return rr_interval;
+ }
+ 
++#ifdef CONFIG_SCHED_CASS
++#include "cass.c"
++
++/* Use CASS. A dummy wrapper ensures the replaced function is still "used". */
++static inline void *select_task_rq_fair_dummy(void)
++{
++	return (void *)select_task_rq_fair;
++}
++#define select_task_rq_fair cass_select_task_rq_fair
++#endif /* CONFIG_SCHED_CASS */
++
+ /*
+  * All the scheduling class methods:
+  */
+
+From bb5d8e4971c4e04406654304007e5cf468f81a39 Mon Sep 17 00:00:00 2001
+From: Youffx <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 05:29:07 +0000
+Subject: [PATCH 02/46] sched/cass: Fix CPU selection when no candidate CPUs
+ are idle
+
+---
+ kernel/sched/cass.c | 19 +++++++++----------
+ 1 file changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index 327c58d0132b..98f7bceed81b 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -1,6 +1,6 @@
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+- * Copyright (C) 2023 Sultan Alsawaf <sultan@kerneltoast.com>.
++ * Copyright (C) 2023-2024 Sultan Alsawaf <sultan@kerneltoast.com>.
+  */
+ 
+ /**
+@@ -123,10 +123,8 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 		if ((sync && cpu == smp_processor_id()) ||
+ 		    available_idle_cpu(cpu) || sched_idle_cpu(cpu)) {
+ 			/* Discard any previous non-idle candidate */
+-			if (!has_idle) {
++			if (!has_idle)
+ 				best = curr;
+-				cidx ^= 1;
+-			}
+ 			has_idle = true;
+ 
+ 			/* Nonzero exit latency indicates this CPU is idle */
+@@ -165,12 +163,13 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 		/* Calculate the relative utilization for this CPU candidate */
+ 		curr->util = curr->util * SCHED_CAPACITY_SCALE / curr->cap;
+ 
+-		/* If @best == @curr then there's no need to compare them */
+-		if (best == curr)
+-			continue;
+-
+-		/* Check if this CPU is better than the best CPU found */
+-		if (cass_cpu_better(curr, best, prev_cpu, sync)) {
++		/*
++		 * Check if this CPU is better than the best CPU found so far.
++		 * If @best == @curr then there's no need to compare them, but
++		 * cidx still needs to be changed to the other candidate slot.
++		 */
++		if (best == curr ||
++		    cass_cpu_better(curr, best, prev_cpu, sync)) {
+ 			best = curr;
+ 			cidx ^= 1;
+ 		}
+
+From 6953139ac629b6075c28987a68773317ff9d8081 Mon Sep 17 00:00:00 2001
+From: Youffx <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 05:36:39 +0000
+Subject: [PATCH 03/46] sched/cass: Clean up local variable scope in
+ cass_best_cpu()
+
+---
+ kernel/sched/cass.c | 15 ++++++++++-----
+ 1 file changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index 98f7bceed81b..b1b738bbd62b 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -94,8 +94,7 @@ bool cass_cpu_better(const struct cass_cpu_cand *a,
+ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ {
+ 	/* Initialize @best such that @best always has a valid CPU at the end */
+-	struct cass_cpu_cand cands[2], *best = cands, *curr;
+-	struct cpuidle_state *idle_state;
++	struct cass_cpu_cand cands[2], *best = cands;
+ 	bool has_idle = false;
+ 	unsigned long p_util;
+ 	int cidx = 0, cpu;
+@@ -110,11 +109,16 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 	 * an RCU read lock, an RCU read lock isn't needed because we're not
+ 	 * preemptible and RCU-sched is unified with normal RCU. Therefore,
+ 	 * non-preemptible contexts are implicitly RCU-safe.
++	 *
++	 * Note: @curr->cpu must be initialized before this loop ends. This is
++	 * necessary to ensure @best->cpu contains a valid CPU upon returning;
++	 * otherwise, if only one CPU is allowed and it is skipped before
++	 * @curr->cpu is set, then @best->cpu will be garbage.
+ 	 */
+ 	for_each_cpu_and(cpu, p->cpus_ptr, cpu_active_mask) {
+-		/* Use the free candidate slot */
+-		curr = &cands[cidx];
+-		curr->cpu = cpu;
++		/* Use the free candidate slot for @curr */
++		struct cass_cpu_cand *curr = &cands[cidx];
++		struct cpuidle_state *idle_state;
+ 
+ 		/*
+ 		 * Check if this CPU is idle or only has SCHED_IDLE tasks. For
+@@ -168,6 +172,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 		 * If @best == @curr then there's no need to compare them, but
+ 		 * cidx still needs to be changed to the other candidate slot.
+ 		 */
++		curr->cpu = cpu;
+ 		if (best == curr ||
+ 		    cass_cpu_better(curr, best, prev_cpu, sync)) {
+ 			best = curr;
+
+From f1c5412c76ceba3c04c94b880c8d3902fe408d58 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 14:07:59 +0700
+Subject: [PATCH 04/46] sched/fair: implement hybrid CASS and MTK scheduler
+
+Introduce a hybrid scheduling approach by integrating CASS with the
+existing MediaTek scheduler instead of fully replacing it.
+
+Previously, CASS overrode select_task_rq_fair() via macro definition,
+which completely bypassed the MTK scheduler logic. This change removes
+the macro override and applies CASS selectively based on task utilization.
+
+Heavy tasks (high util_est) are handled by CASS for improved performance,
+while lighter tasks continue to use the default MTK scheduler path,
+preserving vendor-specific optimizations and stability.
+
+This approach reduces scheduling conflicts, avoids double decision-making,
+and provides a better balance between performance and efficiency.
+
+Key changes:
+- Remove macro override of select_task_rq_fair
+- Keep cass.c included without forcing full replacement
+- Add hybrid decision logic in select_task_rq_fair()
+- Use task_util_est() as threshold to dispatch between CASS and MTK
+
+This ensures compatibility with MTK scheduler extensions while enabling
+performance gains from CASS in high-load scenarios.
+
+Signed-off-by: Youffx <asa.jazal@gmail.com>
+---
+ kernel/sched/fair.c | 22 +++++++++++++---------
+ 1 file changed, 13 insertions(+), 9 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 49fcb9f9779f..1aaa5381c07c 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -23,6 +23,10 @@
+ #include "sched.h"
+ 
+ #include <trace/events/sched.h>
++extern int cass_select_task_rq_fair(struct task_struct *p,
++				    int prev_cpu,
++				    int sd_flag,
++				    int wake_flags);
+ 
+ /*
+  * Targeted preemption latency for CPU-bound tasks:
+@@ -7837,8 +7841,15 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag,
+ 	int result = 0;
+ 	int cpu;
+ 
+-	result = SELECT_TASK_RQ_FAIR(p, prev_cpu, sd_flag, wake_flags,
+-		sibling_count_hint);
++	int util = task_util_est(p);
++/* ==== HYBRID: CASS ==== */
++if (util > 300) {
++	return cass_select_task_rq_fair(p, prev_cpu,
++				       sd_flag, wake_flags);
++}
++/* ==== MTK scheduler ==== */
++    result = SELECT_TASK_RQ_FAIR(p, prev_cpu, sd_flag, wake_flags,
++	    sibling_count_hint);
+ #ifdef CONFIG_MTK_SCHED_CPU_PREFER
+ 	select_task_prefer_cpu_fair(p, &result);
+ #endif
+@@ -12157,13 +12168,6 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
+ 
+ #ifdef CONFIG_SCHED_CASS
+ #include "cass.c"
+-
+-/* Use CASS. A dummy wrapper ensures the replaced function is still "used". */
+-static inline void *select_task_rq_fair_dummy(void)
+-{
+-	return (void *)select_task_rq_fair;
+-}
+-#define select_task_rq_fair cass_select_task_rq_fair
+ #endif /* CONFIG_SCHED_CASS */
+ 
+ /*
+
+From 9e73b67527f2c71f57f78fa1a847e9c6e84438aa Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 14:17:40 +0700
+Subject: [PATCH 05/46] sched/fair: fix indentation in select_task_rq_fair()
+
+---
+ kernel/sched/fair.c | 16 ++++++++--------
+ 1 file changed, 8 insertions(+), 8 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 1aaa5381c07c..d57cd651a0fa 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -7842,14 +7842,14 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag,
+ 	int cpu;
+ 
+ 	int util = task_util_est(p);
+-/* ==== HYBRID: CASS ==== */
+-if (util > 300) {
+-	return cass_select_task_rq_fair(p, prev_cpu,
+-				       sd_flag, wake_flags);
+-}
+-/* ==== MTK scheduler ==== */
+-    result = SELECT_TASK_RQ_FAIR(p, prev_cpu, sd_flag, wake_flags,
+-	    sibling_count_hint);
++
++	if (util > 300) {
++		return cass_select_task_rq_fair(p, prev_cpu,
++						sd_flag, wake_flags);
++	}
++
++	result = SELECT_TASK_RQ_FAIR(p, prev_cpu, sd_flag, wake_flags,
++		sibling_count_hint);
+ #ifdef CONFIG_MTK_SCHED_CPU_PREFER
+ 	select_task_prefer_cpu_fair(p, &result);
+ #endif
+
+From 7e8e2a083270603368d20741851050cdbf2f0892 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 14:23:36 +0700
+Subject: [PATCH 06/46] sched: build CASS scheduler as separate object
+
+---
+ kernel/sched/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/Makefile b/kernel/sched/Makefile
+index 32e3bad385eb..a8f933598b8d 100644
+--- a/kernel/sched/Makefile
++++ b/kernel/sched/Makefile
+@@ -20,7 +20,7 @@ CFLAGS_core.o := $(PROFILING) -fno-omit-frame-pointer
+ endif
+ 
+ obj-y += core.o loadavg.o clock.o cputime.o
+-obj-y += idle.o fair.o rt.o deadline.o
++obj-y += idle.o fair.o cass.o rt.o deadline.o
+ obj-y += wait.o wait_bit.o swait.o completion.o
+ obj-y += stubs.o
+ 
+
+From c0405151166d59b3da9c515ff863bc2ec3a98ba9 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 14:26:42 +0700
+Subject: [PATCH 07/46] defconfig: enable CASS scheduler support
+
+---
+ arch/arm64/configs/rosemary_defconfig | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index 70b85135ea0b..a4edbfd67083 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -25,6 +25,7 @@ CONFIG_MTK_SCHED_LB_ENHANCEMENT=y
+ CONFIG_MTK_SCHED_TRACERS=y
+ CONFIG_MTK_SCHED_CPU_PREFER=y
+ CONFIG_MTK_SCHED_BIG_TASK_MIGRATE=y
++CONFIG_SCHED_CASS=y
+ # CONFIG_SLUB_DEBUG is not set
+ CONFIG_MACH_MT6785=y
+ CONFIG_CFQ_GROUP_IOSCHED=y
+
+From 1a703cda367d2e223d8db37a5f4086d6288f99b6 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 14:33:37 +0700
+Subject: [PATCH 08/46] defconfig: disable aggressive MTK scheduler features
+
+---
+ arch/arm64/configs/rosemary_defconfig | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index a4edbfd67083..068ba4b52ab2 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -21,10 +21,10 @@ CONFIG_KALLSYMS_ALL=y
+ CONFIG_MTK_SCHED_EXTENSION=y
+ CONFIG_MTK_IDLE_BALANCE_ENHANCEMENT=y
+ CONFIG_MTK_SCHED_INTEROP=y
+-CONFIG_MTK_SCHED_LB_ENHANCEMENT=y
++CONFIG_MTK_SCHED_LB_ENHANCEMENT=n
+ CONFIG_MTK_SCHED_TRACERS=y
+ CONFIG_MTK_SCHED_CPU_PREFER=y
+-CONFIG_MTK_SCHED_BIG_TASK_MIGRATE=y
++CONFIG_MTK_SCHED_BIG_TASK_MIGRATE=n
+ CONFIG_SCHED_CASS=y
+ # CONFIG_SLUB_DEBUG is not set
+ CONFIG_MACH_MT6785=y
+
+From 0d281c230c608ad829d66b4719dea6a32a6401cf Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 15:28:21 +0700
+Subject: [PATCH 09/46] sched/cass: fix compatibility with 4.19 kernel API
+
+Fix build errors when integrating CASS 6.xx kernel into 4.19-based kernel.
+
+This adapts newer kernel APIs used by CASS to match the older
+4.19 scheduler structures and helpers:
+
+- Replace task_struct->cpus_ptr with cpus_allowed
+- Replace sched_idle_cpu() with idle_cpu()
+- Remove static qualifier from cass_select_task_rq_fair()
+
+These changes allow CASS to compile and integrate properly
+with legacy MTK kernel base.
+
+Signed-off-by: Youffx <asa.jazal@gmail.com>
+---
+ kernel/sched/cass.c | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index b1b738bbd62b..94f3eaca144c 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -115,7 +115,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 	 * otherwise, if only one CPU is allowed and it is skipped before
+ 	 * @curr->cpu is set, then @best->cpu will be garbage.
+ 	 */
+-	for_each_cpu_and(cpu, p->cpus_ptr, cpu_active_mask) {
++	for_each_cpu_and(cpu, p->cpus_allowed, cpu_active_mask) {
+ 		/* Use the free candidate slot for @curr */
+ 		struct cass_cpu_cand *curr = &cands[cidx];
+ 		struct cpuidle_state *idle_state;
+@@ -125,7 +125,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 		 * sync wakes, always treat the current CPU as idle.
+ 		 */
+ 		if ((sync && cpu == smp_processor_id()) ||
+-		    available_idle_cpu(cpu) || sched_idle_cpu(cpu)) {
++		    available_idle_cpu(cpu) || idle_cpu(cpu)) {
+ 			/* Discard any previous non-idle candidate */
+ 			if (!has_idle)
+ 				best = curr;
+@@ -183,7 +183,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 	return best->cpu;
+ }
+ 
+-static int cass_select_task_rq_fair(struct task_struct *p, int prev_cpu,
++int cass_select_task_rq_fair(struct task_struct *p, int prev_cpu,
+ 				    int sd_flag, int wake_flags)
+ {
+ 	bool sync;
+@@ -197,8 +197,8 @@ static int cass_select_task_rq_fair(struct task_struct *p, int prev_cpu,
+ 	 * first valid CPU since it's possible for certain types of tasks to run
+ 	 * on inactive CPUs.
+ 	 */
+-	if (unlikely(!cpumask_intersects(p->cpus_ptr, cpu_active_mask)))
+-		return cpumask_first(p->cpus_ptr);
++	if (unlikely(!cpumask_intersects(&p->cpus_allowed, cpu_active_mask)))
++		return cpumask_first(&p->cpus_allowed);
+ 
+ 	/* cass_best_cpu() needs the task's utilization, so sync it up */
+ 	if (!(sd_flag & SD_BALANCE_FORK))
+
+From 55bb6c23b59d9ec68bfc6ab7ed25e430e4b92834 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 15:49:29 +0700
+Subject: [PATCH 10/46] sched/cass: simplify util calculation for 4.19
+ compatibility
+
+---
+ kernel/sched/cass.c | 23 ++++++++++++++++-------
+ 1 file changed, 16 insertions(+), 7 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index 94f3eaca144c..5f6bb06801cc 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -1,3 +1,10 @@
++#include "sched.h"
++#include <linux/sched.h>
++#include <linux/sched/topology.h>
++#include <linux/cpumask.h>
++#include <linux/kernel.h>
++#include <linux/types.h>
++#include <stdbool.h>
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (C) 2023-2024 Sultan Alsawaf <sultan@kerneltoast.com>.
+@@ -38,13 +45,15 @@ unsigned long cass_cpu_util(int cpu, bool sync)
+ 	struct cfs_rq *cfs_rq = &cpu_rq(cpu)->cfs;
+ 	unsigned long util = READ_ONCE(cfs_rq->avg.util_avg);
+ 
+-	/* Deduct @current's util from this CPU if this is a sync wake */
+-	if (sync && cpu == smp_processor_id())
+-		lsub_positive(&util, task_util(current));
++	/* Deduct current task util on sync wake (approximation) */
++	if (sync && cpu == smp_processor_id()) {
++		unsigned long cur = current->se.avg.util_avg;
+ 
+-	if (sched_feat(UTIL_EST))
+-		util = max_t(unsigned long, util,
+-			     READ_ONCE(cfs_rq->avg.util_est.enqueued));
++		if (util > cur)
++			util -= cur;
++		else
++			util = 0;
++	}
+ 
+ 	return util;
+ }
+@@ -115,7 +124,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ 	 * otherwise, if only one CPU is allowed and it is skipped before
+ 	 * @curr->cpu is set, then @best->cpu will be garbage.
+ 	 */
+-	for_each_cpu_and(cpu, p->cpus_allowed, cpu_active_mask) {
++	for_each_cpu_and(cpu, &p->cpus_allowed, cpu_active_mask) {
+ 		/* Use the free candidate slot for @curr */
+ 		struct cass_cpu_cand *curr = &cands[cidx];
+ 		struct cpuidle_state *idle_state;
+
+From 4133342c155d0f571f65d1d0b0881dc99d4491ac Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 16:26:50 +0700
+Subject: [PATCH 11/46] sched: fix cass integration by removing duplicate
+ scheduler includes
+
+---
+ kernel/sched/cass.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index 5f6bb06801cc..3f7b2edb45dc 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -1,6 +1,3 @@
+-#include "sched.h"
+-#include <linux/sched.h>
+-#include <linux/sched/topology.h>
+ #include <linux/cpumask.h>
+ #include <linux/kernel.h>
+ #include <linux/types.h>
+
+From 0f2b7041ad519508027bf2495efac172cab1c0a5 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 16:37:39 +0700
+Subject: [PATCH 12/46] sched: properly integrate CASS by moving include to
+ correct scope
+
+---
+ kernel/sched/fair.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index d57cd651a0fa..dedf29813a50 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -21,6 +21,9 @@
+  *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
+  */
+ #include "sched.h"
++#ifdef CONFIG_SCHED_CASS
++#include "cass.c"
++#endif /* CONFIG_SCHED_CASS */
+ 
+ #include <trace/events/sched.h>
+ extern int cass_select_task_rq_fair(struct task_struct *p,
+@@ -12166,10 +12169,6 @@ static unsigned int get_rr_interval_fair(struct rq *rq, struct task_struct *task
+ 	return rr_interval;
+ }
+ 
+-#ifdef CONFIG_SCHED_CASS
+-#include "cass.c"
+-#endif /* CONFIG_SCHED_CASS */
+-
+ /*
+  * All the scheduling class methods:
+  */
+
+From 60044789e01107adb46532f849725e85b4a586e1 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 16:53:49 +0700
+Subject: [PATCH 13/46] sched/cass: Fix implicit declaration of capacity_of and
+ sync_entity_load_avg
+
+---
+ kernel/sched/cass.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index 3f7b2edb45dc..2c822775c6b6 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -2,6 +2,10 @@
+ #include <linux/kernel.h>
+ #include <linux/types.h>
+ #include <stdbool.h>
++
++static unsigned long capacity_of(int cpu);
++void sync_entity_load_avg(struct sched_entity *se);
++
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (C) 2023-2024 Sultan Alsawaf <sultan@kerneltoast.com>.
+
+From ca587eaf1e283f9d35b9d1c095bbfb821e95eca7 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 17:06:29 +0700
+Subject: [PATCH 14/46] revert: sched/cass: Fix implicit declaration of
+ capacity_of and sync_entity_load_avg
+
+---
+ kernel/sched/cass.c | 3 ---
+ 1 file changed, 3 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index 2c822775c6b6..b0a920587a22 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -3,9 +3,6 @@
+ #include <linux/types.h>
+ #include <stdbool.h>
+ 
+-static unsigned long capacity_of(int cpu);
+-void sync_entity_load_avg(struct sched_entity *se);
+-
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (C) 2023-2024 Sultan Alsawaf <sultan@kerneltoast.com>.
+
+From 97dd055d88203ee3c41ffdb0e2b4d3abcb0aca48 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 17:24:03 +0700
+Subject: [PATCH 15/46] sched/cass: Guard cass_select_task_rq_fair with
+ CONFIG_SCHED_CASS
+
+---
+ kernel/sched/fair.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index dedf29813a50..6692a4993c0c 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -26,10 +26,12 @@
+ #endif /* CONFIG_SCHED_CASS */
+ 
+ #include <trace/events/sched.h>
++#ifdef CONFIG_SCHED_CASS
+ extern int cass_select_task_rq_fair(struct task_struct *p,
+ 				    int prev_cpu,
+ 				    int sd_flag,
+ 				    int wake_flags);
++#endif
+ 
+ /*
+  * Targeted preemption latency for CPU-bound tasks:
+
+From d71f937e2906ba88bb8ef564e9fdda42b35a77df Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 17:44:14 +0700
+Subject: [PATCH 16/46] sched: cass: move include to proper position in fair.c
+
+---
+ kernel/sched/fair.c | 9 ++-------
+ 1 file changed, 2 insertions(+), 7 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index 6692a4993c0c..d832d9b9fb24 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -21,17 +21,12 @@
+  *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
+  */
+ #include "sched.h"
++
++#include <trace/events/sched.h>
+ #ifdef CONFIG_SCHED_CASS
+ #include "cass.c"
+ #endif /* CONFIG_SCHED_CASS */
+ 
+-#include <trace/events/sched.h>
+-#ifdef CONFIG_SCHED_CASS
+-extern int cass_select_task_rq_fair(struct task_struct *p,
+-				    int prev_cpu,
+-				    int sd_flag,
+-				    int wake_flags);
+-#endif
+ 
+ /*
+  * Targeted preemption latency for CPU-bound tasks:
+
+From c61a9faf47ad49cc4589cf6c7213418b3f17a769 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 18:00:26 +0700
+Subject: [PATCH 17/46] sched/cass: add forward declarations for capacity_of
+ and sync_entity_load_avg
+
+---
+ kernel/sched/fair.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index d832d9b9fb24..b999b54e885c 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -21,8 +21,11 @@
+  *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
+  */
+ #include "sched.h"
+-
+ #include <trace/events/sched.h>
++
++static unsigned long capacity_of(int cpu);
++void sync_entity_load_avg(struct sched_entity *se);
++
+ #ifdef CONFIG_SCHED_CASS
+ #include "cass.c"
+ #endif /* CONFIG_SCHED_CASS */
+
+From df0f1e7feeeef0a47e37fbb9768c48e23af97ee2 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 18:10:39 +0700
+Subject: [PATCH 18/46] sched/cass: drop redundant linux headers to fix
+ incomplete scheduler context
+
+---
+ kernel/sched/cass.c | 5 -----
+ 1 file changed, 5 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index b0a920587a22..c49556bdd5b9 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -1,8 +1,3 @@
+-#include <linux/cpumask.h>
+-#include <linux/kernel.h>
+-#include <linux/types.h>
+-#include <stdbool.h>
+-
+ // SPDX-License-Identifier: GPL-2.0
+ /*
+  * Copyright (C) 2023-2024 Sultan Alsawaf <sultan@kerneltoast.com>.
+
+From bc1ccf764ff3ba41529d36879f677ae988510822 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 18:18:17 +0700
+Subject: [PATCH 19/46] sched/cass: build CASS as part of fair.c and remove
+ standalone object
+
+---
+ kernel/sched/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/kernel/sched/Makefile b/kernel/sched/Makefile
+index a8f933598b8d..32e3bad385eb 100644
+--- a/kernel/sched/Makefile
++++ b/kernel/sched/Makefile
+@@ -20,7 +20,7 @@ CFLAGS_core.o := $(PROFILING) -fno-omit-frame-pointer
+ endif
+ 
+ obj-y += core.o loadavg.o clock.o cputime.o
+-obj-y += idle.o fair.o cass.o rt.o deadline.o
++obj-y += idle.o fair.o rt.o deadline.o
+ obj-y += wait.o wait_bit.o swait.o completion.o
+ obj-y += stubs.o
+ 
+
+From f80421a0b4010c05cab6f02a4ba22b4c0cacc36e Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 20:49:38 +0700
+Subject: [PATCH 20/46] sched/fair: implement full CASS
+
+---
+ kernel/sched/fair.c | 13 ++++++-------
+ 1 file changed, 6 insertions(+), 7 deletions(-)
+
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index b999b54e885c..a94fdb712b71 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -28,6 +28,12 @@ void sync_entity_load_avg(struct sched_entity *se);
+ 
+ #ifdef CONFIG_SCHED_CASS
+ #include "cass.c"
++/* Use CASS. A dummy wrapper ensures the replaced function is still "used". */
++static inline void *select_task_rq_fair_dummy(void)
++{
++	return (void *)select_task_rq_fair;
++}
++#define select_task_rq_fair cass_select_task_rq_fair
+ #endif /* CONFIG_SCHED_CASS */
+ 
+ 
+@@ -7844,13 +7850,6 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag,
+ 	int result = 0;
+ 	int cpu;
+ 
+-	int util = task_util_est(p);
+-
+-	if (util > 300) {
+-		return cass_select_task_rq_fair(p, prev_cpu,
+-						sd_flag, wake_flags);
+-	}
+-
+ 	result = SELECT_TASK_RQ_FAIR(p, prev_cpu, sd_flag, wake_flags,
+ 		sibling_count_hint);
+ #ifdef CONFIG_MTK_SCHED_CPU_PREFER
+
+From ad61d1b5119997525c8050c72aa5aca22c200856 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 21:21:46 +0700
+Subject: [PATCH 21/46] defconfig: disable all MTK scheduler features
+
+---
+ arch/arm64/configs/rosemary_defconfig | 10 +++++-----
+ 1 file changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index 068ba4b52ab2..a85289a4b5d2 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -18,12 +18,12 @@ CONFIG_SYSCTL_SYSCALL=y
+ # CONFIG_FHANDLE is not set
+ CONFIG_KALLSYMS_ALL=y
+ # CONFIG_KALLSYMS_BASE_RELATIVE is not set
+-CONFIG_MTK_SCHED_EXTENSION=y
+-CONFIG_MTK_IDLE_BALANCE_ENHANCEMENT=y
+-CONFIG_MTK_SCHED_INTEROP=y
++CONFIG_MTK_SCHED_EXTENSION=n
++CONFIG_MTK_IDLE_BALANCE_ENHANCEMENT=n
++CONFIG_MTK_SCHED_INTEROP=n
+ CONFIG_MTK_SCHED_LB_ENHANCEMENT=n
+-CONFIG_MTK_SCHED_TRACERS=y
+-CONFIG_MTK_SCHED_CPU_PREFER=y
++CONFIG_MTK_SCHED_TRACERS=n
++CONFIG_MTK_SCHED_CPU_PREFER=n
+ CONFIG_MTK_SCHED_BIG_TASK_MIGRATE=n
+ CONFIG_SCHED_CASS=y
+ # CONFIG_SLUB_DEBUG is not set
+
+From 182b876227f37d162d27a0b1785d1789768f419c Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sat, 4 Apr 2026 21:45:19 +0700
+Subject: [PATCH 22/46] sched/fair: Fix argument mismatch and remove macro
+ hacks for CASS
+
+---
+ kernel/sched/cass.c |  2 +-
+ kernel/sched/fair.c | 10 ++++------
+ 2 files changed, 5 insertions(+), 7 deletions(-)
+
+diff --git a/kernel/sched/cass.c b/kernel/sched/cass.c
+index c49556bdd5b9..e1bcd6bd6d17 100644
+--- a/kernel/sched/cass.c
++++ b/kernel/sched/cass.c
+@@ -186,7 +186,7 @@ static int cass_best_cpu(struct task_struct *p, int prev_cpu, bool sync)
+ }
+ 
+ int cass_select_task_rq_fair(struct task_struct *p, int prev_cpu,
+-				    int sd_flag, int wake_flags)
++				    int sd_flag, int wake_flags, int fallback)
+ {
+ 	bool sync;
+ 
+diff --git a/kernel/sched/fair.c b/kernel/sched/fair.c
+index a94fdb712b71..2cf427c94b14 100644
+--- a/kernel/sched/fair.c
++++ b/kernel/sched/fair.c
+@@ -28,12 +28,6 @@ void sync_entity_load_avg(struct sched_entity *se);
+ 
+ #ifdef CONFIG_SCHED_CASS
+ #include "cass.c"
+-/* Use CASS. A dummy wrapper ensures the replaced function is still "used". */
+-static inline void *select_task_rq_fair_dummy(void)
+-{
+-	return (void *)select_task_rq_fair;
+-}
+-#define select_task_rq_fair cass_select_task_rq_fair
+ #endif /* CONFIG_SCHED_CASS */
+ 
+ 
+@@ -12184,7 +12178,11 @@ const struct sched_class fair_sched_class = {
+ 	.put_prev_task		= put_prev_task_fair,
+ 
+ #ifdef CONFIG_SMP
++#ifdef CONFIG_SCHED_CASS
++	.select_task_rq		= cass_select_task_rq_fair,
++#else
+ 	.select_task_rq		= select_task_rq_fair,
++#endif
+ 	.migrate_task_rq	= migrate_task_rq_fair,
+ 
+ 	.rq_online		= rq_online_fair,
+
+From 33d1f75dc65fff578096442a0a8786efa7c42564 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sun, 5 Apr 2026 23:34:49 +0700
+Subject: [PATCH 23/46] Makefile: move mtk menu position
+
+---
+ drivers/cpuidle/governors/Makefile | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/Makefile b/drivers/cpuidle/governors/Makefile
+index e9027fd26458..b0d356257d77 100644
+--- a/drivers/cpuidle/governors/Makefile
++++ b/drivers/cpuidle/governors/Makefile
+@@ -4,6 +4,5 @@
+ 
+ obj-$(CONFIG_CPU_IDLE_GOV_LADDER) += ladder.o
+ obj-$(CONFIG_CPU_IDLE_GOV_MENU) += menu.o
+-obj-$(CONFIG_CPU_IDLE_GOV_MTK) += mtk_governor.o
+ obj-$(CONFIG_CPU_IDLE_GOV_MTK_MENU) += mtk_menu.o
+-
++obj-$(CONFIG_CPU_IDLE_GOV_MTK) += mtk_governor.o
+
+From ee14e9586662adceaace52a5fc14f87a6fb9c7a3 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Fri, 4 Jan 2019 12:30:47 +0100
+Subject: [PATCH 24/46] BACKPORT: cpuidle: New timer events oriented governor
+ for tickless systems
+
+The venerable menu governor does some things that are quite
+questionable in my view.
+
+First, it includes timer wakeups in the pattern detection data and
+mixes them up with wakeups from other sources which in some cases
+causes it to expect what essentially would be a timer wakeup in a
+time frame in which no timer wakeups are possible (because it knows
+the time until the next timer event and that is later than the
+expected wakeup time).
+
+Second, it uses the extra exit latency limit based on the predicted
+idle duration and depending on the number of tasks waiting on I/O,
+even though those tasks may run on a different CPU when they are
+woken up.  Moreover, the time ranges used by it for the sleep length
+correction factors depend on whether or not there are tasks waiting
+on I/O, which again doesn't imply anything in particular, and they
+are not correlated to the list of available idle states in any way
+whatever.
+
+Also, the pattern detection code in menu may end up considering
+values that are too large to matter at all, in which cases running
+it is a waste of time.
+
+A major rework of the menu governor would be required to address
+these issues and the performance of at least some workloads (tuned
+specifically to the current behavior of the menu governor) is likely
+to suffer from that.  It is thus better to introduce an entirely new
+governor without them and let everybody use the governor that works
+better with their actual workloads.
+
+The new governor introduced here, the timer events oriented (TEO)
+governor, uses the same basic strategy as menu: it always tries to
+find the deepest idle state that can be used in the given conditions.
+However, it applies a different approach to that problem.
+
+First, it doesn't use "correction factors" for the time till the
+closest timer, but instead it tries to correlate the measured idle
+duration values with the available idle states and use that
+information to pick up the idle state that is most likely to "match"
+the upcoming CPU idle interval.
+
+Second, it doesn't take the number of "I/O waiters" into account at
+all and the pattern detection code in it avoids taking timer wakeups
+into account.  It also only uses idle duration values less than the
+current time till the closest timer (with the tick excluded) for that
+purpose.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Acked-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/Kconfig            |   9 +
+ drivers/cpuidle/governors/Makefile |   1 +
+ drivers/cpuidle/governors/teo.c    | 444 +++++++++++++++++++++++++++++
+ 3 files changed, 454 insertions(+)
+ create mode 100644 drivers/cpuidle/governors/teo.c
+
+diff --git a/drivers/cpuidle/Kconfig b/drivers/cpuidle/Kconfig
+index 26e6d6691576..b7a3fc519f62 100644
+--- a/drivers/cpuidle/Kconfig
++++ b/drivers/cpuidle/Kconfig
+@@ -24,6 +24,15 @@ config CPU_IDLE_GOV_LADDER
+ config CPU_IDLE_GOV_MENU
+ 	bool "Menu governor (for tickless system)"
+ 
++config CPU_IDLE_GOV_TEO
++	bool "Timer events oriented (TEO) governor (for tickless systems)"
++	help
++	  This governor implements a simplified idle state selection method
++	  focused on timer events and does not do any interactivity boosting.
++
++	  Some workloads benefit from using it and it generally should be safe
++	  to use.  Say Y here if you are not happy with the alternatives.
++
+ config CPU_IDLE_GOV_MTK
+         bool "MTK governor (for MediaTek SoCs)"
+         help
+diff --git a/drivers/cpuidle/governors/Makefile b/drivers/cpuidle/governors/Makefile
+index b0d356257d77..387a0a94d988 100644
+--- a/drivers/cpuidle/governors/Makefile
++++ b/drivers/cpuidle/governors/Makefile
+@@ -6,3 +6,4 @@ obj-$(CONFIG_CPU_IDLE_GOV_LADDER) += ladder.o
+ obj-$(CONFIG_CPU_IDLE_GOV_MENU) += menu.o
+ obj-$(CONFIG_CPU_IDLE_GOV_MTK_MENU) += mtk_menu.o
+ obj-$(CONFIG_CPU_IDLE_GOV_MTK) += mtk_governor.o
++obj-$(CONFIG_CPU_IDLE_GOV_TEO) += teo.o
+\ No newline at end of file
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+new file mode 100644
+index 000000000000..7d05efdbd3c6
+--- /dev/null
++++ b/drivers/cpuidle/governors/teo.c
+@@ -0,0 +1,444 @@
++// SPDX-License-Identifier: GPL-2.0
++/*
++ * Timer events oriented CPU idle governor
++ *
++ * Copyright (C) 2018 Intel Corporation
++ * Author: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
++ *
++ * The idea of this governor is based on the observation that on many systems
++ * timer events are two or more orders of magnitude more frequent than any
++ * other interrupts, so they are likely to be the most significant source of CPU
++ * wakeups from idle states.  Moreover, information about what happened in the
++ * (relatively recent) past can be used to estimate whether or not the deepest
++ * idle state with target residency within the time to the closest timer is
++ * likely to be suitable for the upcoming idle time of the CPU and, if not, then
++ * which of the shallower idle states to choose.
++ *
++ * Of course, non-timer wakeup sources are more important in some use cases and
++ * they can be covered by taking a few most recent idle time intervals of the
++ * CPU into account.  However, even in that case it is not necessary to consider
++ * idle duration values greater than the time till the closest timer, as the
++ * patterns that they may belong to produce average values close enough to
++ * the time till the closest timer (sleep length) anyway.
++ *
++ * Thus this governor estimates whether or not the upcoming idle time of the CPU
++ * is likely to be significantly shorter than the sleep length and selects an
++ * idle state for it in accordance with that, as follows:
++ *
++ * - Find an idle state on the basis of the sleep length and state statistics
++ *   collected over time:
++ *
++ *   o Find the deepest idle state whose target residency is less than or equal
++ *     to the sleep length.
++ *
++ *   o Select it if it matched both the sleep length and the observed idle
++ *     duration in the past more often than it matched the sleep length alone
++ *     (i.e. the observed idle duration was significantly shorter than the sleep
++ *     length matched by it).
++ *
++ *   o Otherwise, select the shallower state with the greatest matched "early"
++ *     wakeups metric.
++ *
++ * - If the majority of the most recent idle duration values are below the
++ *   target residency of the idle state selected so far, use those values to
++ *   compute the new expected idle duration and find an idle state matching it
++ *   (which has to be shallower than the one selected so far).
++ */
++
++#include <linux/cpuidle.h>
++#include <linux/jiffies.h>
++#include <linux/kernel.h>
++#include <linux/sched/clock.h>
++#include <linux/tick.h>
++
++/*
++ * The PULSE value is added to metrics when they grow and the DECAY_SHIFT value
++ * is used for decreasing metrics on a regular basis.
++ */
++#define PULSE		1024
++#define DECAY_SHIFT	3
++
++/*
++ * Number of the most recent idle duration values to take into consideration for
++ * the detection of wakeup patterns.
++ */
++#define INTERVALS	8
++
++/**
++ * struct teo_idle_state - Idle state data used by the TEO cpuidle governor.
++ * @early_hits: "Early" CPU wakeups "matching" this state.
++ * @hits: "On time" CPU wakeups "matching" this state.
++ * @misses: CPU wakeups "missing" this state.
++ *
++ * A CPU wakeup is "matched" by a given idle state if the idle duration measured
++ * after the wakeup is between the target residency of that state and the target
++ * residency of the next one (or if this is the deepest available idle state, it
++ * "matches" a CPU wakeup when the measured idle duration is at least equal to
++ * its target residency).
++ *
++ * Also, from the TEO governor perspective, a CPU wakeup from idle is "early" if
++ * it occurs significantly earlier than the closest expected timer event (that
++ * is, early enough to match an idle state shallower than the one matching the
++ * time till the closest timer event).  Otherwise, the wakeup is "on time", or
++ * it is a "hit".
++ *
++ * A "miss" occurs when the given state doesn't match the wakeup, but it matches
++ * the time till the closest timer event used for idle state selection.
++ */
++struct teo_idle_state {
++	unsigned int early_hits;
++	unsigned int hits;
++	unsigned int misses;
++};
++
++/**
++ * struct teo_cpu - CPU data used by the TEO cpuidle governor.
++ * @time_span_ns: Time between idle state selection and post-wakeup update.
++ * @sleep_length_ns: Time till the closest timer event (at the selection time).
++ * @states: Idle states data corresponding to this CPU.
++ * @last_state: Idle state entered by the CPU last time.
++ * @interval_idx: Index of the most recent saved idle interval.
++ * @intervals: Saved idle duration values.
++ */
++struct teo_cpu {
++	u64 time_span_ns;
++	u64 sleep_length_ns;
++	struct teo_idle_state states[CPUIDLE_STATE_MAX];
++	int last_state;
++	int interval_idx;
++	unsigned int intervals[INTERVALS];
++};
++
++static DEFINE_PER_CPU(struct teo_cpu, teo_cpus);
++
++/**
++ * teo_update - Update CPU data after wakeup.
++ * @drv: cpuidle driver containing state data.
++ * @dev: Target CPU.
++ */
++static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
++{
++	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
++	unsigned int sleep_length_us = ktime_to_us(cpu_data->sleep_length_ns);
++	int i, idx_hit = -1, idx_timer = -1;
++	unsigned int measured_us;
++
++	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
++		/*
++		 * One of the safety nets has triggered or this was a timer
++		 * wakeup (or equivalent).
++		 */
++		measured_us = sleep_length_us;
++	} else {
++		unsigned int lat = drv->states[cpu_data->last_state].exit_latency;
++
++		measured_us = ktime_to_us(cpu_data->time_span_ns);
++		/*
++		 * The delay between the wakeup and the first instruction
++		 * executed by the CPU is not likely to be worst-case every
++		 * time, so take 1/2 of the exit latency as a very rough
++		 * approximation of the average of it.
++		 */
++		if (measured_us >= lat)
++			measured_us -= lat / 2;
++		else
++			measured_us /= 2;
++	}
++
++	/*
++	 * Decay the "early hits" metric for all of the states and find the
++	 * states matching the sleep length and the measured idle duration.
++	 */
++	for (i = 0; i < drv->state_count; i++) {
++		unsigned int early_hits = cpu_data->states[i].early_hits;
++
++		cpu_data->states[i].early_hits -= early_hits >> DECAY_SHIFT;
++
++		if (drv->states[i].target_residency <= sleep_length_us) {
++			idx_timer = i;
++			if (drv->states[i].target_residency <= measured_us)
++				idx_hit = i;
++		}
++	}
++
++	/*
++	 * Update the "hits" and "misses" data for the state matching the sleep
++	 * length.  If it matches the measured idle duration too, this is a hit,
++	 * so increase the "hits" metric for it then.  Otherwise, this is a
++	 * miss, so increase the "misses" metric for it.  In the latter case
++	 * also increase the "early hits" metric for the state that actually
++	 * matches the measured idle duration.
++	 */
++	if (idx_timer >= 0) {
++		unsigned int hits = cpu_data->states[idx_timer].hits;
++		unsigned int misses = cpu_data->states[idx_timer].misses;
++
++		hits -= hits >> DECAY_SHIFT;
++		misses -= misses >> DECAY_SHIFT;
++
++		if (idx_timer > idx_hit) {
++			misses += PULSE;
++			if (idx_hit >= 0)
++				cpu_data->states[idx_hit].early_hits += PULSE;
++		} else {
++			hits += PULSE;
++		}
++
++		cpu_data->states[idx_timer].misses = misses;
++		cpu_data->states[idx_timer].hits = hits;
++	}
++
++	/*
++	 * If the total time span between idle state selection and the "reflect"
++	 * callback is greater than or equal to the sleep length determined at
++	 * the idle state selection time, the wakeup is likely to be due to a
++	 * timer event.
++	 */
++	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns)
++		measured_us = UINT_MAX;
++
++	/*
++	 * Save idle duration values corresponding to non-timer wakeups for
++	 * pattern detection.
++	 */
++	cpu_data->intervals[cpu_data->interval_idx++] = measured_us;
++	if (cpu_data->interval_idx > INTERVALS)
++		cpu_data->interval_idx = 0;
++}
++
++/**
++ * teo_find_shallower_state - Find shallower idle state matching given duration.
++ * @drv: cpuidle driver containing state data.
++ * @dev: Target CPU.
++ * @state_idx: Index of the capping idle state.
++ * @duration_us: Idle duration value to match.
++ */
++static int teo_find_shallower_state(struct cpuidle_driver *drv,
++				    struct cpuidle_device *dev, int state_idx,
++				    unsigned int duration_us)
++{
++	int i;
++
++	for (i = state_idx - 1; i >= 0; i--) {
++		if (drv->states[i].disabled || dev->states_usage[i].disable)
++			continue;
++
++		state_idx = i;
++		if (drv->states[i].target_residency <= duration_us)
++			break;
++	}
++	return state_idx;
++}
++
++/**
++ * teo_select - Selects the next idle state to enter.
++ * @drv: cpuidle driver containing state data.
++ * @dev: Target CPU.
++ * @stop_tick: Indication on whether or not to stop the scheduler tick.
++ */
++static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
++		      bool *stop_tick)
++{
++	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
++	int latency_req = cpuidle_governor_latency_req(dev->cpu);
++	unsigned int duration_us, count;
++	int max_early_idx, idx, i;
++	ktime_t delta_tick;
++
++	if (cpu_data->last_state >= 0) {
++		teo_update(drv, dev);
++		cpu_data->last_state = -1;
++	}
++
++	cpu_data->time_span_ns = local_clock();
++
++	cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
++	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
++
++	count = 0;
++	max_early_idx = -1;
++	idx = -1;
++
++	for (i = 0; i < drv->state_count; i++) {
++		struct cpuidle_state *s = &drv->states[i];
++		struct cpuidle_state_usage *su = &dev->states_usage[i];
++
++		if (s->disabled || su->disable) {
++			/*
++			 * If the "early hits" metric of a disabled state is
++			 * greater than the current maximum, it should be taken
++			 * into account, because it would be a mistake to select
++			 * a deeper state with lower "early hits" metric.  The
++			 * index cannot be changed to point to it, however, so
++			 * just increase the max count alone and let the index
++			 * still point to a shallower idle state.
++			 */
++			if (max_early_idx >= 0 &&
++			    count < cpu_data->states[i].early_hits)
++				count = cpu_data->states[i].early_hits;
++
++			continue;
++		}
++
++		if (idx < 0)
++			idx = i; /* first enabled state */
++
++		if (s->target_residency > duration_us)
++			break;
++
++		if (s->exit_latency > latency_req) {
++			/*
++			 * If we break out of the loop for latency reasons, use
++			 * the target residency of the selected state as the
++			 * expected idle duration to avoid stopping the tick
++			 * as long as that target residency is low enough.
++			 */
++			duration_us = drv->states[idx].target_residency;
++			goto refine;
++		}
++
++		idx = i;
++
++		if (count < cpu_data->states[i].early_hits &&
++		    !(tick_nohz_tick_stopped() &&
++		      drv->states[i].target_residency < TICK_USEC)) {
++			count = cpu_data->states[i].early_hits;
++			max_early_idx = i;
++		}
++	}
++
++	/*
++	 * If the "hits" metric of the idle state matching the sleep length is
++	 * greater than its "misses" metric, that is the one to use.  Otherwise,
++	 * it is more likely that one of the shallower states will match the
++	 * idle duration observed after wakeup, so take the one with the maximum
++	 * "early hits" metric, but if that cannot be determined, just use the
++	 * state selected so far.
++	 */
++	if (cpu_data->states[idx].hits <= cpu_data->states[idx].misses &&
++	    max_early_idx >= 0) {
++		idx = max_early_idx;
++		duration_us = drv->states[idx].target_residency;
++	}
++
++refine:
++	if (idx < 0) {
++		idx = 0; /* No states enabled. Must use 0. */
++	} else if (idx > 0) {
++		u64 sum = 0;
++
++		count = 0;
++
++		/*
++		 * Count and sum the most recent idle duration values less than
++		 * the target residency of the state selected so far, find the
++		 * max.
++		 */
++		for (i = 0; i < INTERVALS; i++) {
++			unsigned int val = cpu_data->intervals[i];
++
++			if (val >= drv->states[idx].target_residency)
++				continue;
++
++			count++;
++			sum += val;
++		}
++
++		/*
++		 * Give up unless the majority of the most recent idle duration
++		 * values are in the interesting range.
++		 */
++		if (count > INTERVALS / 2) {
++			unsigned int avg_us = div64_u64(sum, count);
++
++			/*
++			 * Avoid spending too much time in an idle state that
++			 * would be too shallow.
++			 */
++			if (!(tick_nohz_tick_stopped() && avg_us < TICK_USEC)) {
++				idx = teo_find_shallower_state(drv, dev, idx, avg_us);
++				duration_us = avg_us;
++			}
++		}
++	}
++
++	/*
++	 * Don't stop the tick if the selected state is a polling one or if the
++	 * expected idle duration is shorter than the tick period length.
++	 */
++	if (((drv->states[idx].flags & CPUIDLE_FLAG_POLLING) ||
++	    duration_us < TICK_USEC) && !tick_nohz_tick_stopped()) {
++		unsigned int delta_tick_us = ktime_to_us(delta_tick);
++
++		*stop_tick = false;
++
++		/*
++		 * The tick is not going to be stopped, so if the target
++		 * residency of the state to be returned is not within the time
++		 * till the closest timer including the tick, try to correct
++		 * that.
++		 */
++		if (idx > 0 && drv->states[idx].target_residency > delta_tick_us)
++			idx = teo_find_shallower_state(drv, dev, idx, delta_tick_us);
++	}
++
++	return idx;
++}
++
++/**
++ * teo_reflect - Note that governor data for the CPU need to be updated.
++ * @dev: Target CPU.
++ * @state: Entered state.
++ */
++static void teo_reflect(struct cpuidle_device *dev, int state)
++{
++	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
++
++	cpu_data->last_state = state;
++	/*
++	 * If the wakeup was not "natural", but triggered by one of the safety
++	 * nets, assume that the CPU might have been idle for the entire sleep
++	 * length time.
++	 */
++	if (dev->poll_time_limit ||
++	    (tick_nohz_idle_got_tick() && cpu_data->sleep_length_ns > TICK_NSEC)) {
++		dev->poll_time_limit = false;
++		cpu_data->time_span_ns = cpu_data->sleep_length_ns;
++	} else {
++		cpu_data->time_span_ns = local_clock() - cpu_data->time_span_ns;
++	}
++}
++
++/**
++ * teo_enable_device - Initialize the governor's data for the target CPU.
++ * @drv: cpuidle driver (not used).
++ * @dev: Target CPU.
++ */
++static int teo_enable_device(struct cpuidle_driver *drv,
++			     struct cpuidle_device *dev)
++{
++	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
++	int i;
++
++	memset(cpu_data, 0, sizeof(*cpu_data));
++
++	for (i = 0; i < INTERVALS; i++)
++		cpu_data->intervals[i] = UINT_MAX;
++
++	return 0;
++}
++
++static struct cpuidle_governor teo_governor = {
++	.name =		"teo",
++	.rating =	19,
++	.enable =	teo_enable_device,
++	.select =	teo_select,
++	.reflect =	teo_reflect,
++};
++
++static int __init teo_governor_init(void)
++{
++	return cpuidle_register_governor(&teo_governor);
++}
++
++postcore_initcall(teo_governor_init);
+
+From 421e3785b69696cda52972ed6057fd08ad6119a8 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Fri, 19 Jul 2019 12:12:42 +0200
+Subject: [PATCH 25/46] BACKPORT: cpuidle: teo: Allow tick to be stopped if PM
+ QoS is used
+
+The TEO goveror prevents the scheduler tick from being stopped (unless
+stopped already) if there is a PM QoS latency constraint for the given
+CPU and the target residency of the deepest idle state matching that
+constraint is below the tick boundary.
+
+However, that is problematic if CPUs with PM QoS latency constraints
+are idle for long times, because it effectively causes the tick to
+run on them all the time which is wasteful.  [It is also confusing
+and questionable if they are full dynticks CPUs.]
+
+To address that issue, modify the TEO governor to carry out the
+entire search for the most suitable idle state (from the target
+residency perspective) even if a latency constraint is present,
+to allow it to determine the expected idle duration in all cases.
+
+Also, when using the last several measured idle duration values
+to refine the idle state selection, make it compare those values
+with the current expected idle duration value (instead of
+comparing them with the target residency of the idle state
+selected so far) which should prevent the tick from being
+retained when it makes sense to stop it sometimes (especially
+in the presence of PM QoS latency constraints).
+
+Fixes: b26bf6ab716f ("cpuidle: New timer events oriented governor for tickless systems")
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 32 ++++++++++++++++----------------
+ 1 file changed, 16 insertions(+), 16 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 7d05efdbd3c6..12d9e6cecf1d 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -242,7 +242,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+ 	unsigned int duration_us, count;
+-	int max_early_idx, idx, i;
++	int max_early_idx, constraint_idx, idx, i;
+ 	ktime_t delta_tick;
+ 
+ 	if (cpu_data->last_state >= 0) {
+@@ -257,6 +257,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 	count = 0;
+ 	max_early_idx = -1;
++	constraint_idx = drv->state_count;
+ 	idx = -1;
+ 
+ 	for (i = 0; i < drv->state_count; i++) {
+@@ -286,16 +287,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		if (s->target_residency > duration_us)
+ 			break;
+ 
+-		if (s->exit_latency > latency_req) {
+-			/*
+-			 * If we break out of the loop for latency reasons, use
+-			 * the target residency of the selected state as the
+-			 * expected idle duration to avoid stopping the tick
+-			 * as long as that target residency is low enough.
+-			 */
+-			duration_us = drv->states[idx].target_residency;
+-			goto refine;
+-		}
++		if (s->exit_latency > latency_req && constraint_idx > i)
++			constraint_idx = i;
+ 
+ 		idx = i;
+ 
+@@ -321,7 +314,13 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		duration_us = drv->states[idx].target_residency;
+ 	}
+ 
+-refine:
++	/*
++	 * If there is a latency constraint, it may be necessary to use a
++	 * shallower idle state than the one selected so far.
++	 */
++	if (constraint_idx < idx)
++		idx = constraint_idx;
++
+ 	if (idx < 0) {
+ 		idx = 0; /* No states enabled. Must use 0. */
+ 	} else if (idx > 0) {
+@@ -331,13 +330,12 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 		/*
+ 		 * Count and sum the most recent idle duration values less than
+-		 * the target residency of the state selected so far, find the
+-		 * max.
++		 * the current expected idle duration value.
+ 		 */
+ 		for (i = 0; i < INTERVALS; i++) {
+ 			unsigned int val = cpu_data->intervals[i];
+ 
+-			if (val >= drv->states[idx].target_residency)
++			if (val >= duration_us)
+ 				continue;
+ 
+ 			count++;
+@@ -356,8 +354,10 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 * would be too shallow.
+ 			 */
+ 			if (!(tick_nohz_tick_stopped() && avg_us < TICK_USEC)) {
+-				idx = teo_find_shallower_state(drv, dev, idx, avg_us);
+ 				duration_us = avg_us;
++				if (drv->states[idx].target_residency > avg_us)
++					idx = teo_find_shallower_state(drv, dev,
++								       idx, avg_us);
+ 			}
+ 		}
+ 	}
+
+From b5de5bb18ab28025cceeac43f57e03bd4da899d1 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Tue, 30 Jul 2019 12:11:08 +0200
+Subject: [PATCH 26/46] BACKPORT: cpuidle: teo: Get rid of redundant check in
+ teo_update()
+
+Notice that setting measured_us to UINT_MAX in teo_update() earlier
+doesn't change the behavior of the following code, so do that and
+eliminate a redundant check used for setting measured_us to UINT_MAX.
+
+This change is not expected to alter functionality.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 16 ++++------------
+ 1 file changed, 4 insertions(+), 12 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 12d9e6cecf1d..2fb54a4eda2c 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -125,10 +125,11 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 
+ 	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
+ 		/*
+-		 * One of the safety nets has triggered or this was a timer
+-		 * wakeup (or equivalent).
++		 * One of the safety nets has triggered or the wakeup was close
++		 * enough to the closest timer event expected at the idle state
++		 * selection time to be discarded.
+ 		 */
+-		measured_us = sleep_length_us;
++		measured_us = UINT_MAX;
+ 	} else {
+ 		unsigned int lat = drv->states[cpu_data->last_state].exit_latency;
+ 
+@@ -188,15 +189,6 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 		cpu_data->states[idx_timer].hits = hits;
+ 	}
+ 
+-	/*
+-	 * If the total time span between idle state selection and the "reflect"
+-	 * callback is greater than or equal to the sleep length determined at
+-	 * the idle state selection time, the wakeup is likely to be due to a
+-	 * timer event.
+-	 */
+-	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns)
+-		measured_us = UINT_MAX;
+-
+ 	/*
+ 	 * Save idle duration values corresponding to non-timer wakeups for
+ 	 * pattern detection.
+
+From 7883d0e28bb03a0aea42c3d69690cc3017b05d3d Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 10 Oct 2019 23:32:17 +0200
+Subject: [PATCH 27/46] BACKPORT: cpuidle: teo: Ignore disabled idle states
+ that are too deep
+
+commit 069ce2ef1a6dd84cbd4d897b333e30f825e021f0 upstream.
+
+Prevent disabled CPU idle state with target residencies beyond the
+anticipated idle duration from being taken into account by the TEO
+governor.
+
+Fixes: b26bf6ab716f ("cpuidle: New timer events oriented governor for tickless systems")
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Cc: 5.1+ <stable@vger.kernel.org> # 5.1+
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 2fb54a4eda2c..929a093dc3fc 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -257,6 +257,13 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		struct cpuidle_state_usage *su = &dev->states_usage[i];
+ 
+ 		if (s->disabled || su->disable) {
++			/*
++			 * Ignore disabled states with target residencies beyond
++			 * the anticipated idle duration.
++			 */
++			if (s->target_residency > duration_us)
++				continue;
++
+ 			/*
+ 			 * If the "early hits" metric of a disabled state is
+ 			 * greater than the current maximum, it should be taken
+
+From 1290d900ab0c0ce522e01ddb6639e73a48a4450e Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 10 Oct 2019 23:32:59 +0200
+Subject: [PATCH 28/46] BACKPORT: cpuidle: teo: Rename local variable in
+ teo_select()
+
+commit 4f690bb8ce4cc5d3fabe3a8e9c2401de1554cdc1 upstream.
+
+Rename a local variable in teo_select() in preparation for subsequent
+code modifications, no intentional impact.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Cc: 5.1+ <stable@vger.kernel.org> # 5.1+
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 19 +++++++++----------
+ 1 file changed, 9 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 929a093dc3fc..107def1a129a 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -233,7 +233,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+-	unsigned int duration_us, count;
++	unsigned int duration_us, early_hits;
+ 	int max_early_idx, constraint_idx, idx, i;
+ 	ktime_t delta_tick;
+ 
+@@ -247,7 +247,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
+ 	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
+ 
+-	count = 0;
++	early_hits = 0;
+ 	max_early_idx = -1;
+ 	constraint_idx = drv->state_count;
+ 	idx = -1;
+@@ -270,12 +270,12 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 * into account, because it would be a mistake to select
+ 			 * a deeper state with lower "early hits" metric.  The
+ 			 * index cannot be changed to point to it, however, so
+-			 * just increase the max count alone and let the index
+-			 * still point to a shallower idle state.
++			 * just increase the "early hits" count alone and let
++			 * the index still point to a shallower idle state.
+ 			 */
+ 			if (max_early_idx >= 0 &&
+-			    count < cpu_data->states[i].early_hits)
+-				count = cpu_data->states[i].early_hits;
++			    early_hits < cpu_data->states[i].early_hits)
++				early_hits = cpu_data->states[i].early_hits;
+ 
+ 			continue;
+ 		}
+@@ -291,10 +291,10 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 		idx = i;
+ 
+-		if (count < cpu_data->states[i].early_hits &&
++		if (early_hits < cpu_data->states[i].early_hits &&
+ 		    !(tick_nohz_tick_stopped() &&
+ 		      drv->states[i].target_residency < TICK_USEC)) {
+-			count = cpu_data->states[i].early_hits;
++			early_hits = cpu_data->states[i].early_hits;
+ 			max_early_idx = i;
+ 		}
+ 	}
+@@ -323,10 +323,9 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	if (idx < 0) {
+ 		idx = 0; /* No states enabled. Must use 0. */
+ 	} else if (idx > 0) {
++		unsigned int count = 0;
+ 		u64 sum = 0;
+ 
+-		count = 0;
+-
+ 		/*
+ 		 * Count and sum the most recent idle duration values less than
+ 		 * the current expected idle duration value.
+
+From 298c4f252cd3e460d7b487e8ec1cb7d45e45bd21 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 10 Oct 2019 23:36:15 +0200
+Subject: [PATCH 29/46] BACKPORT: cpuidle: teo: Consider hits and misses
+ metrics of disabled states
+
+commit e43dcf20215f0287ea113102617ca04daa76b70e upstream.
+
+The TEO governor uses idle duration "bins" defined in accordance with
+the CPU idle states table provided by the driver, so that each "bin"
+covers the idle duration range between the target residency of the
+idle state corresponding to it and the target residency of the closest
+deeper idle state.  The governor collects statistics for each bin
+regardless of whether or not the idle state corresponding to it is
+currently enabled.
+
+In particular, the "hits" and "misses" metrics measure the likelihood
+of a situation in which both the time till the next timer (sleep
+length) and the idle duration measured after wakeup fall into the
+given bin.  Namely, if the "hits" value is greater than the "misses"
+one, that situation is more likely than the one in which the sleep
+length falls into the given bin, but the idle duration measured after
+wakeup falls into a bin corresponding to one of the shallower idle
+states.
+
+If the idle state corresponding to the given bin is disabled, it
+cannot be selected and if it turns out to be the one that should be
+selected, a shallower idle state needs to be used instead of it.
+Nevertheless, the metrics collected for the bin corresponding to it
+are still valid and need to be taken into account as though that
+state had not been disabled.
+
+For this reason, make teo_select() always use the "hits" and "misses"
+values of the idle duration range that the sleep length falls into
+even if the specific idle state corresponding to it is disabled and
+if the "hits" values is greater than the "misses" one, select the
+closest enabled shallower idle state in that case.
+
+Fixes: b26bf6ab716f ("cpuidle: New timer events oriented governor for tickless systems")
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Cc: 5.1+ <stable@vger.kernel.org> # 5.1+
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 25 +++++++++++++++++++++----
+ 1 file changed, 21 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 107def1a129a..cf3f8c883447 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -233,7 +233,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+-	unsigned int duration_us, early_hits;
++	unsigned int duration_us, hits, misses, early_hits;
+ 	int max_early_idx, constraint_idx, idx, i;
+ 	ktime_t delta_tick;
+ 
+@@ -247,6 +247,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
+ 	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
+ 
++	hits = 0;
++	misses = 0;
+ 	early_hits = 0;
+ 	max_early_idx = -1;
+ 	constraint_idx = drv->state_count;
+@@ -264,6 +266,17 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			if (s->target_residency > duration_us)
+ 				continue;
+ 
++			/*
++			 * This state is disabled, so the range of idle duration
++			 * values corresponding to it is covered by the current
++			 * candidate state, but still the "hits" and "misses"
++			 * metrics of the disabled state need to be used to
++			 * decide whether or not the state covering the range in
++			 * question is good enough.
++			 */
++			hits = cpu_data->states[i].hits;
++			misses = cpu_data->states[i].misses;
++
+ 			/*
+ 			 * If the "early hits" metric of a disabled state is
+ 			 * greater than the current maximum, it should be taken
+@@ -280,8 +293,11 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			continue;
+ 		}
+ 
+-		if (idx < 0)
++		if (idx < 0) {
+ 			idx = i; /* first enabled state */
++			hits = cpu_data->states[i].hits;
++			misses = cpu_data->states[i].misses;
++		}
+ 
+ 		if (s->target_residency > duration_us)
+ 			break;
+@@ -290,6 +306,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			constraint_idx = i;
+ 
+ 		idx = i;
++		hits = cpu_data->states[i].hits;
++		misses = cpu_data->states[i].misses;
+ 
+ 		if (early_hits < cpu_data->states[i].early_hits &&
+ 		    !(tick_nohz_tick_stopped() &&
+@@ -307,8 +325,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	 * "early hits" metric, but if that cannot be determined, just use the
+ 	 * state selected so far.
+ 	 */
+-	if (cpu_data->states[idx].hits <= cpu_data->states[idx].misses &&
+-	    max_early_idx >= 0) {
++	if (hits <= misses && max_early_idx >= 0) {
+ 		idx = max_early_idx;
+ 		duration_us = drv->states[idx].target_residency;
+ 	}
+
+From aed4f1a2242c1d3b90ddd057f4544a8082763f55 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Thu, 10 Oct 2019 23:37:39 +0200
+Subject: [PATCH 30/46] BACKPORT: cpuidle: teo: Fix "early hits" handling for
+ disabled idle states
+
+commit 159e48560f51d9c2aa02d762a18cd24f7868ab27 upstream.
+
+The TEO governor uses idle duration "bins" defined in accordance with
+the CPU idle states table provided by the driver, so that each "bin"
+covers the idle duration range between the target residency of the
+idle state corresponding to it and the target residency of the closest
+deeper idle state.  The governor collects statistics for each bin
+regardless of whether or not the idle state corresponding to it is
+currently enabled.
+
+In particular, the "early hits" metric measures the likelihood of a
+situation in which the idle duration measured after wakeup falls into
+to given bin, but the time till the next timer (sleep length) falls
+into a bin corresponding to one of the deeper idle states.  It is
+used when the "hits" and "misses" metrics indicate that the state
+"matching" the sleep length should not be selected, so that the state
+with the maximum "early hits" value is selected instead of it.
+
+If the idle state corresponding to the given bin is disabled, it
+cannot be selected and if it turns out to be the one that should be
+selected, a shallower idle state needs to be used instead of it.
+Nevertheless, the metrics collected for the bin corresponding to it
+are still valid and need to be taken into account as though that
+state had not been disabled.
+
+As far as the "early hits" metric is concerned, teo_select() tries to
+take disabled states into account, but the state index corresponding
+to the maximum "early hits" value computed by it may be incorrect.
+Namely, it always uses the index of the previous maximum "early hits"
+state then, but there may be enabled idle states closer to the
+disabled one in question.  In particular, if the current candidate
+state (whose index is the idx value) is closer to the disabled one
+and the "early hits" value of the disabled state is greater than the
+current maximum, the index of the current candidate state (idx)
+should replace the "maximum early hits state" index.
+
+Modify the code to handle that case correctly.
+
+Fixes: b26bf6ab716f ("cpuidle: New timer events oriented governor for tickless systems")
+Reported-by: Doug Smythies <dsmythies@telus.net>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Cc: 5.1+ <stable@vger.kernel.org> # 5.1+
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 35 ++++++++++++++++++++++++---------
+ 1 file changed, 26 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index cf3f8c883447..db24fa7df458 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -277,18 +277,35 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			hits = cpu_data->states[i].hits;
+ 			misses = cpu_data->states[i].misses;
+ 
++			if (early_hits >= cpu_data->states[i].early_hits ||
++			    idx < 0)
++				continue;
++
+ 			/*
+-			 * If the "early hits" metric of a disabled state is
+-			 * greater than the current maximum, it should be taken
+-			 * into account, because it would be a mistake to select
+-			 * a deeper state with lower "early hits" metric.  The
+-			 * index cannot be changed to point to it, however, so
+-			 * just increase the "early hits" count alone and let
+-			 * the index still point to a shallower idle state.
++			 * If the current candidate state has been the one with
++			 * the maximum "early hits" metric so far, the "early
++			 * hits" metric of the disabled state replaces the
++			 * current "early hits" count to avoid selecting a
++			 * deeper state with lower "early hits" metric.
+ 			 */
+-			if (max_early_idx >= 0 &&
+-			    early_hits < cpu_data->states[i].early_hits)
++			if (max_early_idx == idx) {
+ 				early_hits = cpu_data->states[i].early_hits;
++				continue;
++			}
++
++			/*
++			 * The current candidate state is closer to the disabled
++			 * one than the current maximum "early hits" state, so
++			 * replace the latter with it, but in case the maximum
++			 * "early hits" state index has not been set so far,
++			 * check if the current candidate state is not too
++			 * shallow for that role.
++			 */
++			if (!(tick_nohz_tick_stopped() &&
++			      drv->states[idx].target_residency < TICK_USEC)) {
++				early_hits = cpu_data->states[i].early_hits;
++				max_early_idx = idx;
++			}
+ 
+ 			continue;
+ 		}
+
+From e472f570deee6832d2029a7c7a804d4bc377dbdf Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Sun, 5 Apr 2026 23:46:17 +0700
+Subject: [PATCH 31/46] =?UTF-8?q?BACKPORT:=20UPSTREAM:=20cpuidle:=20menu:?=
+ =?UTF-8?q?=20Fix=20wakeup=20statistics=20updates=20for=20=E2=80=A6?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+---
+ drivers/cpuidle/governors/menu.c | 28 +++++++++++++++++++++-------
+ 1 file changed, 21 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/menu.c b/drivers/cpuidle/governors/menu.c
+index d9dd9161ac28..d9f12aa8e7ee 100644
+--- a/drivers/cpuidle/governors/menu.c
++++ b/drivers/cpuidle/governors/menu.c
+@@ -12,6 +12,7 @@
+ 
+ #include <linux/kernel.h>
+ #include <linux/cpuidle.h>
++#include <linux/pm_qos.h>
+ #include <linux/time.h>
+ #include <linux/ktime.h>
+ #include <linux/hrtimer.h>
+@@ -20,6 +21,7 @@
+ #include <linux/sched/loadavg.h>
+ #include <linux/sched/stat.h>
+ #include <linux/math64.h>
++#include <linux/cpu.h>
+ 
+ /*
+  * Please note when changing the tuning values:
+@@ -175,10 +177,15 @@ static inline int performance_multiplier(unsigned long nr_iowaiters, unsigned lo
+ 
+ 	/* for higher loadavg, we are more reluctant */
+ 
+-	mult += 2 * get_loadavg(load);
++	/*
++	 * this doesn't work as intended - it is almost always 0, but can
++	 * sometimes, depending on workload, spike very high into the hundreds
++	 * even when the average cpu load is under 10%.
++	 */
++	/* mult += 2 * get_loadavg(); */
+ 
+ 	/* for IO wait tasks (per cpu!) we add 5x each */
+-	mult += 10 * nr_iowaiters;
++	mult += 2 * nr_iowaiters;
+ 
+ 	return mult;
+ }
+@@ -291,13 +298,15 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		       bool *stop_tick)
+ {
+ 	struct menu_device *data = this_cpu_ptr(&menu_devices);
+-	int latency_req = cpuidle_governor_latency_req(dev->cpu);
++	struct device *device = get_cpu_device(dev->cpu);
++	int latency_req = pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
+ 	int i;
+ 	int first_idx;
+ 	int idx;
+ 	unsigned int interactivity_req;
+ 	unsigned int expected_interval;
+ 	unsigned long nr_iowaiters, cpu_load;
++	int resume_latency = dev_pm_qos_raw_read_value(device);
+ 	ktime_t delta_next;
+ 
+ 	if (data->needs_update) {
+@@ -305,6 +314,10 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		data->needs_update = 0;
+ 	}
+ 
++	/* resume_latency is 0 means no restriction */
++	if (resume_latency && resume_latency < latency_req)
++		latency_req = resume_latency;
++
+ 	/* Special case when user has set very strict latency requirement */
+ 	if (unlikely(latency_req == 0)) {
+ 		*stop_tick = false;
+@@ -335,8 +348,9 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		unsigned int polling_threshold;
+ 
+ 		/*
+-		 * Default to a physical idle state, not to busy polling, unless
+-		 * a timer is going to trigger really really soon.
++		 * We want to default to C1 (hlt), not to busy polling
++		 * unless the timer is happening really really soon, or
++		 * C1's exit latency exceeds the user configured limit.
+ 		 */
+ 		polling_threshold = max_t(unsigned int, 20, s->target_residency);
+ 		if (data->next_timer_us > polling_threshold &&
+@@ -446,8 +460,8 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 * tick, so try to correct that.
+ 			 */
+ 			for (i = idx - 1; i >= 0; i--) {
+-				if (drv->states[i].disabled ||
+-				    dev->states_usage[i].disable)
++			    if (drv->states[i].disabled ||
++			        dev->states_usage[i].disable)
+ 					continue;
+ 
+ 				idx = i;
+
+From 36e0d11aab01797a0ffa6e746a4b163df1360b57 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Mon, 4 Nov 2019 12:16:17 +0100
+Subject: [PATCH 32/46] BACKPORT: cpuidle: Consolidate disabled state checks
+
+There are two reasons why CPU idle states may be disabled: either
+because the driver has disabled them or because they have been
+disabled by user space via sysfs.
+
+In the former case, the state's "disabled" flag is set once during
+the initialization of the driver and it is never cleared later (it
+is read-only effectively).  In the latter case, the "disable" field
+of the given state's cpuidle_state_usage struct is set and it may be
+changed via sysfs.  Thus checking whether or not an idle state has
+been disabled involves reading these two flags every time.
+
+In order to avoid the additional check of the state's "disabled" flag
+(which is effectively read-only anyway), use the value of it at the
+init time to set a (new) flag in the "disable" field of that state's
+cpuidle_state_usage structure and use the sysfs interface to
+manipulate another (new) flag in it.  This way the state is disabled
+whenever the "disable" field of its cpuidle_state_usage structure is
+nonzero, whatever the reason, and it is the only place to look into
+to check whether or not the state has been disabled.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+Acked-by: Daniel Lezcano <daniel.lezcano@linaro.org>
+Acked-by: Peter Zijlstra (Intel) <peterz@infradead.org>
+Signed-off-by: Samuel Pascua <pascua.samuel.14@gmail.com>
+Signed-off-by: Dark-Matter7232 <me@const.eu.org>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/cpuidle-powernv.c  |  7 ++--
+ drivers/cpuidle/cpuidle.c          | 16 ++++++----
+ drivers/cpuidle/governors/ladder.c |  4 +--
+ drivers/cpuidle/governors/menu.c   |  7 ++--
+ drivers/cpuidle/governors/teo.c    |  5 ++-
+ drivers/cpuidle/sysfs.c            | 51 ++++++++++++++++++------------
+ include/linux/cpuidle.h            |  3 ++
+ 7 files changed, 50 insertions(+), 43 deletions(-)
+
+diff --git a/drivers/cpuidle/cpuidle-powernv.c b/drivers/cpuidle/cpuidle-powernv.c
+index 84b1ebe212b3..1b299e801f74 100644
+--- a/drivers/cpuidle/cpuidle-powernv.c
++++ b/drivers/cpuidle/cpuidle-powernv.c
+@@ -56,13 +56,10 @@ static u64 get_snooze_timeout(struct cpuidle_device *dev,
+ 		return default_snooze_timeout;
+ 
+ 	for (i = index + 1; i < drv->state_count; i++) {
+-		struct cpuidle_state *s = &drv->states[i];
+-		struct cpuidle_state_usage *su = &dev->states_usage[i];
+-
+-		if (s->disabled || su->disable)
++		if (dev->states_usage[i].disable)
+ 			continue;
+ 
+-		return s->target_residency * tb_ticks_per_usec;
++		return drv->states[i].target_residency * tb_ticks_per_usec;
+ 	}
+ 
+ 	return default_snooze_timeout;
+diff --git a/drivers/cpuidle/cpuidle.c b/drivers/cpuidle/cpuidle.c
+index b02f2556584b..fda00ff3bd17 100644
+--- a/drivers/cpuidle/cpuidle.c
++++ b/drivers/cpuidle/cpuidle.c
+@@ -85,12 +85,12 @@ static int find_deepest_state(struct cpuidle_driver *drv,
+ 
+ 	for (i = 1; i < drv->state_count; i++) {
+ 		struct cpuidle_state *s = &drv->states[i];
+-		struct cpuidle_state_usage *su = &dev->states_usage[i];
+ 
+-		if (s->disabled || su->disable || s->exit_latency <= latency_req
+-		    || s->exit_latency > max_latency
+-		    || (s->flags & forbidden_flags)
+-		    || (s2idle && !s->enter_s2idle))
++		if (dev->states_usage[i].disable ||
++		    s->exit_latency <= latency_req ||
++		    s->exit_latency > max_latency ||
++		    (s->flags & forbidden_flags) ||
++		    (s2idle && !s->enter_s2idle))
+ 			continue;
+ 
+ 		latency_req = s->exit_latency;
+@@ -499,12 +499,16 @@ static void __cpuidle_device_init(struct cpuidle_device *dev)
+  */
+ static int __cpuidle_register_device(struct cpuidle_device *dev)
+ {
+-	int ret;
+ 	struct cpuidle_driver *drv = cpuidle_get_cpu_driver(dev);
++	int i, ret;
+ 
+ 	if (!try_module_get(drv->owner))
+ 		return -EINVAL;
+ 
++	for (i = 0; i < drv->state_count; i++)
++		if (drv->states[i].disabled)
++			dev->states_usage[i].disable |= CPUIDLE_STATE_DISABLED_BY_DRIVER;
++
+ 	per_cpu(cpuidle_devices, dev->cpu) = dev;
+ 	list_add(&dev->device_list, &cpuidle_detected_devices);
+ 
+diff --git a/drivers/cpuidle/governors/ladder.c b/drivers/cpuidle/governors/ladder.c
+index 704880a6612a..e6493ab7eec1 100644
+--- a/drivers/cpuidle/governors/ladder.c
++++ b/drivers/cpuidle/governors/ladder.c
+@@ -84,7 +84,6 @@ static int ladder_select_state(struct cpuidle_driver *drv,
+ 
+ 	/* consider promotion */
+ 	if (last_idx < drv->state_count - 1 &&
+-	    !drv->states[last_idx + 1].disabled &&
+ 	    !dev->states_usage[last_idx + 1].disable &&
+ 	    last_residency > last_state->threshold.promotion_time &&
+ 	    drv->states[last_idx + 1].exit_latency <= latency_req) {
+@@ -98,8 +97,7 @@ static int ladder_select_state(struct cpuidle_driver *drv,
+ 
+ 	/* consider demotion */
+ 	if (last_idx > first_idx &&
+-	    (drv->states[last_idx].disabled ||
+-	    dev->states_usage[last_idx].disable ||
++	    (dev->states_usage[last_idx].disable ||
+ 	    drv->states[last_idx].exit_latency > latency_req)) {
+ 		int i;
+ 
+diff --git a/drivers/cpuidle/governors/menu.c b/drivers/cpuidle/governors/menu.c
+index d9f12aa8e7ee..c7820a09fa65 100644
+--- a/drivers/cpuidle/governors/menu.c
++++ b/drivers/cpuidle/governors/menu.c
+@@ -346,7 +346,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	if (drv->states[0].flags & CPUIDLE_FLAG_POLLING) {
+ 		struct cpuidle_state *s = &drv->states[1];
+ 		unsigned int polling_threshold;
+-
+ 		/*
+ 		 * We want to default to C1 (hlt), not to busy polling
+ 		 * unless the timer is happening really really soon, or
+@@ -393,9 +392,8 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	idx = -1;
+ 	for (i = first_idx; i < drv->state_count; i++) {
+ 		struct cpuidle_state *s = &drv->states[i];
+-		struct cpuidle_state_usage *su = &dev->states_usage[i];
+ 
+-		if (s->disabled || su->disable)
++		if (dev->states_usage[i].disable)
+ 			continue;
+ 		if (idx == -1)
+ 			idx = i; /* first enabled state */
+@@ -460,8 +458,7 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 * tick, so try to correct that.
+ 			 */
+ 			for (i = idx - 1; i >= 0; i--) {
+-			    if (drv->states[i].disabled ||
+-			        dev->states_usage[i].disable)
++			    if (dev->states_usage[i].disable)
+ 					continue;
+ 
+ 				idx = i;
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index db24fa7df458..9e134a658a6e 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -212,7 +212,7 @@ static int teo_find_shallower_state(struct cpuidle_driver *drv,
+ 	int i;
+ 
+ 	for (i = state_idx - 1; i >= 0; i--) {
+-		if (drv->states[i].disabled || dev->states_usage[i].disable)
++		if (dev->states_usage[i].disable)
+ 			continue;
+ 
+ 		state_idx = i;
+@@ -256,9 +256,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 	for (i = 0; i < drv->state_count; i++) {
+ 		struct cpuidle_state *s = &drv->states[i];
+-		struct cpuidle_state_usage *su = &dev->states_usage[i];
+ 
+-		if (s->disabled || su->disable) {
++		if (dev->states_usage[i].disable) {
+ 			/*
+ 			 * Ignore disabled states with target residencies beyond
+ 			 * the anticipated idle duration.
+diff --git a/drivers/cpuidle/sysfs.c b/drivers/cpuidle/sysfs.c
+index d9b917529aba..e96a3fc27e0b 100644
+--- a/drivers/cpuidle/sysfs.c
++++ b/drivers/cpuidle/sysfs.c
+@@ -255,25 +255,6 @@ static ssize_t show_state_##_name(struct cpuidle_state *state, \
+ 	return sprintf(buf, "%u\n", state->_name);\
+ }
+ 
+-#define define_store_state_ull_function(_name) \
+-static ssize_t store_state_##_name(struct cpuidle_state *state, \
+-				   struct cpuidle_state_usage *state_usage, \
+-				   const char *buf, size_t size)	\
+-{ \
+-	unsigned long long value; \
+-	int err; \
+-	if (!capable(CAP_SYS_ADMIN)) \
+-		return -EPERM; \
+-	err = kstrtoull(buf, 0, &value); \
+-	if (err) \
+-		return err; \
+-	if (value) \
+-		state_usage->_name = 1; \
+-	else \
+-		state_usage->_name = 0; \
+-	return size; \
+-}
+-
+ #define define_show_state_ull_function(_name) \
+ static ssize_t show_state_##_name(struct cpuidle_state *state, \
+ 				  struct cpuidle_state_usage *state_usage, \
+@@ -299,8 +280,36 @@ define_show_state_ull_function(usage)
+ define_show_state_ull_function(time)
+ define_show_state_str_function(name)
+ define_show_state_str_function(desc)
+-define_show_state_ull_function(disable)
+-define_store_state_ull_function(disable)
++
++static ssize_t show_state_disable(struct cpuidle_state *state,
++				  struct cpuidle_state_usage *state_usage,
++				  char *buf)
++{
++	return sprintf(buf, "%llu\n",
++		       state_usage->disable & CPUIDLE_STATE_DISABLED_BY_USER);
++}
++
++static ssize_t store_state_disable(struct cpuidle_state *state,
++				   struct cpuidle_state_usage *state_usage,
++				   const char *buf, size_t size)
++{
++	unsigned int value;
++	int err;
++
++	if (!capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
++	err = kstrtouint(buf, 0, &value);
++	if (err)
++		return err;
++
++	if (value)
++		state_usage->disable |= CPUIDLE_STATE_DISABLED_BY_USER;
++	else
++		state_usage->disable &= ~CPUIDLE_STATE_DISABLED_BY_USER;
++
++	return size;
++}
+ 
+ define_one_state_ro(name, show_state_name);
+ define_one_state_ro(desc, show_state_desc);
+diff --git a/include/linux/cpuidle.h b/include/linux/cpuidle.h
+index e47c0679b1f0..7a22ff350f02 100644
+--- a/include/linux/cpuidle.h
++++ b/include/linux/cpuidle.h
+@@ -29,6 +29,9 @@ struct cpuidle_driver;
+  * CPUIDLE DEVICE INTERFACE *
+  ****************************/
+ 
++#define CPUIDLE_STATE_DISABLED_BY_USER		BIT(0)
++#define CPUIDLE_STATE_DISABLED_BY_DRIVER	BIT(1)
++
+ struct cpuidle_state_usage {
+ 	unsigned long long	disable;
+ 	unsigned long long	usage;
+
+From 3fa74254acbdaae1ac10086f4c44531353ed8c1c Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Tue, 12 Nov 2019 10:51:16 +0100
+Subject: [PATCH 33/46] BACKPORT: cpuidle: teo: Exclude cpuidle overhead from
+ computations
+
+One purpose of the computations in teo_update() is to determine
+whether or not the (saved) time till the next timer event and the
+measured idle duration fall into the same "bin", so avoid using
+values that include the cpuidle overhead to obtain the latter.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 10 +++++++++-
+ 1 file changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 9e134a658a6e..27f166bc001a 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -133,7 +133,15 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	} else {
+ 		unsigned int lat = drv->states[cpu_data->last_state].exit_latency;
+ 
+-		measured_us = ktime_to_us(cpu_data->time_span_ns);
++		/*
++		 * The computations below are to determine whether or not the
++		 * (saved) time till the next timer event and the measured idle
++		 * duration fall into the same "bin", so use last_residency_ns
++		 * for that instead of time_span_ns which includes the cpuidle
++		 * overhead.
++		 */
++		measured_us = dev->last_residency;
++
+ 		/*
+ 		 * The delay between the wakeup and the first instruction
+ 		 * executed by the CPU is not likely to be worst-case every
+
+From 067cca3f5b4739f3e0e000669fcfab7de817801f Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Wed, 13 Nov 2019 01:03:24 +0100
+Subject: [PATCH 34/46] BACKPORT: cpuidle: teo: Avoid using "early hits"
+ incorrectly
+
+If the current state with the maximum "early hits" metric in
+teo_select() is also the one "matching" the expected idle duration,
+it will be used as the candidate one for selection even if its
+"misses" metric is greater than its "hits" metric, which is not
+correct.
+
+In that case, the candidate state should be shallower than the
+current one and its "early hits" metric should be the maximum
+among the idle states shallower than the current one.
+
+To make that happen, modify teo_select() to save the index of
+the state whose "early hits" metric is the maximum for the
+range of states below the current one and go back to that state
+if it turns out that the current one should be rejected.
+
+Fixes: 159e48560f51 ("cpuidle: teo: Fix "early hits" handling for disabled idle states")
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 21 +++++++++++++++++----
+ 1 file changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 27f166bc001a..b4c940052632 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -242,7 +242,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+ 	unsigned int duration_us, hits, misses, early_hits;
+-	int max_early_idx, constraint_idx, idx, i;
++	int max_early_idx, prev_max_early_idx, constraint_idx, idx, i;
+ 	ktime_t delta_tick;
+ 
+ 	if (cpu_data->last_state >= 0) {
+@@ -259,6 +259,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	misses = 0;
+ 	early_hits = 0;
+ 	max_early_idx = -1;
++	prev_max_early_idx = -1;
+ 	constraint_idx = drv->state_count;
+ 	idx = -1;
+ 
+@@ -310,6 +311,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 */
+ 			if (!(tick_nohz_tick_stopped() &&
+ 			      drv->states[idx].target_residency < TICK_USEC)) {
++				prev_max_early_idx = max_early_idx;
+ 				early_hits = cpu_data->states[i].early_hits;
+ 				max_early_idx = idx;
+ 			}
+@@ -336,6 +338,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		if (early_hits < cpu_data->states[i].early_hits &&
+ 		    !(tick_nohz_tick_stopped() &&
+ 		      drv->states[i].target_residency < TICK_USEC)) {
++			prev_max_early_idx = max_early_idx;
+ 			early_hits = cpu_data->states[i].early_hits;
+ 			max_early_idx = i;
+ 		}
+@@ -349,9 +352,19 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	 * "early hits" metric, but if that cannot be determined, just use the
+ 	 * state selected so far.
+ 	 */
+-	if (hits <= misses && max_early_idx >= 0) {
+-		idx = max_early_idx;
+-		duration_us = drv->states[idx].target_residency;
++	if (hits <= misses) {
++		/*
++		 * The current candidate state is not suitable, so take the one
++		 * whose "early hits" metric is the maximum for the range of
++		 * shallower states.
++		 */
++		if (idx == max_early_idx)
++			max_early_idx = prev_max_early_idx;
++
++		if (max_early_idx >= 0) {
++			idx = max_early_idx;
++			duration_us = drv->states[idx].target_residency;
++		}
+ 	}
+ 
+ 	/*
+
+From d5615f836476938a1d3cae696377540140937039 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Wed, 13 Nov 2019 01:10:13 +0100
+Subject: [PATCH 35/46] BACKPORT: cpuidle: teo: Avoid code duplication in
+ conditionals
+
+There are three places in teo_select() where a given amount of time
+is compared with TICK_NSEC if tick_nohz_tick_stopped() returns true,
+which is a bit of duplicated code.
+
+Avoid that code duplication by defining a helper function to do the
+check and using it in all of the places in question.
+
+No intentional functional impact.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 and adapt function to use microseconds as unit of time ]
+Co-authored-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 13 ++++++++-----
+ 1 file changed, 8 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index b4c940052632..52351c410fc2 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -206,6 +206,11 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 		cpu_data->interval_idx = 0;
+ }
+ 
++static bool teo_time_ok(unsigned int interval_us)
++{
++	return !tick_nohz_tick_stopped() || interval_us >= TICK_USEC;
++}
++
+ /**
+  * teo_find_shallower_state - Find shallower idle state matching given duration.
+  * @drv: cpuidle driver containing state data.
+@@ -309,8 +314,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 * check if the current candidate state is not too
+ 			 * shallow for that role.
+ 			 */
+-			if (!(tick_nohz_tick_stopped() &&
+-			      drv->states[idx].target_residency < TICK_USEC)) {
++			if (teo_time_ok(drv->states[idx].target_residency)) {
+ 				prev_max_early_idx = max_early_idx;
+ 				early_hits = cpu_data->states[i].early_hits;
+ 				max_early_idx = idx;
+@@ -336,8 +340,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		misses = cpu_data->states[i].misses;
+ 
+ 		if (early_hits < cpu_data->states[i].early_hits &&
+-		    !(tick_nohz_tick_stopped() &&
+-		      drv->states[i].target_residency < TICK_USEC)) {
++		    teo_time_ok(drv->states[i].target_residency)) {
+ 			prev_max_early_idx = max_early_idx;
+ 			early_hits = cpu_data->states[i].early_hits;
+ 			max_early_idx = i;
+@@ -405,7 +408,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			 * Avoid spending too much time in an idle state that
+ 			 * would be too shallow.
+ 			 */
+-			if (!(tick_nohz_tick_stopped() && avg_us < TICK_USEC)) {
++			if (teo_time_ok(avg_us)) {
+ 				duration_us = avg_us;
+ 				if (drv->states[idx].target_residency > avg_us)
+ 					idx = teo_find_shallower_state(drv, dev,
+
+From 06883b289c2daa2e040471430a3dadef34b5f02b Mon Sep 17 00:00:00 2001
+From: Ikjoon Jang <ikjn@chromium.org>
+Date: Sat, 11 Jan 2020 01:47:12 +0800
+Subject: [PATCH 36/46] BACKPORT: cpuidle: teo: Fix intervals[] array indexing
+ bug
+
+Fix a simple bug in rotating array index.
+
+Fixes: b26bf6ab716f ("cpuidle: New timer events oriented governor for tickless systems")
+Signed-off-by: Ikjoon Jang <ikjn@chromium.org>
+Cc: 5.1+ <stable@vger.kernel.org> # 5.1+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 52351c410fc2..f5c966391bcb 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -202,7 +202,7 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	 * pattern detection.
+ 	 */
+ 	cpu_data->intervals[cpu_data->interval_idx++] = measured_us;
+-	if (cpu_data->interval_idx > INTERVALS)
++	if (cpu_data->interval_idx >= INTERVALS)
+ 		cpu_data->interval_idx = 0;
+ }
+ 
+
+From 3307bd52e55d76a89a8dd4f3fb55418e6808ba0b Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Mon, 29 Mar 2021 20:19:03 +0200
+Subject: [PATCH 37/46] BACKPORT: cpuidle: teo: Adjust handling of very short
+ idle times
+
+If the time till the next timer event is shorter than the target
+residency of the first idle state (state 0), the TEO governor does
+not update its metrics for any idle states, but arguably it should
+record a "hit" for idle state 0 in that case, so modify it to do
+that.
+
+Accordingly, also make it record an "early hit" for idle state 0 if
+the measured idle duration is less than its target residency, which
+allows one branch more to be dropped from teo_update().
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 33 +++++++++++++++------------------
+ 1 file changed, 15 insertions(+), 18 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index f5c966391bcb..42c9181d87fc 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -120,8 +120,8 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	unsigned int sleep_length_us = ktime_to_us(cpu_data->sleep_length_ns);
+-	int i, idx_hit = -1, idx_timer = -1;
+-	unsigned int measured_us;
++	int i, idx_hit = 0, idx_timer = 0;
++	unsigned int measured_us, hits, misses;
+ 
+ 	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
+ 		/*
+@@ -178,25 +178,22 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	 * also increase the "early hits" metric for the state that actually
+ 	 * matches the measured idle duration.
+ 	 */
+-	if (idx_timer >= 0) {
+-		unsigned int hits = cpu_data->states[idx_timer].hits;
+-		unsigned int misses = cpu_data->states[idx_timer].misses;
+-
+-		hits -= hits >> DECAY_SHIFT;
+-		misses -= misses >> DECAY_SHIFT;
+-
+-		if (idx_timer > idx_hit) {
+-			misses += PULSE;
+-			if (idx_hit >= 0)
+-				cpu_data->states[idx_hit].early_hits += PULSE;
+-		} else {
+-			hits += PULSE;
+-		}
++	hits = cpu_data->states[idx_timer].hits;
++	hits -= hits >> DECAY_SHIFT;
++
++	misses = cpu_data->states[idx_timer].misses;
++	misses -= misses >> DECAY_SHIFT;
+ 
+-		cpu_data->states[idx_timer].misses = misses;
+-		cpu_data->states[idx_timer].hits = hits;
++	if (idx_timer == idx_hit) {
++		hits += PULSE;
++	} else {
++		misses += PULSE;
++		cpu_data->states[idx_hit].early_hits += PULSE;
+ 	}
+ 
++	cpu_data->states[idx_timer].misses = misses;
++	cpu_data->states[idx_timer].hits = hits;
++
+ 	/*
+ 	 * Save idle duration values corresponding to non-timer wakeups for
+ 	 * pattern detection.
+
+From f76feac378ae086eab45eb2ec538def18b28b5cf Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Mon, 29 Mar 2021 20:21:43 +0200
+Subject: [PATCH 38/46] BACKPORT: cpuidle: teo: Take negative "sleep length"
+ values into account
+
+Modify the TEO governor to take possible negative return values of
+tick_nohz_get_next_hrtimer() into account by changing the data type
+of some variables used by it to s64 which allows it to carry out
+computations without potentially problematic data type conversions
+into u64.
+
+Also change the computations in teo_select() so that the negative
+values themselves are handled in a natural way to avoid adding extra
+negative value checks to that function.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 and change data type from unsigned int to int to allow negative values ]
+Co-authored-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 22 +++++++++++++++-------
+ 1 file changed, 15 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 42c9181d87fc..7708a7c3f9d8 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -101,8 +101,8 @@ struct teo_idle_state {
+  * @intervals: Saved idle duration values.
+  */
+ struct teo_cpu {
+-	u64 time_span_ns;
+-	u64 sleep_length_ns;
++	s64 time_span_ns;
++	s64 sleep_length_ns;
+ 	struct teo_idle_state states[CPUIDLE_STATE_MAX];
+ 	int last_state;
+ 	int interval_idx;
+@@ -217,7 +217,7 @@ static bool teo_time_ok(unsigned int interval_us)
+  */
+ static int teo_find_shallower_state(struct cpuidle_driver *drv,
+ 				    struct cpuidle_device *dev, int state_idx,
+-				    unsigned int duration_us)
++				    int duration_us)
+ {
+ 	int i;
+ 
+@@ -243,8 +243,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+-	unsigned int duration_us, hits, misses, early_hits;
+-	int max_early_idx, prev_max_early_idx, constraint_idx, idx, i;
++	int duration_us, max_early_idx, prev_max_early_idx, constraint_idx, idx0, idx, i;
++	unsigned int hits, misses, early_hits;
+ 	ktime_t delta_tick;
+ 
+ 	if (cpu_data->last_state >= 0) {
+@@ -264,6 +264,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	prev_max_early_idx = -1;
+ 	constraint_idx = drv->state_count;
+ 	idx = -1;
++	idx0 = idx;
+ 
+ 	for (i = 0; i < drv->state_count; i++) {
+ 		struct cpuidle_state *s = &drv->states[i];
+@@ -324,6 +325,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 			idx = i; /* first enabled state */
+ 			hits = cpu_data->states[i].hits;
+ 			misses = cpu_data->states[i].misses;
++			idx0 = i;
+ 		}
+ 
+ 		if (s->target_residency > duration_us)
+@@ -376,11 +378,16 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 	if (idx < 0) {
+ 		idx = 0; /* No states enabled. Must use 0. */
+-	} else if (idx > 0) {
++	} else if (idx > idx0) {
+ 		unsigned int count = 0;
+ 		u64 sum = 0;
+ 
+ 		/*
++		 * The target residencies of at least two different enabled idle
++		 * states are less than or equal to the current expected idle
++		 * duration.  Try to refine the selection using the most recent
++		 * measured idle duration values.
++		 *
+ 		 * Count and sum the most recent idle duration values less than
+ 		 * the current expected idle duration value.
+ 		 */
+@@ -430,7 +437,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		 * till the closest timer including the tick, try to correct
+ 		 * that.
+ 		 */
+-		if (idx > 0 && drv->states[idx].target_residency > delta_tick_us)
++		if (idx > idx0 &&
++		    drv->states[idx].target_residency > delta_tick_us)
+ 			idx = teo_find_shallower_state(drv, dev, idx, delta_tick_us);
+ 	}
+ 
+
+From ae3d451af0f6c454508d55d9a44d2c06a04dea6e Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Wed, 2 Jun 2021 20:15:10 +0200
+Subject: [PATCH 39/46] BACKPORT: cpuidle: teo: Cosmetic modifications of
+ teo_update()
+
+Rename a local variable in teo_update() so that its purpose is better
+reflected by its name and use one more local variable in the loop
+over the CPU idle states in that function to make the code somewhat
+easier to read.
+
+No functional impact.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 and use int data type for target_residency ]
+Co-authored-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 13 +++++++------
+ 1 file changed, 7 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 7708a7c3f9d8..665fc7420591 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -120,7 +120,7 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	unsigned int sleep_length_us = ktime_to_us(cpu_data->sleep_length_ns);
+-	int i, idx_hit = 0, idx_timer = 0;
++	int i, idx_timer = 0, idx_duration = 0;
+ 	unsigned int measured_us, hits, misses;
+ 
+ 	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
+@@ -159,14 +159,15 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	 * states matching the sleep length and the measured idle duration.
+ 	 */
+ 	for (i = 0; i < drv->state_count; i++) {
++		int target_residency = drv->states[i].target_residency;
+ 		unsigned int early_hits = cpu_data->states[i].early_hits;
+ 
+ 		cpu_data->states[i].early_hits -= early_hits >> DECAY_SHIFT;
+ 
+-		if (drv->states[i].target_residency <= sleep_length_us) {
++		if (target_residency <= sleep_length_us) {
+ 			idx_timer = i;
+-			if (drv->states[i].target_residency <= measured_us)
+-				idx_hit = i;
++			if (target_residency <= measured_us)
++				idx_duration = i;
+ 		}
+ 	}
+ 
+@@ -184,11 +185,11 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	misses = cpu_data->states[idx_timer].misses;
+ 	misses -= misses >> DECAY_SHIFT;
+ 
+-	if (idx_timer == idx_hit) {
++	if (idx_timer == idx_duration) {
+ 		hits += PULSE;
+ 	} else {
+ 		misses += PULSE;
+-		cpu_data->states[idx_hit].early_hits += PULSE;
++		cpu_data->states[idx_duration].early_hits += PULSE;
+ 	}
+ 
+ 	cpu_data->states[idx_timer].misses = misses;
+
+From 908fffe2f929c25d9c0f75d12c2f0b6df7c8424e Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Wed, 2 Jun 2021 20:15:52 +0200
+Subject: [PATCH 40/46] BACKPORT: cpuidle: teo: Cosmetic modification of
+ teo_select()
+
+Initialize local variables in teo_select() where they are declared.
+
+No functional impact.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 19 ++++++++-----------
+ 1 file changed, 8 insertions(+), 11 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 665fc7420591..0e8216a22190 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -244,8 +244,14 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+-	int duration_us, max_early_idx, prev_max_early_idx, constraint_idx, idx0, idx, i;
+-	unsigned int hits, misses, early_hits;
++	int constraint_idx = drv->state_count;
++	unsigned int hits = 0, misses = 0;
++	unsigned int early_hits = 0;
++	int prev_max_early_idx = -1;
++	int max_early_idx = -1;
++	int idx0 = -1, idx = -1;
++	int i;
++	int duration_us;
+ 	ktime_t delta_tick;
+ 
+ 	if (cpu_data->last_state >= 0) {
+@@ -258,15 +264,6 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
+ 	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
+ 
+-	hits = 0;
+-	misses = 0;
+-	early_hits = 0;
+-	max_early_idx = -1;
+-	prev_max_early_idx = -1;
+-	constraint_idx = drv->state_count;
+-	idx = -1;
+-	idx0 = idx;
+-
+ 	for (i = 0; i < drv->state_count; i++) {
+ 		struct cpuidle_state *s = &drv->states[i];
+ 
+
+From de4b60324bc3bc6ed4d5a985aa0c09a249446674 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Wed, 2 Jun 2021 20:16:32 +0200
+Subject: [PATCH 41/46] BACKPORT: cpuidle: teo: Change the main idle state
+ selection logic
+
+Two aspects of the current main idle state selection logic in the
+TEO (Timer Events Oriented) cpuidle governor are quite questionable.
+
+First of all, the "hits" and "misses" metrics used by it are only
+updated for a given idle state if the time till the next timer event
+("sleep length") is between the target residency of that state and
+the target residency of the next one.  Consequently, they are likely
+to become stale if the sleep length tends to fall outside that
+interval which increases the likelihood of subomtimal idle state
+selection.
+
+Second, the decision on whether or not to select the idle state
+"matching" the sleep length is based on the metrics collected for
+that state alone, whereas in principle the metrics collected for
+the other idle states should be taken into consideration when that
+decision is made.  For example, if the measured idle duration is less
+than the target residency of the idle state "matching" the sleep
+length, then it is also less than the target residency of any deeper
+idle state and that should be taken into account when considering
+whether or not to select any of those states, but currently it is
+not.
+
+In order to address the above shortcomings, modify the main idle
+state selection logic in the TEO governor to take the metrics
+collected for all of the idle states into account when deciding
+whether or not to select the one "matching" the sleep length.
+
+Moreover, drop the "misses" metric that becomes redundant after the
+above change and rename the "early_hits" metric to "intercepts" so
+that its role is better reflected by its name (the idea being that
+if a CPU wakes up earlier than indicated by the sleep length, then
+it must be a result of a non-timer interrupt that "intercepts" the
+CPU).
+
+Also rename the states[] array in struct struct teo_cpu to
+state_bins[] to avoid confusing it with the states[] array in
+struct cpuidle_driver and update the documentation to match the
+new code (and make it more comprehensive while at it).
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19, adapt variables and teo_middle_of_bin() return type to
+	    mircoseconds as unit of time ]
+Co-authored-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 369 +++++++++++++++++---------------
+ 1 file changed, 201 insertions(+), 168 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 0e8216a22190..d71e454acccd 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -2,47 +2,90 @@
+ /*
+  * Timer events oriented CPU idle governor
+  *
+- * Copyright (C) 2018 Intel Corporation
++ * Copyright (C) 2018 - 2021 Intel Corporation
+  * Author: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+  *
+  * The idea of this governor is based on the observation that on many systems
+  * timer events are two or more orders of magnitude more frequent than any
+- * other interrupts, so they are likely to be the most significant source of CPU
++ * other interrupts, so they are likely to be the most significant cause of CPU
+  * wakeups from idle states.  Moreover, information about what happened in the
+  * (relatively recent) past can be used to estimate whether or not the deepest
+- * idle state with target residency within the time to the closest timer is
+- * likely to be suitable for the upcoming idle time of the CPU and, if not, then
+- * which of the shallower idle states to choose.
++ * idle state with target residency within the (known) time till the closest
++ * timer event, referred to as the sleep length, is likely to be suitable for
++ * the upcoming CPU idle period and, if not, then which of the shallower idle
++ * states to choose instead of it.
+  *
+- * Of course, non-timer wakeup sources are more important in some use cases and
+- * they can be covered by taking a few most recent idle time intervals of the
+- * CPU into account.  However, even in that case it is not necessary to consider
+- * idle duration values greater than the time till the closest timer, as the
+- * patterns that they may belong to produce average values close enough to
+- * the time till the closest timer (sleep length) anyway.
++ * Of course, non-timer wakeup sources are more important in some use cases
++ * which can be covered by taking a few most recent idle time intervals of the
++ * CPU into account.  However, even in that context it is not necessary to
++ * consider idle duration values greater than the sleep length, because the
++ * closest timer will ultimately wake up the CPU anyway unless it is woken up
++ * earlier.
+  *
+- * Thus this governor estimates whether or not the upcoming idle time of the CPU
+- * is likely to be significantly shorter than the sleep length and selects an
+- * idle state for it in accordance with that, as follows:
++ * Thus this governor estimates whether or not the prospective idle duration of
++ * a CPU is likely to be significantly shorter than the sleep length and selects
++ * an idle state for it accordingly.
+  *
+- * - Find an idle state on the basis of the sleep length and state statistics
+- *   collected over time:
++ * The computations carried out by this governor are based on using bins whose
++ * boundaries are aligned with the target residency parameter values of the CPU
++ * idle states provided by the cpuidle driver in the ascending order.  That is,
++ * the first bin spans from 0 up to, but not including, the target residency of
++ * the second idle state (idle state 1), the second bin spans from the target
++ * residency of idle state 1 up to, but not including, the target residency of
++ * idle state 2, the third bin spans from the target residency of idle state 2
++ * up to, but not including, the target residency of idle state 3 and so on.
++ * The last bin spans from the target residency of the deepest idle state
++ * supplied by the driver to infinity.
+  *
+- *   o Find the deepest idle state whose target residency is less than or equal
+- *     to the sleep length.
++ * Two metrics called "hits" and "intercepts" are associated with each bin.
++ * They are updated every time before selecting an idle state for the given CPU
++ * in accordance with what happened last time.
+  *
+- *   o Select it if it matched both the sleep length and the observed idle
+- *     duration in the past more often than it matched the sleep length alone
+- *     (i.e. the observed idle duration was significantly shorter than the sleep
+- *     length matched by it).
++ * The "hits" metric reflects the relative frequency of situations in which the
++ * sleep length and the idle duration measured after CPU wakeup fall into the
++ * same bin (that is, the CPU appears to wake up "on time" relative to the sleep
++ * length).  In turn, the "intercepts" metric reflects the relative frequency of
++ * situations in which the measured idle duration is so much shorter than the
++ * sleep length that the bin it falls into corresponds to an idle state
++ * shallower than the one whose bin is fallen into by the sleep length.
+  *
+- *   o Otherwise, select the shallower state with the greatest matched "early"
+- *     wakeups metric.
++ * In order to select an idle state for a CPU, the governor takes the following
++ * steps (modulo the possible latency constraint that must be taken into account
++ * too):
+  *
+- * - If the majority of the most recent idle duration values are below the
+- *   target residency of the idle state selected so far, use those values to
+- *   compute the new expected idle duration and find an idle state matching it
+- *   (which has to be shallower than the one selected so far).
++ * 1. Find the deepest CPU idle state whose target residency does not exceed
++ *    the current sleep length (the candidate idle state) and compute two sums
++ *    as follows:
++ *
++ *    - The sum of the "hits" and "intercepts" metrics for the candidate state
++ *      and all of the deeper idle states (it represents the cases in which the
++ *      CPU was idle long enough to avoid being intercepted if the sleep length
++ *      had been equal to the current one).
++ *
++ *    - The sum of the "intercepts" metrics for all of the idle states shallower
++ *      than the candidate one (it represents the cases in which the CPU was not
++ *      idle long enough to avoid being intercepted if the sleep length had been
++ *      equal to the current one).
++ *
++ * 2. If the second sum is greater than the first one, look for an alternative
++ *    idle state to select.
++ *
++ *    - Traverse the idle states shallower than the candidate one in the
++ *      descending order.
++ *
++ *    - For each of them compute the sum of the "intercepts" metrics over all of
++ *      the idle  states between it and the candidate one (including the former
++ *      and excluding the latter).
++ *
++ *    - If that sum is greater than a half of the second sum computed in step 1
++ *      (which means that the target residency of the state in question had not
++ *      exceeded the idle duration in over a half of the relevant cases), select
++ *      the given idle state instead of the candidate one.
++ *
++ * 3. If the majority of the most recent idle duration values are below the
++ *    current anticipated idle duration, use those values to compute the new
++ *    expected idle duration and find an idle state matching it (which has to
++ *    be shallower than the current candidate one).
+  */
+ 
+ #include <linux/cpuidle.h>
+@@ -65,37 +108,21 @@
+ #define INTERVALS	8
+ 
+ /**
+- * struct teo_idle_state - Idle state data used by the TEO cpuidle governor.
+- * @early_hits: "Early" CPU wakeups "matching" this state.
+- * @hits: "On time" CPU wakeups "matching" this state.
+- * @misses: CPU wakeups "missing" this state.
+- *
+- * A CPU wakeup is "matched" by a given idle state if the idle duration measured
+- * after the wakeup is between the target residency of that state and the target
+- * residency of the next one (or if this is the deepest available idle state, it
+- * "matches" a CPU wakeup when the measured idle duration is at least equal to
+- * its target residency).
+- *
+- * Also, from the TEO governor perspective, a CPU wakeup from idle is "early" if
+- * it occurs significantly earlier than the closest expected timer event (that
+- * is, early enough to match an idle state shallower than the one matching the
+- * time till the closest timer event).  Otherwise, the wakeup is "on time", or
+- * it is a "hit".
+- *
+- * A "miss" occurs when the given state doesn't match the wakeup, but it matches
+- * the time till the closest timer event used for idle state selection.
++ * struct teo_bin - Metrics used by the TEO cpuidle governor.
++ * @intercepts: The "intercepts" metric.
++ * @hits: The "hits" metric.
+  */
+-struct teo_idle_state {
+-	unsigned int early_hits;
++struct teo_bin {
++	unsigned int intercepts;
+ 	unsigned int hits;
+-	unsigned int misses;
+ };
+ 
+ /**
+  * struct teo_cpu - CPU data used by the TEO cpuidle governor.
+  * @time_span_ns: Time between idle state selection and post-wakeup update.
+  * @sleep_length_ns: Time till the closest timer event (at the selection time).
+- * @states: Idle states data corresponding to this CPU.
++ * @state_bins: Idle state data bins for this CPU.
++ * @total: Grand total of the "intercepts" and "hits" mertics for all bins.
+  * @last_state: Idle state entered by the CPU last time.
+  * @interval_idx: Index of the most recent saved idle interval.
+  * @intervals: Saved idle duration values.
+@@ -103,16 +130,17 @@ struct teo_idle_state {
+ struct teo_cpu {
+ 	s64 time_span_ns;
+ 	s64 sleep_length_ns;
+-	struct teo_idle_state states[CPUIDLE_STATE_MAX];
++	struct teo_bin state_bins[CPUIDLE_STATE_MAX];
+ 	int last_state;
+ 	int interval_idx;
++	unsigned int total;
+ 	unsigned int intervals[INTERVALS];
+ };
+ 
+ static DEFINE_PER_CPU(struct teo_cpu, teo_cpus);
+ 
+ /**
+- * teo_update - Update CPU data after wakeup.
++ * teo_update - Update CPU metrics after wakeup.
+  * @drv: cpuidle driver containing state data.
+  * @dev: Target CPU.
+  */
+@@ -121,7 +149,7 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	unsigned int sleep_length_us = ktime_to_us(cpu_data->sleep_length_ns);
+ 	int i, idx_timer = 0, idx_duration = 0;
+-	unsigned int measured_us, hits, misses;
++	unsigned int measured_us;
+ 
+ 	if (cpu_data->time_span_ns >= cpu_data->sleep_length_ns) {
+ 		/*
+@@ -154,15 +182,21 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 			measured_us /= 2;
+ 	}
+ 
++	cpu_data->total = 0;
++
+ 	/*
+-	 * Decay the "early hits" metric for all of the states and find the
+-	 * states matching the sleep length and the measured idle duration.
++	 * Decay the "hits" and "intercepts" metrics for all of the bins and
++	 * find the bins that the sleep length and the measured idle duration
++	 * fall into.
+ 	 */
+ 	for (i = 0; i < drv->state_count; i++) {
+ 		int target_residency = drv->states[i].target_residency;
+-		unsigned int early_hits = cpu_data->states[i].early_hits;
++		struct teo_bin *bin = &cpu_data->state_bins[i];
++
++		bin->hits -= bin->hits >> DECAY_SHIFT;
++		bin->intercepts -= bin->intercepts >> DECAY_SHIFT;
+ 
+-		cpu_data->states[i].early_hits -= early_hits >> DECAY_SHIFT;
++		cpu_data->total += bin->hits + bin->intercepts;
+ 
+ 		if (target_residency <= sleep_length_us) {
+ 			idx_timer = i;
+@@ -172,28 +206,17 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 	}
+ 
+ 	/*
+-	 * Update the "hits" and "misses" data for the state matching the sleep
+-	 * length.  If it matches the measured idle duration too, this is a hit,
+-	 * so increase the "hits" metric for it then.  Otherwise, this is a
+-	 * miss, so increase the "misses" metric for it.  In the latter case
+-	 * also increase the "early hits" metric for the state that actually
+-	 * matches the measured idle duration.
++	 * If the measured idle duration falls into the same bin as the sleep
++	 * length, this is a "hit", so update the "hits" metric for that bin.
++	 * Otherwise, update the "intercepts" metric for the bin fallen into by
++	 * the measured idle duration.
+ 	 */
+-	hits = cpu_data->states[idx_timer].hits;
+-	hits -= hits >> DECAY_SHIFT;
+-
+-	misses = cpu_data->states[idx_timer].misses;
+-	misses -= misses >> DECAY_SHIFT;
+-
+-	if (idx_timer == idx_duration) {
+-		hits += PULSE;
+-	} else {
+-		misses += PULSE;
+-		cpu_data->states[idx_duration].early_hits += PULSE;
+-	}
++	if (idx_timer == idx_duration)
++		cpu_data->state_bins[idx_timer].hits += PULSE;
++	else
++		cpu_data->state_bins[idx_duration].intercepts += PULSE;
+ 
+-	cpu_data->states[idx_timer].misses = misses;
+-	cpu_data->states[idx_timer].hits = hits;
++	cpu_data->total += PULSE;
+ 
+ 	/*
+ 	 * Save idle duration values corresponding to non-timer wakeups for
+@@ -209,6 +232,12 @@ static bool teo_time_ok(unsigned int interval_us)
+ 	return !tick_nohz_tick_stopped() || interval_us >= TICK_USEC;
+ }
+ 
++static unsigned int teo_middle_of_bin(int idx, struct cpuidle_driver *drv)
++{
++	return (drv->states[idx].target_residency +
++		drv->states[idx+1].target_residency) / 2;
++}
++
+ /**
+  * teo_find_shallower_state - Find shallower idle state matching given duration.
+  * @drv: cpuidle driver containing state data.
+@@ -244,12 +273,12 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ {
+ 	struct teo_cpu *cpu_data = per_cpu_ptr(&teo_cpus, dev->cpu);
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+-	int constraint_idx = drv->state_count;
+-	unsigned int hits = 0, misses = 0;
+-	unsigned int early_hits = 0;
+-	int prev_max_early_idx = -1;
+-	int max_early_idx = -1;
+-	int idx0 = -1, idx = -1;
++	unsigned int idx_intercept_sum = 0;
++	unsigned int intercept_sum = 0;
++	unsigned int idx_hit_sum = 0;
++	unsigned int hit_sum = 0;
++	int constraint_idx = 0;
++	int idx0 = 0, idx = -1;
+ 	int i;
+ 	int duration_us;
+ 	ktime_t delta_tick;
+@@ -264,119 +293,122 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	cpu_data->sleep_length_ns = tick_nohz_get_sleep_length(&delta_tick);
+ 	duration_us = ktime_to_us(cpu_data->sleep_length_ns);
+ 
+-	for (i = 0; i < drv->state_count; i++) {
+-		struct cpuidle_state *s = &drv->states[i];
+-
+-		if (dev->states_usage[i].disable) {
+-			/*
+-			 * Ignore disabled states with target residencies beyond
+-			 * the anticipated idle duration.
+-			 */
+-			if (s->target_residency > duration_us)
+-				continue;
+-
+-			/*
+-			 * This state is disabled, so the range of idle duration
+-			 * values corresponding to it is covered by the current
+-			 * candidate state, but still the "hits" and "misses"
+-			 * metrics of the disabled state need to be used to
+-			 * decide whether or not the state covering the range in
+-			 * question is good enough.
+-			 */
+-			hits = cpu_data->states[i].hits;
+-			misses = cpu_data->states[i].misses;
+-
+-			if (early_hits >= cpu_data->states[i].early_hits ||
+-			    idx < 0)
+-				continue;
++	/* Check if there is any choice in the first place. */
++	if (drv->state_count < 2) {
++		idx = 0;;
++		goto end;
++	}
++	if (!dev->states_usage[0].disable) {
++		idx = 0;
++		if (drv->states[1].target_residency > duration_us)
++			goto end;
++	}
+ 
+-			/*
+-			 * If the current candidate state has been the one with
+-			 * the maximum "early hits" metric so far, the "early
+-			 * hits" metric of the disabled state replaces the
+-			 * current "early hits" count to avoid selecting a
+-			 * deeper state with lower "early hits" metric.
+-			 */
+-			if (max_early_idx == idx) {
+-				early_hits = cpu_data->states[i].early_hits;
+-				continue;
+-			}
++	/*
++	 * Find the deepest idle state whose target residency does not exceed
++	 * the current sleep length and the deepest idle state not deeper than
++	 * the former whose exit latency does not exceed the current latency
++	 * constraint.  Compute the sums of metrics for early wakeup pattern
++	 * detection.
++	 */
++	for (i = 1; i < drv->state_count; i++) {
++		struct teo_bin *prev_bin = &cpu_data->state_bins[i-1];
++		struct cpuidle_state *s = &drv->states[i];
+ 
+-			/*
+-			 * The current candidate state is closer to the disabled
+-			 * one than the current maximum "early hits" state, so
+-			 * replace the latter with it, but in case the maximum
+-			 * "early hits" state index has not been set so far,
+-			 * check if the current candidate state is not too
+-			 * shallow for that role.
+-			 */
+-			if (teo_time_ok(drv->states[idx].target_residency)) {
+-				prev_max_early_idx = max_early_idx;
+-				early_hits = cpu_data->states[i].early_hits;
+-				max_early_idx = idx;
+-			}
++		/*
++		 * Update the sums of idle state mertics for all of the states
++		 * shallower than the current one.
++		 */
++		intercept_sum += prev_bin->intercepts;
++		hit_sum += prev_bin->hits;
+ 
++		if (dev->states_usage[i].disable)
+ 			continue;
+-		}
+ 
+ 		if (idx < 0) {
+ 			idx = i; /* first enabled state */
+-			hits = cpu_data->states[i].hits;
+-			misses = cpu_data->states[i].misses;
+ 			idx0 = i;
+ 		}
+ 
+ 		if (s->target_residency > duration_us)
+ 			break;
+ 
+-		if (s->exit_latency > latency_req && constraint_idx > i)
++		idx = i;
++
++		if (s->exit_latency <= latency_req)
+ 			constraint_idx = i;
+ 
+-		idx = i;
+-		hits = cpu_data->states[i].hits;
+-		misses = cpu_data->states[i].misses;
+-
+-		if (early_hits < cpu_data->states[i].early_hits &&
+-		    teo_time_ok(drv->states[i].target_residency)) {
+-			prev_max_early_idx = max_early_idx;
+-			early_hits = cpu_data->states[i].early_hits;
+-			max_early_idx = i;
+-		}
++		idx_intercept_sum = intercept_sum;
++		idx_hit_sum = hit_sum;
++	}
++
++	/* Avoid unnecessary overhead. */
++	if (idx < 0) {
++		idx = 0; /* No states enabled, must use 0. */
++		goto end;
++	} else if (idx == idx0) {
++		goto end;
+ 	}
+ 
+ 	/*
+-	 * If the "hits" metric of the idle state matching the sleep length is
+-	 * greater than its "misses" metric, that is the one to use.  Otherwise,
+-	 * it is more likely that one of the shallower states will match the
+-	 * idle duration observed after wakeup, so take the one with the maximum
+-	 * "early hits" metric, but if that cannot be determined, just use the
+-	 * state selected so far.
++	 * If the sum of the intercepts metric for all of the idle states
++	 * shallower than the current candidate one (idx) is greater than the
++	 * sum of the intercepts and hits metrics for the candidate state and
++	 * all of the deeper states, the CPU is likely to wake up early, so find
++	 * an alternative idle state to select.
+ 	 */
+-	if (hits <= misses) {
++	if (2 * idx_intercept_sum > cpu_data->total - idx_hit_sum) {
++		s64 last_enabled_span_us = duration_us;
++		int last_enabled_idx = idx;
++
+ 		/*
+-		 * The current candidate state is not suitable, so take the one
+-		 * whose "early hits" metric is the maximum for the range of
+-		 * shallower states.
++		 * Look for the deepest idle state whose target residency had
++		 * not exceeded the idle duration in over a half of the relevant
++		 * cases in the past.
++		 *
++		 * Take the possible latency constraint and duration limitation
++		 * present if the tick has been stopped already into account.
+ 		 */
+-		if (idx == max_early_idx)
+-			max_early_idx = prev_max_early_idx;
++		intercept_sum = 0;
++
++		for (i = idx - 1; i >= idx0; i--) {
++			s64 span_us;
+ 
+-		if (max_early_idx >= 0) {
+-			idx = max_early_idx;
+-			duration_us = drv->states[idx].target_residency;
++			intercept_sum += cpu_data->state_bins[i].intercepts;
++
++			if (dev->states_usage[i].disable)
++				continue;
++
++			span_us = teo_middle_of_bin(i, drv);
++			if (!teo_time_ok(span_us)) {
++				/*
++				 * The current state is too shallow, so select
++				 * the first enabled deeper state.
++				 */
++				duration_us = last_enabled_span_us;
++				idx = last_enabled_idx;
++				break;
++			}
++
++			if (2 * intercept_sum > idx_intercept_sum) {
++				idx = i;
++				duration_us = span_us;
++				break;
++			}
++
++			last_enabled_span_us = span_us;
++			last_enabled_idx = i;
+ 		}
+ 	}
+ 
+ 	/*
+-	 * If there is a latency constraint, it may be necessary to use a
+-	 * shallower idle state than the one selected so far.
++	 * If there is a latency constraint, it may be necessary to select an
++	 * idle state shallower than the current candidate one.
+ 	 */
+-	if (constraint_idx < idx)
++	if (idx > constraint_idx)
+ 		idx = constraint_idx;
+ 
+-	if (idx < 0) {
+-		idx = 0; /* No states enabled. Must use 0. */
+-	} else if (idx > idx0) {
++	if (idx > idx0) {
+ 		unsigned int count = 0;
+ 		u64 sum = 0;
+ 
+@@ -419,6 +451,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		}
+ 	}
+ 
++end:
+ 	/*
+ 	 * Don't stop the tick if the selected state is a polling one or if the
+ 	 * expected idle duration is shorter than the tick period length.
+
+From 5739ae64e1223af62d72d85b306f766e92647fd6 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Wed, 2 Jun 2021 20:17:18 +0200
+Subject: [PATCH 42/46] BACKPORT: cpuidle: teo: Rework most recent idle
+ duration values treatment
+
+The TEO (Timer Events Oriented) cpuidle governor uses several most
+recent idle duration values for a given CPU to refine the idle state
+selection in case the previous long-term trends have not been
+followed recently and a new trend appears to be forming.  That is
+done by computing the average of the most recent idle duration
+values falling below the time till the next timer event ("sleep
+length"), provided that they are the majority of the most recent
+idle duration values taken into account, and using it as the new
+expected idle duration value.
+
+However, idle state selection based on that value may not be optimal,
+because the average does not really indicate which of the idle states
+with target residencies less than or equal to it is likely to be the
+best fit.
+
+Thus, instead of computing the average, make the governor carry out
+computations based on the distribution of the most recent idle
+duration values among the bins corresponding to different idle
+states.  Namely, if the majority of the most recent idle duration
+values taken into consideration are less than the current sleep
+length (which means that the CPU is likely to wake up early), find
+the idle state closest to the "candidate" one "matching" the sleep
+length whose target residency is less than or equal to the majority
+of the most recent idle duration values that have fallen below the
+current sleep length (which means that it is likely to be "shallow
+enough" this time).
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 155 +++++++++++++++-----------------
+ 1 file changed, 71 insertions(+), 84 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index d71e454acccd..ebb36446af1a 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -47,15 +47,20 @@
+  * length).  In turn, the "intercepts" metric reflects the relative frequency of
+  * situations in which the measured idle duration is so much shorter than the
+  * sleep length that the bin it falls into corresponds to an idle state
+- * shallower than the one whose bin is fallen into by the sleep length.
++ * shallower than the one whose bin is fallen into by the sleep length (these
++ * situations are referred to as "intercepts" below).
++ *
++ * In addition to the metrics described above, the governor counts recent
++ * intercepts (that is, intercepts that have occurred during the last NR_RECENT
++ * invocations of it for the given CPU) for each bin.
+  *
+  * In order to select an idle state for a CPU, the governor takes the following
+  * steps (modulo the possible latency constraint that must be taken into account
+  * too):
+  *
+  * 1. Find the deepest CPU idle state whose target residency does not exceed
+- *    the current sleep length (the candidate idle state) and compute two sums
+- *    as follows:
++ *    the current sleep length (the candidate idle state) and compute 3 sums as
++ *    follows:
+  *
+  *    - The sum of the "hits" and "intercepts" metrics for the candidate state
+  *      and all of the deeper idle states (it represents the cases in which the
+@@ -67,25 +72,29 @@
+  *      idle long enough to avoid being intercepted if the sleep length had been
+  *      equal to the current one).
+  *
+- * 2. If the second sum is greater than the first one, look for an alternative
+- *    idle state to select.
++ *    - The sum of the numbers of recent intercepts for all of the idle states
++ *      shallower than the candidate one.
++ *
++ * 2. If the second sum is greater than the first one or the third sum is
++ *    greater than NR_RECENT / 2, the CPU is likely to wake up early, so look
++ *    for an alternative idle state to select.
+  *
+  *    - Traverse the idle states shallower than the candidate one in the
+  *      descending order.
+  *
+- *    - For each of them compute the sum of the "intercepts" metrics over all of
+- *      the idle  states between it and the candidate one (including the former
+- *      and excluding the latter).
++ *    - For each of them compute the sum of the "intercepts" metrics and the sum
++ *      of the numbers of recent intercepts over all of the idle states between
++ *      it and the candidate one (including the former and excluding the
++ *      latter).
+  *
+- *    - If that sum is greater than a half of the second sum computed in step 1
+- *      (which means that the target residency of the state in question had not
+- *      exceeded the idle duration in over a half of the relevant cases), select
+- *      the given idle state instead of the candidate one.
++ *    - If each of these sums that needs to be taken into account (because the
++ *      check related to it has indicated that the CPU is likely to wake up
++ *      early) is greater than a half of the corresponding sum computed in step
++ *      1 (which means that the target residency of the state in question had
++ *      not exceeded the idle duration in over a half of the relevant cases),
++ *      select the given idle state instead of the candidate one.
+  *
+- * 3. If the majority of the most recent idle duration values are below the
+- *    current anticipated idle duration, use those values to compute the new
+- *    expected idle duration and find an idle state matching it (which has to
+- *    be shallower than the current candidate one).
++ * 3. By default, select the candidate state.
+  */
+ 
+ #include <linux/cpuidle.h>
+@@ -103,18 +112,20 @@
+ 
+ /*
+  * Number of the most recent idle duration values to take into consideration for
+- * the detection of wakeup patterns.
++ * the detection of recent early wakeup patterns.
+  */
+-#define INTERVALS	8
++#define NR_RECENT	9
+ 
+ /**
+  * struct teo_bin - Metrics used by the TEO cpuidle governor.
+  * @intercepts: The "intercepts" metric.
+  * @hits: The "hits" metric.
++ * @recent: The number of recent "intercepts".
+  */
+ struct teo_bin {
+ 	unsigned int intercepts;
+ 	unsigned int hits;
++	unsigned int recent;
+ };
+ 
+ /**
+@@ -124,17 +135,17 @@ struct teo_bin {
+  * @state_bins: Idle state data bins for this CPU.
+  * @total: Grand total of the "intercepts" and "hits" mertics for all bins.
+  * @last_state: Idle state entered by the CPU last time.
+- * @interval_idx: Index of the most recent saved idle interval.
+- * @intervals: Saved idle duration values.
++ * @next_recent_idx: Index of the next @recent_idx entry to update.
++ * @recent_idx: Indices of bins corresponding to recent "intercepts".
+  */
+ struct teo_cpu {
+ 	s64 time_span_ns;
+ 	s64 sleep_length_ns;
+ 	struct teo_bin state_bins[CPUIDLE_STATE_MAX];
+-	int last_state;
+-	int interval_idx;
+ 	unsigned int total;
+-	unsigned int intervals[INTERVALS];
++	int last_state;
++	int next_recent_idx;
++	int recent_idx[NR_RECENT];
+ };
+ 
+ static DEFINE_PER_CPU(struct teo_cpu, teo_cpus);
+@@ -205,26 +216,29 @@ static void teo_update(struct cpuidle_driver *drv, struct cpuidle_device *dev)
+ 		}
+ 	}
+ 
++	i = cpu_data->next_recent_idx++;
++	if (cpu_data->next_recent_idx >= NR_RECENT)
++		cpu_data->next_recent_idx = 0;
++
++	if (cpu_data->recent_idx[i] >= 0)
++		cpu_data->state_bins[cpu_data->recent_idx[i]].recent--;
++
+ 	/*
+ 	 * If the measured idle duration falls into the same bin as the sleep
+ 	 * length, this is a "hit", so update the "hits" metric for that bin.
+ 	 * Otherwise, update the "intercepts" metric for the bin fallen into by
+ 	 * the measured idle duration.
+ 	 */
+-	if (idx_timer == idx_duration)
++	if (idx_timer == idx_duration) {
+ 		cpu_data->state_bins[idx_timer].hits += PULSE;
+-	else
++		cpu_data->recent_idx[i] = -1;
++	} else {
+ 		cpu_data->state_bins[idx_duration].intercepts += PULSE;
++		cpu_data->state_bins[idx_duration].recent++;
++		cpu_data->recent_idx[i] = idx_duration;
++	}
+ 
+ 	cpu_data->total += PULSE;
+-
+-	/*
+-	 * Save idle duration values corresponding to non-timer wakeups for
+-	 * pattern detection.
+-	 */
+-	cpu_data->intervals[cpu_data->interval_idx++] = measured_us;
+-	if (cpu_data->interval_idx >= INTERVALS)
+-		cpu_data->interval_idx = 0;
+ }
+ 
+ static bool teo_time_ok(unsigned int interval_us)
+@@ -275,12 +289,15 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+ 	unsigned int idx_intercept_sum = 0;
+ 	unsigned int intercept_sum = 0;
++	unsigned int idx_recent_sum = 0;
++	unsigned int recent_sum = 0;
+ 	unsigned int idx_hit_sum = 0;
+ 	unsigned int hit_sum = 0;
+ 	int constraint_idx = 0;
+ 	int idx0 = 0, idx = -1;
+ 	int i;
+ 	int duration_us;
++	bool alt_intercepts, alt_recent;
+ 	ktime_t delta_tick;
+ 
+ 	if (cpu_data->last_state >= 0) {
+@@ -321,6 +338,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		 */
+ 		intercept_sum += prev_bin->intercepts;
+ 		hit_sum += prev_bin->hits;
++		recent_sum += prev_bin->recent;
+ 
+ 		if (dev->states_usage[i].disable)
+ 			continue;
+@@ -340,6 +358,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 		idx_intercept_sum = intercept_sum;
+ 		idx_hit_sum = hit_sum;
++		idx_recent_sum = recent_sum;
+ 	}
+ 
+ 	/* Avoid unnecessary overhead. */
+@@ -354,27 +373,36 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	 * If the sum of the intercepts metric for all of the idle states
+ 	 * shallower than the current candidate one (idx) is greater than the
+ 	 * sum of the intercepts and hits metrics for the candidate state and
+-	 * all of the deeper states, the CPU is likely to wake up early, so find
+-	 * an alternative idle state to select.
++	 * all of the deeper states, or the sum of the numbers of recent
++	 * intercepts over all of the states shallower than the candidate one
++	 * is greater than a half of the number of recent events taken into
++	 * account, the CPU is likely to wake up early, so find an alternative
++	 * idle state to select.
+ 	 */
+-	if (2 * idx_intercept_sum > cpu_data->total - idx_hit_sum) {
++	alt_intercepts = 2 * idx_intercept_sum > cpu_data->total - idx_hit_sum;
++	alt_recent = idx_recent_sum > NR_RECENT / 2;
++	if (alt_recent || alt_intercepts) {
+ 		s64 last_enabled_span_us = duration_us;
+ 		int last_enabled_idx = idx;
+ 
+ 		/*
+ 		 * Look for the deepest idle state whose target residency had
+ 		 * not exceeded the idle duration in over a half of the relevant
+-		 * cases in the past.
++		 * cases (both with respect to intercepts overall and with
++		 * respect to the recent intercepts only) in the past.
+ 		 *
+ 		 * Take the possible latency constraint and duration limitation
+ 		 * present if the tick has been stopped already into account.
+ 		 */
+ 		intercept_sum = 0;
++		recent_sum = 0;
+ 
+ 		for (i = idx - 1; i >= idx0; i--) {
++			struct teo_bin *bin = &cpu_data->state_bins[i];
+ 			s64 span_us;
+ 
+-			intercept_sum += cpu_data->state_bins[i].intercepts;
++			intercept_sum += bin->intercepts;
++			recent_sum += bin->recent;
+ 
+ 			if (dev->states_usage[i].disable)
+ 				continue;
+@@ -390,7 +418,9 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 				break;
+ 			}
+ 
+-			if (2 * intercept_sum > idx_intercept_sum) {
++			if ((!alt_recent || 2 * recent_sum > idx_recent_sum) &&
++			    (!alt_intercepts ||
++			     2 * intercept_sum > idx_intercept_sum)) {
+ 				idx = i;
+ 				duration_us = span_us;
+ 				break;
+@@ -408,49 +438,6 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	if (idx > constraint_idx)
+ 		idx = constraint_idx;
+ 
+-	if (idx > idx0) {
+-		unsigned int count = 0;
+-		u64 sum = 0;
+-
+-		/*
+-		 * The target residencies of at least two different enabled idle
+-		 * states are less than or equal to the current expected idle
+-		 * duration.  Try to refine the selection using the most recent
+-		 * measured idle duration values.
+-		 *
+-		 * Count and sum the most recent idle duration values less than
+-		 * the current expected idle duration value.
+-		 */
+-		for (i = 0; i < INTERVALS; i++) {
+-			unsigned int val = cpu_data->intervals[i];
+-
+-			if (val >= duration_us)
+-				continue;
+-
+-			count++;
+-			sum += val;
+-		}
+-
+-		/*
+-		 * Give up unless the majority of the most recent idle duration
+-		 * values are in the interesting range.
+-		 */
+-		if (count > INTERVALS / 2) {
+-			unsigned int avg_us = div64_u64(sum, count);
+-
+-			/*
+-			 * Avoid spending too much time in an idle state that
+-			 * would be too shallow.
+-			 */
+-			if (teo_time_ok(avg_us)) {
+-				duration_us = avg_us;
+-				if (drv->states[idx].target_residency > avg_us)
+-					idx = teo_find_shallower_state(drv, dev,
+-								       idx, avg_us);
+-			}
+-		}
+-	}
+-
+ end:
+ 	/*
+ 	 * Don't stop the tick if the selected state is a polling one or if the
+@@ -513,8 +500,8 @@ static int teo_enable_device(struct cpuidle_driver *drv,
+ 
+ 	memset(cpu_data, 0, sizeof(*cpu_data));
+ 
+-	for (i = 0; i < INTERVALS; i++)
+-		cpu_data->intervals[i] = UINT_MAX;
++	for (i = 0; i < NR_RECENT; i++)
++		cpu_data->recent_idx[i] = -1;
+ 
+ 	return 0;
+ }
+
+From 6709e6dd8c1752cc7fb34cb0847e3df4d7f39fcf Mon Sep 17 00:00:00 2001
+From: Wan Jiabing <wanjiabing@vivo.com>
+Date: Tue, 15 Jun 2021 19:49:20 +0800
+Subject: [PATCH 43/46] BACKPORT: cpuidle: teo: remove unneeded semicolon in
+ teo_select()
+
+Fix following coccicheck warning:
+drivers/cpuidle/governors/teo.c:315:10-11: Unneeded semicolon
+
+Signed-off-by: Wan Jiabing <wanjiabing@vivo.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index ebb36446af1a..f9f4916d0ec6 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -312,7 +312,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 
+ 	/* Check if there is any choice in the first place. */
+ 	if (drv->state_count < 2) {
+-		idx = 0;;
++		idx = 0;
+ 		goto end;
+ 	}
+ 	if (!dev->states_usage[0].disable) {
+
+From e6353ba40380d862285d1e67a56f85b4f84bca57 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Fri, 30 Jul 2021 16:38:07 +0200
+Subject: [PATCH 44/46] BACKPORT: cpuidle: teo: Fix alternative idle state
+ lookup
+
+There are three mistakes in the loop in teo_select() that is looking
+for an alternative candidate idle state.  First, it should walk all
+of the idle states shallower than the current candidate one,
+including all of the disabled ones, but it terminates after the first
+enabled idle state.  Second, it should not terminate its last step
+if idle state 0 is disabled (which is related to the first issue).
+Finally, it may return the current alternative candidate idle state
+prematurely if the time span criterion is not met by the idle state
+under consideration at the moment.
+
+To address the issues mentioned above, make the loop in question walk
+all of the idle states shallower than the current candidate idle state
+all the way down to idle state 0 and rearrange the checks in it.
+
+Fixes: 77577558f25d ("cpuidle: teo: Rework most recent idle duration values treatment")
+Reported-by: Doug Smythies <dsmythies@telus.net>
+Tested-by: Doug Smythies <dsmythies@telus.net>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 40 ++++++++++++++++++++++-----------
+ 1 file changed, 27 insertions(+), 13 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index f9f4916d0ec6..4be535ab14b8 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -397,32 +397,46 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		intercept_sum = 0;
+ 		recent_sum = 0;
+ 
+-		for (i = idx - 1; i >= idx0; i--) {
++		for (i = idx - 1; i >= 0; i--) {
+ 			struct teo_bin *bin = &cpu_data->state_bins[i];
+ 			s64 span_us;
+ 
+ 			intercept_sum += bin->intercepts;
+ 			recent_sum += bin->recent;
+ 
++			span_us = teo_middle_of_bin(i, drv);
++
++			if ((!alt_recent || 2 * recent_sum > idx_recent_sum) &&
++			    (!alt_intercepts ||
++			     2 * intercept_sum > idx_intercept_sum)) {
++				if (teo_time_ok(span_us) &&
++				    !dev->states_usage[i].disable) {
++					idx = i;
++					duration_us = span_us;
++				} else {
++					/*
++					 * The current state is too shallow or
++					 * disabled, so take the first enabled
++					 * deeper state with suitable time span.
++					 */
++					idx = last_enabled_idx;
++					duration_us = last_enabled_span_us;
++				}
++				break;
++			}
++
+ 			if (dev->states_usage[i].disable)
+ 				continue;
+ 
+-			span_us = teo_middle_of_bin(i, drv);
+ 			if (!teo_time_ok(span_us)) {
+ 				/*
+-				 * The current state is too shallow, so select
+-				 * the first enabled deeper state.
++				 * The current state is too shallow, but if an
++				 * alternative candidate state has been found,
++				 * it may still turn out to be a better choice.
+ 				 */
+-				duration_us = last_enabled_span_us;
+-				idx = last_enabled_idx;
+-				break;
+-			}
++				if (last_enabled_idx != idx)
++					continue;
+ 
+-			if ((!alt_recent || 2 * recent_sum > idx_recent_sum) &&
+-			    (!alt_intercepts ||
+-			     2 * intercept_sum > idx_intercept_sum)) {
+-				idx = i;
+-				duration_us = span_us;
+ 				break;
+ 			}
+ 
+
+From 490ee273570d5320563b897850609e6f33784793 Mon Sep 17 00:00:00 2001
+From: "Rafael J. Wysocki" <rafael.j.wysocki@intel.com>
+Date: Fri, 30 Jul 2021 16:38:52 +0200
+Subject: [PATCH 45/46] BACKPORT: cpuidle: teo: Rename two local variables in
+ teo_select()
+
+Rename two local variables in teo_select() so that their names better
+reflect their purpose.
+
+No functional impact.
+
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 4be535ab14b8..33ff3dadb658 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -382,8 +382,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 	alt_intercepts = 2 * idx_intercept_sum > cpu_data->total - idx_hit_sum;
+ 	alt_recent = idx_recent_sum > NR_RECENT / 2;
+ 	if (alt_recent || alt_intercepts) {
+-		s64 last_enabled_span_us = duration_us;
+-		int last_enabled_idx = idx;
++		s64 first_suitable_span_us = duration_us;
++		int first_suitable_idx = idx;
+ 
+ 		/*
+ 		 * Look for the deepest idle state whose target residency had
+@@ -419,8 +419,8 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 					 * disabled, so take the first enabled
+ 					 * deeper state with suitable time span.
+ 					 */
+-					idx = last_enabled_idx;
+-					duration_us = last_enabled_span_us;
++					idx = first_suitable_idx;
++					duration_us = first_suitable_span_us;
+ 				}
+ 				break;
+ 			}
+@@ -434,14 +434,14 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 				 * alternative candidate state has been found,
+ 				 * it may still turn out to be a better choice.
+ 				 */
+-				if (last_enabled_idx != idx)
++				if (first_suitable_idx != idx)
+ 					continue;
+ 
+ 				break;
+ 			}
+ 
+-			last_enabled_span_us = span_us;
+-			last_enabled_idx = i;
++			first_suitable_span_us = span_us;
++			first_suitable_idx = i;
+ 		}
+ 	}
+ 
+
+From d0e19e37c0b78e90ede151ac3525ec49282bb554 Mon Sep 17 00:00:00 2001
+From: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Date: Thu, 5 Jan 2023 14:51:58 +0000
+Subject: [PATCH 46/46] BACKPORT: cpuidle: teo: Optionally skip polling states
+ in teo_find_shallower_state()
+
+Add a no_poll flag to teo_find_shallower_state() that will let the
+function optionally not consider polling states.
+
+This allows the caller to guard against the function inadvertently
+resulting in TEO putting the CPU in a polling state when that
+behaviour is undesirable.
+
+Signed-off-by: Kajetan Puchalski <kajetan.puchalski@arm.com>
+Signed-off-by: Rafael J. Wysocki <rafael.j.wysocki@intel.com>
+[ Tashar02: Backport to k4.19 ]
+Signed-off-by: Tashfin Shakeer Rhythm <tashfinshakeerrhythm@gmail.com>
+Signed-off-by: Cyber Knight <cyberknight755@gmail.com>
+Signed-off-by: Naveen <133593113+elohim-etz@users.noreply.github.com>
+---
+ drivers/cpuidle/governors/teo.c | 8 +++++---
+ 1 file changed, 5 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 33ff3dadb658..f376f4caccb4 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -258,15 +258,17 @@ static unsigned int teo_middle_of_bin(int idx, struct cpuidle_driver *drv)
+  * @dev: Target CPU.
+  * @state_idx: Index of the capping idle state.
+  * @duration_us: Idle duration value to match.
++ * @no_poll: Don't consider polling states.
+  */
+ static int teo_find_shallower_state(struct cpuidle_driver *drv,
+ 				    struct cpuidle_device *dev, int state_idx,
+-				    int duration_us)
++				    int duration_us, bool no_poll)
+ {
+ 	int i;
+ 
+ 	for (i = state_idx - 1; i >= 0; i--) {
+-		if (dev->states_usage[i].disable)
++		if (dev->states_usage[i].disable ||
++				(no_poll && drv->states[i].flags & CPUIDLE_FLAG_POLLING))
+ 			continue;
+ 
+ 		state_idx = i;
+@@ -471,7 +473,7 @@ static int teo_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		 */
+ 		if (idx > idx0 &&
+ 		    drv->states[idx].target_residency > delta_tick_us)
+-			idx = teo_find_shallower_state(drv, dev, idx, delta_tick_us);
++			idx = teo_find_shallower_state(drv, dev, idx, delta_tick_us, false);
+ 	}
+ 
+ 	return idx;
