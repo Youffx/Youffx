@@ -339,7 +339,7 @@ jobs:
                   fi
                 else
                   echo "No conflict markers found, attempting fallback application..."
-                  git am --abort || true
+                  git am --abort 2>/dev/null || true
                   git reset --hard "$BEFORE_COMMIT"
                   git clean -fd
 
@@ -351,8 +351,9 @@ jobs:
                     fi
                   else
                     echo "Fallback git apply failed, trying patch utility..."
-                    if patch -p1 --fuzz=3 < "$split_patch"; then
+                    if patch -p1 --fuzz=3 --no-backup-if-mismatch < "$split_patch"; then
                       if [ -z "$(find . -name '*.rej')" ]; then
+                        find . -name '*.orig' -delete
                         git add -A
                         if git commit -m "$SUBJECT"; then
                           AM_SUCCESS=true
@@ -396,7 +397,7 @@ jobs:
               else
                 echo "Commit FAILED -> SKIPPED"
 
-                git am --abort || true
+                git am --abort 2>/dev/null || true
                 git reset --hard "$BEFORE_COMMIT"
                 git clean -fd
 
