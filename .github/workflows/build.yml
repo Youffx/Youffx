@@ -1,4 +1,4 @@
-name: PGO
+name: Pochita
 
 on:
   workflow_dispatch:
@@ -13,6 +13,11 @@ on:
         default: ""
       use_llvm22:
         description: "LLVM 22"
+        required: false
+        type: boolean
+        default: false
+      use_pgo:
+        description: 'Enable PGO Optimization'
         required: false
         type: boolean
         default: false
@@ -130,6 +135,7 @@ jobs:
           ccache -z
 
       - name: Prepare PGO Profile
+        if: ${{ github.event.inputs.use_pgo == 'true' }}
         env:
           PGO_URL: ${{ secrets.PGO_FILE }}
         run: |
@@ -405,6 +411,7 @@ jobs:
           ccache -z
 
       - name: Prepare PGO Profile
+        if: ${{ github.event.inputs.use_pgo == 'true' }}
         env:
           PGO_URL: ${{ secrets.PGO_FILE }}
         run: |
