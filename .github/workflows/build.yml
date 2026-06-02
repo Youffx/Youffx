@@ -565,7 +565,7 @@ jobs:
             -d chat_id="$CHATID" \
             --data-urlencode text="$TEXT"
   
-Release:
+  Release:
     name: Release
     needs: [build-ksu, build-nonksu]
     runs-on: ubuntu-latest
