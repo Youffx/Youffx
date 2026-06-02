@@ -19,10 +19,10 @@
     "susfs": true
   },
   {
-    "name": "R0-rebase",
+    "name": "CI Release",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "e-merge",
+      "branch": "master-x",
       "fetchDepth": 1
     },
     "root": {
