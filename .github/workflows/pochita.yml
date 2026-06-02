@@ -25,7 +25,7 @@ jobs:
 
           JSON_PAYLOAD=$(jq -n --arg pr "${{ github.event.inputs.question }}" '{contents: [{parts: [{text: $pr}]}]}')
 
-          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=$GEMINI_KEY" \
             -H "Content-Type: application/json" \
             -d "$JSON_PAYLOAD")
 
