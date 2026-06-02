@@ -1,0 +1,1407 @@
+From 2c83490508c0ec45a5d2671b59919f938698f52f Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Mon, 13 Apr 2026 20:06:36 +0700
+Subject: [PATCH 01/10] vanilla: dev: Enable EROFS and SDCARD filesystem
+ options
+
+---
+ arch/arm64/configs/rosemary_defconfig | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index bd70ee3bc0f3..8efa8dee0a8f 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -466,3 +466,17 @@ CONFIG_SCHEDSTATS=y
+ CONFIG_RCU_CPU_STALL_TIMEOUT=60
+ CONFIG_FAULT_INJECTION=y
+ CONFIG_ENABLE_DEFAULT_TRACERS=y
++CONFIG_EROFS_FS=y
++CONFIG_EROFS_FS_ZIP=y
++CONFIG_EROFS_FS_POSIX_ACL=y
++CONFIG_EROFS_FS_SECURITY=y
++CONFIG_EROFS_FS_PCPU_KTHREAD=y
++CONFIG_EROFS_FS_PCPU_KTHREAD_HIPRI=y
++CONFIG_SDCARD_FS=y
++CONFIG_LOCALVERSION="-LandVe"
++CONFIG_LOCALVERSION_AUTO=n
++CONFIG_KPM=n
++CONFIG_KSU=y 
++CONFIG_KSU_LSM_SECURITY_HOOKS=y
++CONFIG_KSU_KPROBES_HOOK=n
++CONFIG_KSU_MANUAL_HOOK=y
+
+From e7a860f17a5ca3791d7eb6ebdb0794dad9cb7ff0 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Wed, 15 Apr 2026 12:30:00 +0700
+Subject: [PATCH 02/10] BACKPORT: fs: path_umount for KernelSu
+
+---
+ fs/internal.h  |  1 +
+ fs/namespace.c | 46 ++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/fs/internal.h b/fs/internal.h
+index 2e7362837a6e..f52eef0a3955 100644
+--- a/fs/internal.h
++++ b/fs/internal.h
+@@ -88,6 +88,7 @@ extern int finish_automount(struct vfsmount *, struct path *);
+ extern int sb_prepare_remount_readonly(struct super_block *);
+ 
+ extern void __init mnt_init(void);
++int path_umount(struct path *path, int flags);
+ 
+ extern int __mnt_want_write_file(struct file *);
+ extern void __mnt_drop_write_file(struct file *);
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 3c961d780a4f..24e55794c209 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1696,6 +1696,52 @@ static inline bool may_mandlock(void)
+ }
+ #endif
+ 
++/**
++ * path_mounted - check whether path is mounted
++ * @path: path to check
++ *
++ * Determine whether @path refers to the root of a mount.
++ *
++ * Return: true if @path is the root of a mount, false if not.
++ */
++static inline bool path_mounted(const struct path *path)
++{
++	return path->mnt->mnt_root == path->dentry;
++}
++
++static int can_umount(const struct path *path, int flags)
++{
++	struct mount *mnt = real_mount(path->mnt);
++
++	if (!may_mount())
++		return -EPERM;
++	if (!path_mounted(path))
++		return -EINVAL;
++	if (!check_mnt(mnt))
++		return -EINVAL;
++	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
++		return -EINVAL;
++	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
++		return -EPERM;
++	return 0;
++}
++
++// caller is responsible for flags being sane
++int path_umount(struct path *path, int flags)
++{
++	struct mount *mnt = real_mount(path->mnt);
++	int ret;
++
++	ret = can_umount(path, flags);
++	if (!ret)
++		ret = do_umount(mnt, flags);
++	
++	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
++	dput(path->dentry);
++	mntput_no_expire(mnt);
++	return ret;
++}
++
+ /*
+  * Now umount can handle mount points as well as block devices.
+  * This is important for filesystems which use unnamed block devices.
+
+From 5df81c02d3d1f46ce02b1c44a253a78a4d0c8a96 Mon Sep 17 00:00:00 2001
+From: backslashxx <118538522+backslashxx@users.noreply.github.com>
+Date: Wed, 25 Mar 2026 23:11:57 -0300
+Subject: [PATCH 03/10] treewide: Import scope-minimized manual KernelSU hooks
+ v1.9
+
+* https://github.com/backslashxx/KernelSU/issues/5
+
+Signed-off-by: Flopster101 <nahuelgomez329@gmail.com>
+---
+ drivers/input/input.c | 11 +++++++++++
+ fs/exec.c             | 27 +++++++++++++++++++++++++--
+ fs/open.c             |  9 +++++++++
+ fs/stat.c             | 26 ++++++++++++++++++++++++++
+ kernel/reboot.c       |  9 +++++++++
+ 5 files changed, 80 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index 70ffffea3e58..76f62f9c4220 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -378,11 +378,22 @@ static int input_get_disposition(struct input_dev *dev,
+ 	return disposition;
+ }
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++extern bool ksu_input_hook __read_mostly;
++extern int ksu_handle_input_handle_event(unsigned int *type,
++					 unsigned int *code, int *value);
++#endif
++
+ static void input_handle_event(struct input_dev *dev,
+ 			       unsigned int type, unsigned int code, int value)
+ {
+ 	int disposition = input_get_disposition(dev, type, code, &value);
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	if (unlikely(ksu_input_hook))
++		ksu_handle_input_handle_event(&type, &code, &value);
++#endif
++
+ 	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
+ 		add_input_randomness(type, code, value);
+ 
+diff --git a/fs/exec.c b/fs/exec.c
+index 9a70a2f943d8..113cb4ad75a0 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1993,12 +1993,26 @@ void set_dumpable(struct mm_struct *mm, int value)
+ 	} while (cmpxchg(&mm->flags, old, new) != old);
+ }
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
++				      void *argv, void *envp, int *flags);
++#endif
++
+ SYSCALL_DEFINE3(execve,
+ 		const char __user *, filename,
+ 		const char __user *const __user *, argv,
+ 		const char __user *const __user *, envp)
+ {
+-	return do_execve(getname(filename), argv, envp);
++	struct filename *execve_filename = getname(filename);
++
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	int ksu_fd = AT_FDCWD;
++
++	ksu_handle_execveat(&ksu_fd, &execve_filename,
++			   (void *)&argv, (void *)&envp, NULL);
++#endif
++
++	return do_execve(execve_filename, argv, envp);
+ }
+ 
+ SYSCALL_DEFINE5(execveat,
+@@ -2019,7 +2033,16 @@ COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
+ 	const compat_uptr_t __user *, argv,
+ 	const compat_uptr_t __user *, envp)
+ {
+-	return compat_do_execve(getname(filename), argv, envp);
++	struct filename *execve_filename = getname(filename);
++
++#ifdef CONFIG_KSU_MANUAL_HOOK /* 32-bit ksud and 32-on-64 support */
++	int ksu_fd = AT_FDCWD;
++
++	ksu_handle_execveat(&ksu_fd, &execve_filename,
++			   (void *)&argv, (void *)&envp, NULL);
++#endif
++
++	return compat_do_execve(execve_filename, argv, envp);
+ }
+ 
+ COMPAT_SYSCALL_DEFINE5(execveat, int, fd,
+diff --git a/fs/open.c b/fs/open.c
+index 8c63b52d3073..c68bb150c25a 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -451,8 +451,17 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
+ 	return res;
+ }
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++				       int *mode, int *flags);
++#endif
++
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
++
+ 	return do_faccessat(dfd, filename, mode);
+ }
+ 
+diff --git a/fs/stat.c b/fs/stat.c
+index 376543199b5a..cf986400d0bc 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -353,6 +353,12 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
++extern void ksu_handle_newfstat_ret(unsigned int *fd,
++				    struct stat __user **statbuf_ptr);
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -360,6 +366,10 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -375,6 +385,11 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
+ 	if (!error)
+ 		error = cp_new_stat(&stat, statbuf);
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	if (!error)
++		ksu_handle_newfstat_ret(&fd, &statbuf);
++#endif
++
+ 	return error;
+ }
+ 
+@@ -510,6 +525,10 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	ksu_handle_stat(&dfd, &filename, &flag); /* 32-bit su support */
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -650,6 +669,13 @@ COMPAT_SYSCALL_DEFINE4(newfstatat, unsigned int, dfd,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	int ksu_dfd = (int)dfd;
++
++	ksu_handle_stat(&ksu_dfd, &filename, &flag); /* 32-bit su support */
++	dfd = (unsigned int)ksu_dfd;
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+index 3a87fee47d3a..200f535aaa2d 100644
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -297,6 +297,11 @@ EXPORT_SYMBOL_GPL(kernel_power_off);
+ 
+ DEFINE_MUTEX(system_transition_mutex);
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
++				 void __user **arg);
++#endif
++
+ /*
+  * Reboot system call: for obvious reasons only root may call it,
+  * and even root needs to set up some magic numbers in the registers
+@@ -312,6 +317,10 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 	char buffer[256];
+ 	int ret = 0;
+ 
++#ifdef CONFIG_KSU_MANUAL_HOOK
++	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++#endif
++
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
+ 		return -EPERM;
+
+From 7e30da10469fb8545fe5b1ce6d81cbab3bdefc53 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Thu, 16 Apr 2026 01:55:34 +0700
+Subject: [PATCH 04/10] defconfig: add config for non ksu build
+
+---
+ arch/arm64/configs/dev_defconfig | 480 +++++++++++++++++++++++++++++++
+ 1 file changed, 480 insertions(+)
+ create mode 100644 arch/arm64/configs/dev_defconfig
+
+diff --git a/arch/arm64/configs/dev_defconfig b/arch/arm64/configs/dev_defconfig
+new file mode 100644
+index 000000000000..c3132b3a1187
+--- /dev/null
++++ b/arch/arm64/configs/dev_defconfig
+@@ -0,0 +1,480 @@
++CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE=y
++CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE=y
++CONFIG_BUILD_ARM64_APPENDED_DTB_IMAGE_NAMES="mediatek/mt6785"
++CONFIG_BUILD_ARM64_DTB_OVERLAY_IMAGE_NAMES="mediatek/rosemary"
++CONFIG_PREEMPT=y
++CONFIG_IKHEADERS=y
++CONFIG_LOG_BUF_SHIFT=21
++CONFIG_UCLAMP_TASK=y
++CONFIG_UCLAMP_TASK_GROUP=y
++CONFIG_CPUSETS=y
++CONFIG_BLK_CGROUP=y
++# CONFIG_RD_BZIP2 is not set
++# CONFIG_RD_LZMA is not set
++# CONFIG_RD_XZ is not set
++# CONFIG_RD_LZO is not set
++# CONFIG_RD_LZ4 is not set
++CONFIG_SYSCTL_SYSCALL=y
++# CONFIG_FHANDLE is not set
++CONFIG_KALLSYMS_ALL=y
++# CONFIG_KALLSYMS_BASE_RELATIVE is not set
++CONFIG_MTK_SCHED_EXTENSION=y
++CONFIG_MTK_IDLE_BALANCE_ENHANCEMENT=y
++CONFIG_MTK_SCHED_INTEROP=y
++CONFIG_MTK_SCHED_LB_ENHANCEMENT=y
++CONFIG_MTK_SCHED_TRACERS=y
++CONFIG_MTK_SCHED_CPU_PREFER=y
++CONFIG_MTK_SCHED_BIG_TASK_MIGRATE=y
++# CONFIG_SLUB_DEBUG is not set
++CONFIG_MACH_MT6785=y
++CONFIG_CFQ_GROUP_IOSCHED=y
++CONFIG_SCHED_MC=y
++CONFIG_NR_CPUS=8
++CONFIG_RANDOMIZE_BASE=y
++CONFIG_CMDLINE="console=tty0 console=ttyMT3,921600n1 root=/dev/ram vmalloc=496M slub_max_order=0 slub_debug=O "
++# CONFIG_EFI is not set
++CONFIG_WQ_POWER_EFFICIENT_DEFAULT=y
++CONFIG_ENERGY_MODEL=y
++CONFIG_CPU_FREQ=y
++CONFIG_CPU_FREQ_STAT=y
++CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
++CONFIG_CPU_FREQ_GOV_POWERSAVE=y
++CONFIG_CPU_FREQ_GOV_USERSPACE=y
++CONFIG_CPU_FREQ_GOV_ONDEMAND=y
++CONFIG_KPROBES=y
++CONFIG_MODULE_SRCVERSION_ALL=y
++# CONFIG_BLK_DEV_BSG is not set
++CONFIG_BLK_INLINE_ENCRYPTION=y
++CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK=y
++# CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS is not set
++CONFIG_ZSMALLOC=y
++CONFIG_XFRM_MIGRATE=y
++CONFIG_SYN_COOKIES=y
++CONFIG_XDP_SOCKETS=y
++CONFIG_TCP_CONG_WESTWOOD=y
++CONFIG_TCP_CONG_HTCP=y
++CONFIG_VLAN_8021Q=y
++CONFIG_CLS_U32_PERF=y
++CONFIG_CLS_U32_MARK=y
++CONFIG_CFG80211=y
++CONFIG_NL80211_TESTMODE=y
++CONFIG_CFG80211_DEVELOPER_WARNINGS=y
++CONFIG_NF_CONNTRACK_PROCFS=y
++# CONFIG_CFG80211_DEFAULT_PS is not set
++# CONFIG_UEVENT_HELPER is not set
++# CONFIG_FW_CACHE is not set
++CONFIG_ZRAM=y
++CONFIG_BLK_DEV_LOOP_MIN_COUNT=16
++CONFIG_ANDROID_DEFAULT_SETTING=y
++CONFIG_MTK_ANDROID_DEFAULT_SETTING=y
++CONFIG_MTK_PLATFORM="mt6785"
++CONFIG_ARCH_MTK_PROJECT="rosemary"
++CONFIG_TARGET_PROJECT_K7B=y
++CONFIG_MTK_PTPOD=y
++CONFIG_MTK_STATIC_POWER=y
++CONFIG_MTK_UNIFY_POWER=y
++CONFIG_MTK_APUSYS_MDLA_SUPPORT=y
++CONFIG_MTK_CPU_FREQ=y
++CONFIG_MTK_PBM=y
++CONFIG_MTK_PMIC_NEW_ARCH=y
++CONFIG_MTK_PMIC_COMMON=y
++CONFIG_MTK_PMIC_CHIP_MT6359=y
++CONFIG_MTK_EXTERNAL_CHARGER_TYPE_DETECT=y
++CONFIG_MFD_MT6360_PMU=y
++CONFIG_MT6360_PMU_CHARGER=y
++CONFIG_MT6360_PMU_FLED=y
++CONFIG_MT6360_PMIC=y
++CONFIG_MT6360_LDO=y
++CONFIG_MTK_PMIC_WRAP_HAL=y
++CONFIG_BATTERY_MAXIM=y
++CONFIG_CHARGER_TI=y
++CONFIG_BQ2597X_CHARGE_PUMP=y
++CONFIG_LN8000_CHARGE_PUMP=y
++CONFIG_BATT_VERIFY=y
++CONFIG_ONEWIRE_GPIO=y
++CONFIG_BATT_VERIFY_BY_DS28E16=y
++CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov64b40semco_mipi_raw ov64b40ofilm_mipi_raw ov13b10sunny_mipi_raw ov13b10ofilm_mipi_raw imx355ofilm_mipi_raw imx355sunny_mipi_raw ov02b1bofilm_mipi_raw gc02m1ofilm_mipi_raw gc02m1sunny_mipi_raw gc02m1bsunny_mipi_mono"
++CONFIG_MTK_LCM=y
++CONFIG_CUSTOM_KERNEL_LCM="dsi_panel_k7_38_0c_0a_fhdp_video dsi_panel_k7_44_06_0b_fhdp_video dsi_panel_k7_44_0e_0b_fhdp_video"
++CONFIG_MTK_SYNC=y
++CONFIG_MTK_FB=y
++CONFIG_MTK_LCM_PHYSICAL_ROTATION="0"
++CONFIG_MTK_ROUND_CORNER_SUPPORT=y
++CONFIG_LCM_HEIGHT="2400"
++CONFIG_LCM_WIDTH="1080"
++CONFIG_BACKLIGHT_SUPPORT_2047_FEATURE=y
++CONFIG_ADB_WRITE_PARAM_FEATURE=y
++CONFIG_ADB_WRITE_CMD_FEATURE=y
++CONFIG_MTK_AAL_SUPPORT=y
++CONFIG_MTK_M4U=y
++CONFIG_MTK_FLASHLIGHT=y
++CONFIG_MTK_FLASHLIGHT_MT6360=y
++CONFIG_MTK_FLASHLIGHT_PT=y
++CONFIG_MTK_FLASHLIGHT_PT_STRICT=y
++CONFIG_MTK_FLASHLIGHT_DLPT=y
++CONFIG_MTK_IMGSENSOR=y
++CONFIG_MTK_LENS=y
++CONFIG_MTK_CAM_CAL=y
++CONFIG_MTK_CMDQ_V3=y
++CONFIG_MTK_CMDQ=y
++CONFIG_MTK_VPU_SUPPORT=y
++CONFIG_MTK_SMI_EXT=y
++CONFIG_MTK_JPEG=y
++CONFIG_MTK_CCU=y
++CONFIG_MTK_DRM_KEY_MNG_SUPPORT=y
++CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT=y
++CONFIG_MTK_DRE30_SUPPORT=y
++# CONFIG_MTK_CAM_SECURITY_SUPPORT is not set
++# CONFIG_MTK_CAM_GENIEZONE_SUPPORT is not set
++CONFIG_MTK_SENSOR_SUPPORT=y
++CONFIG_MTK_SENSOR_ARCHITECTURE="1.0"
++CONFIG_CUSTOM_KERNEL_ACCELEROMETER=y
++CONFIG_MTK_ACCELHUB=y
++CONFIG_CUSTOM_KERNEL_ALSPS=y
++CONFIG_MTK_ALSPSHUB=y
++CONFIG_CUSTOM_KERNEL_GYROSCOPE=y
++CONFIG_MTK_GYROHUB=y
++CONFIG_CUSTOM_KERNEL_MAGNETOMETER=y
++CONFIG_MTK_MAGHUB=y
++CONFIG_MTK_HWMON=y
++CONFIG_CUSTOM_KERNEL_BAROMETER=y
++CONFIG_MTK_BAROHUB=y
++CONFIG_CUSTOM_KERNEL_STEP_COUNTER=y
++CONFIG_MTK_STEPSIGNHUB=y
++CONFIG_CUSTOM_KERNEL_SITUATION=y
++CONFIG_MTK_STATHUB=y
++CONFIG_MTK_WAKEHUB=y
++CONFIG_MTK_SAR_HUB=y
++# CONFIG_MTK_GRAVITYHUB is not set
++CONFIG_MTK_GLGHUB=y
++CONFIG_MTK_PICKUPHUB=y
++CONFIG_MTK_DEVICE_ORIENTATION_HUB=y
++CONFIG_MTK_MOTION_DETECT_HUB=y
++CONFIG_MTK_TILTDETECTHUB=y
++CONFIG_CUSTOM_KERNEL_SENSORHUB=y
++CONFIG_CUSTOM_KERNEL_SENSOR_CAL=y
++CONFIG_NFC_CHIP_SUPPORT=y
++CONFIG_MTK_NFC_CLKBUF_ENABLE=y
++CONFIG_MTK_LIGHTSECONDARY_HUB=y
++CONFIG_AW8622_HAPTIC=y
++CONFIG_SPI_SPIDEV=y
++# CONFIG_SIMTRAY_STATUS is not set
++# CONFIG_ANT_CHECK is not set
++# CONFIG_ANT_CHECK_DIV is not set
++CONFIG_NANOHUB=y
++CONFIG_NANOHUB_MTK_IPI=y
++CONFIG_CUSTOM_KERNEL_SENSOR_FUSION=y
++CONFIG_CUSTOM_KERNEL_GRV_SENSOR=y
++CONFIG_CUSTOM_KERNEL_GMRV_SENSOR=y
++CONFIG_CUSTOM_KERNEL_RV_SENSOR=y
++CONFIG_CUSTOM_KERNEL_LINEARACCEL_SENSOR=y
++CONFIG_CUSTOM_KERNEL_GRAVITY_SENSOR=y
++CONFIG_CUSTOM_KERNEL_UNCALI_ACC_SENSOR=y
++CONFIG_CUSTOM_KERNEL_UNCALI_GYRO_SENSOR=y
++CONFIG_CUSTOM_KERNEL_UNCALI_MAG_SENSOR=y
++CONFIG_MTK_UNCALI_MAGHUB=y
++CONFIG_MTK_UNCALI_GYROHUB=y
++CONFIG_MTK_UNCALI_ACCHUB=y
++CONFIG_MTK_CCCI_DEVICES=y
++CONFIG_MTK_MD1_SUPPORT=12
++CONFIG_MTK_ECCCI_DRIVER=y
++CONFIG_MTK_ECCCI_C2K=y
++CONFIG_MTK_BTIF=y
++CONFIG_WLAN_DRV_BUILD_IN=y
++CONFIG_MTK_COMBO_CHIP_CONSYS_6785=y
++CONFIG_MTK_CONNFEM=y
++CONFIG_MTK_COMBO=y
++CONFIG_MTK_COMBO_BT=y
++CONFIG_MTK_COMBO_GPS=y
++CONFIG_MTK_COMBO_WIFI=y
++CONFIG_MTK_DHCPV6C_WIFI=y
++CONFIG_MTK_GPS_SUPPORT=y
++CONFIG_MTK_FMRADIO=y
++CONFIG_MTK_FM_CHIP="MT6631_FM"
++CONFIG_MTK_CONNSYS_DEDICATED_LOG_PATH=y
++CONFIG_HAVE_MTK_ENABLE_GENIEZONE=y
++CONFIG_MTK_ENABLE_GENIEZONE=y
++CONFIG_TEE=y
++CONFIG_MICROTRUST_TEE_SUPPORT=y
++CONFIG_MTK_TEE_GP_SUPPORT=y
++CONFIG_MTK_GZ_MAIN=y
++CONFIG_MTK_GZ_LOG=y
++CONFIG_MTK_GZ_VIRTIO=y
++CONFIG_MTK_GZ_VIRTIO_IPC=y
++CONFIG_MTK_GZ_IRQ=y
++CONFIG_HAVE_MTK_GZ_LOG=y
++CONFIG_EXTCON_MTK_USB=y
++CONFIG_MTK_USB_TYPEC_U3_MUX=y
++CONFIG_TCPC_CLASS=y
++CONFIG_TCPC_MT6360=y
++CONFIG_USB_POWER_DELIVERY=y
++CONFIG_MTK_TYPEC_WATER_DETECT=y
++CONFIG_MTK_TYPEC_WATER_DETECT_BY_PCB=y
++CONFIG_MTK_LEDS=y
++CONFIG_MTK_PWM=y
++CONFIG_MTK_AURISYS_PHONE_CALL_SUPPORT=y
++CONFIG_MTK_AUDIODSP_SUPPORT=y
++CONFIG_MTK_ACCDET=y
++CONFIG_ACCDET_EINT_IRQ=y
++CONFIG_ACCDET_SUPPORT_EINT0=y
++CONFIG_MTK_RTC=y
++CONFIG_MTK_PERF_COMMON=y
++CONFIG_MTK_PERF_TRACKER=y
++CONFIG_MTK_LOAD_TRACKER=y
++CONFIG_MTK_CPU_CTRL_CFP=y
++CONFIG_MTK_PERF_OBSERVER=y
++CONFIG_MTK_RESYM=y
++# CONFIG_MTK_FPSGO_V3 is not set
++CONFIG_MTK_TINYSYS_SCP_SUPPORT=y
++CONFIG_MTK_TINYSYS_SCP_LOGGER_SUPPORT=y
++CONFIG_MTK_TINYSYS_SSPM_SUPPORT=y
++CONFIG_MTK_TINYSYS_SSPM_VERSION="v1"
++CONFIG_MTK_MET_PLF=y
++CONFIG_MTPROF=y
++CONFIG_MTK_CM_MGR_LEGACY=y
++CONFIG_MTK_VIBRATOR=y
++CONFIG_MTK_LEGACY_THERMAL=y
++CONFIG_MTK_THERMAL_PA_VIA_ATCMD=y
++CONFIG_MTK_CAMERA_ISP_RSC_SUPPORT=y
++CONFIG_MTK_CAMERA_ISP_WPE_SUPPORT=y
++CONFIG_MTK_CAMERA_ISP_DPE_SUPPORT=y
++CONFIG_MTK_CAMERA_ISP_MFB_SUPPORT=y
++CONFIG_MTK_CAMERA_ISP_FD_SUPPORT=y
++CONFIG_MTK_CAMERA_ISP_OWE_SUPPORT=y
++CONFIG_MTK_SELINUX_AEE_WARNING=y
++CONFIG_MTK_DRAM_LOG_STORE=y
++CONFIG_MTK_DRAM_LOG_STORE_ADDR=0x0011DF00
++CONFIG_MTK_DRAM_LOG_STORE_SIZE=0x100
++CONFIG_MTK_VOW_SUPPORT=y
++CONFIG_MTK_VOW_MAX_PDK_NUMBER=1
++CONFIG_MTK_VOW_DSP_VERSION="ver01"
++CONFIG_MTK_VOW_PCMCALLBACK_SUPPORT="none"
++CONFIG_MTK_VOW_AMAZON_SUPPORT=y
++CONFIG_MTK_VOW_GVA_SUPPORT=y
++CONFIG_MTK_FREQ_HOPPING=y
++CONFIG_SCSI=y
++CONFIG_BLK_DEV_SD=y
++CONFIG_SCSI_SCAN_ASYNC=y
++CONFIG_SCSI_UFSHCD=y
++CONFIG_SCSI_UFSHCD_PLATFORM=y
++CONFIG_SCSI_UFS_MEDIATEK=y
++CONFIG_SCSI_UFS_FEATURE=y
++CONFIG_SCSI_UFS_TW=y
++CONFIG_SCSI_UFS_CRYPTO=y
++CONFIG_SCSI_UFS_TW_IGNORE_GUARANTEE_BIT=y
++CONFIG_SCSI_UFS_HPB=y
++CONFIG_SCSI_SKHPB=y
++CONFIG_DM_CRYPT=y
++CONFIG_DM_DEFAULT_KEY=y
++CONFIG_DM_UEVENT=y
++CONFIG_DM_VERITY_FEC=y
++CONFIG_DM_BOW=y
++CONFIG_IFB=y
++# CONFIG_ETHERNET is not set
++CONFIG_PPP_FILTER=y
++CONFIG_PPP_MULTILINK=y
++CONFIG_PPPOE=y
++CONFIG_PPP_ASYNC=y
++CONFIG_PPP_SYNC_TTY=y
++CONFIG_USB_USBNET=y
++# CONFIG_KEYBOARD_ATKBD is not set
++CONFIG_KEYBOARD_MTK=y
++CONFIG_ONEKEY_REBOOT_NORMAL_MODE=y
++CONFIG_ONEKEY_REBOOT_OTHER_MODE=y
++CONFIG_KPD_PWRKEY_USE_PMIC=y
++# CONFIG_INPUT_MOUSE is not set
++CONFIG_INPUT_TOUCHSCREEN=y
++CONFIG_TOUCHSCREEN_COMMON=y
++CONFIG_TOUCHSCREEN_XIAOMI_TOUCHFEATURE=y
++CONFIG_TOUCHSCREEN_MTK=y
++CONFIG_TOUCHSCREEN_FTS=y
++CONFIG_TOUCHSCREEN_GOODIX_GTX8=y
++CONFIG_MTK_FINGERPRINT_SUPPORT=y
++CONFIG_MTK_FINGERPRINT_SELECT="NA"
++CONFIG_FPC_FINGERPRINT=y
++CONFIG_GOODIX_FINGERPRINT=y
++# CONFIG_TOUCHSCREEN_MTK_TOUCH is not set
++CONFIG_INPUT_MISC=y
++CONFIG_INPUT_UINPUT=y
++# CONFIG_SERIO is not set
++# CONFIG_VT is not set
++CONFIG_LEGACY_PTY_COUNT=16
++# CONFIG_DEVMEM is not set
++CONFIG_SERIAL_8250=y
++CONFIG_SERIAL_8250_CONSOLE=y
++CONFIG_SERIAL_8250_NR_UARTS=2
++CONFIG_SERIAL_8250_RUNTIME_UARTS=2
++CONFIG_SERIAL_8250_MT6577=y
++CONFIG_I2C_MTK=y
++CONFIG_SPI=y
++CONFIG_SPI_MT65XX=y
++CONFIG_MTK_CHARGER=y
++CONFIG_MTK_KERNEL_POWER_OFF_CHARGING=y
++CONFIG_MTK_GAUGE_VERSION=30
++# CONFIG_HWMON is not set
++CONFIG_THERMAL=y
++CONFIG_THERMAL_DEFAULT_GOV_BACKWARD_COMPATIBLE=y
++CONFIG_WATCHDOG=y
++CONFIG_MEDIATEK_WATCHDOG=y
++CONFIG_MT6358_MISC=y
++CONFIG_REGULATOR_MT6359=y
++CONFIG_REGULATOR_WL2866D=y
++CONFIG_MEDIA_SUPPORT=y
++CONFIG_MEDIA_CAMERA_SUPPORT=y
++CONFIG_V4L_PLATFORM_DRIVERS=y
++CONFIG_V4L_MEM2MEM_DRIVERS=y
++CONFIG_VIDEO_MEDIATEK_VCU_WO_FUSE=y
++CONFIG_VIDEO_MEDIATEK_VCODEC=y
++CONFIG_MTK_GPU_SUPPORT=y
++CONFIG_MTK_GPU_VERSION="mali valhall r32p1"
++CONFIG_MTK_GPU_COMMON_DVFS_SUPPORT=y
++CONFIG_FB_MODE_HELPERS=y
++CONFIG_FB_TILEBLITTING=y
++CONFIG_LOGO=y
++CONFIG_SND_HRTIMER=y
++CONFIG_SND_DYNAMIC_MINORS=y
++CONFIG_SND_VERBOSE_PRINTK=y
++CONFIG_SND_DEBUG=y
++CONFIG_SND_DEBUG_VERBOSE=y
++CONFIG_SND_PCM_XRUN_DEBUG=y
++CONFIG_SND_SEQUENCER=y
++CONFIG_SND_SEQ_DUMMY=y
++# CONFIG_SND_SPI is not set
++CONFIG_SND_USB_AUDIO=y
++CONFIG_SND_SOC=y
++CONFIG_SND_SOC_AW87XXX=y
++CONFIG_SND_SOC_MT6785_MT6359=y
++CONFIG_SND_SOC_MTK_BTCVSD=y
++CONFIG_MTK_VOW_BARGE_IN_SUPPORT=y
++CONFIG_SND_SOC_MTK_AUDIO_DSP=y
++CONFIG_SND_SOC_DSPK_LOL_HP=y
++CONFIG_MTK_ULTRASND_PROXIMITY=y
++CONFIG_MTK_TINYSYS_SCP_CM4_SUPPORT=y
++# CONFIG_SND_SOC_MT6660 is not set
++CONFIG_HIDRAW=y
++CONFIG_HID_A4TECH=y
++CONFIG_HID_APPLE=y
++CONFIG_HID_BELKIN=y
++CONFIG_HID_CHERRY=y
++CONFIG_HID_CHICONY=y
++CONFIG_HID_CYPRESS=y
++CONFIG_HID_DRAGONRISE=y
++CONFIG_HID_EZKEY=y
++CONFIG_HID_KYE=y
++CONFIG_HID_GYRATION=y
++CONFIG_HID_TWINHAN=y
++CONFIG_HID_KENSINGTON=y
++CONFIG_HID_LOGITECH=y
++CONFIG_HID_MAGICMOUSE=y
++CONFIG_HID_MICROSOFT=y
++CONFIG_HID_MONTEREY=y
++CONFIG_HID_PANTHERLORD=y
++CONFIG_HID_PETALYNX=y
++CONFIG_HID_SAMSUNG=y
++CONFIG_HID_SUNPLUS=y
++CONFIG_HID_GREENASIA=y
++CONFIG_HID_SMARTJOYPLUS=y
++CONFIG_HID_TOPSEED=y
++CONFIG_HID_THRUSTMASTER=y
++CONFIG_HID_ZEROPLUS=y
++CONFIG_USB_OTG=y
++CONFIG_USB_XHCI_HCD=y
++CONFIG_USB_STORAGE=y
++CONFIG_USB_STORAGE_DATAFAB=y
++CONFIG_USB_STORAGE_FREECOM=y
++CONFIG_USB_STORAGE_ISD200=y
++CONFIG_USB_STORAGE_USBAT=y
++CONFIG_USB_STORAGE_SDDR09=y
++CONFIG_USB_STORAGE_SDDR55=y
++CONFIG_USB_STORAGE_JUMPSHOT=y
++CONFIG_USB_STORAGE_ALAUDA=y
++CONFIG_USB_STORAGE_ONETOUCH=y
++CONFIG_USB_STORAGE_KARMA=y
++CONFIG_USB_STORAGE_CYPRESS_ATACB=y
++CONFIG_USB_MTU3=y
++CONFIG_USB_TRANCEVIBRATOR=y
++CONFIG_NOP_USB_XCEIV=y
++CONFIG_USB_GADGET_VBUS_DRAW=500
++CONFIG_USB_CONFIGFS_SERIAL=y
++CONFIG_USB_CONFIGFS_ACM=y
++CONFIG_USB_CONFIGFS_RNDIS=y
++CONFIG_USB_CONFIGFS_MASS_STORAGE=y
++CONFIG_USB_CONFIGFS_MTK_FASTMETA=y
++CONFIG_USB_CONFIGFS_F_HID=y
++CONFIG_MMC=y
++CONFIG_MMC_BLOCK_MINORS=32
++CONFIG_MTK_EMMC_SUPPORT_OTP=y
++CONFIG_MMC_CQHCI=y
++CONFIG_MMC_MTK=y
++CONFIG_NEW_LEDS=y
++CONFIG_LEDS_CLASS=y
++CONFIG_LEDS_TRIGGERS=y
++CONFIG_LEDS_TRIGGER_TIMER=y
++# CONFIG_RTC_SYSTOHC is not set
++CONFIG_RTC_DRV_MT6358=y
++CONFIG_DMADEVICES=y
++CONFIG_MTK_UART_APDMA=y
++CONFIG_ANDROID_INTF_ALARM_DEV=y
++CONFIG_ION=y
++CONFIG_MTK_ION=y
++CONFIG_MTK_PMIC_WRAP=y
++CONFIG_IIO=y
++CONFIG_IIO_BUFFER=y
++CONFIG_IIO_KFIFO_BUF=y
++CONFIG_MEDIATEK_MT635X_AUXADC=y
++CONFIG_MEDIATEK_MT6577_AUXADC=y
++CONFIG_PHY_MTK_TPHY=y
++CONFIG_PHY_MTK_USB=y
++CONFIG_MTK_DEVINFO=y
++CONFIG_FS_ENCRYPTION_INLINE_CRYPT=y
++CONFIG_QUOTA_NETLINK_INTERFACE=y
++CONFIG_INCREMENTAL_FS=y
++CONFIG_ISO9660_FS=y
++CONFIG_JOLIET=y
++CONFIG_ZISOFS=y
++CONFIG_MSDOS_FS=y
++CONFIG_VFAT_FS=y
++CONFIG_F2FS_FS=y
++CONFIG_F2FS_FS_SECURITY=y
++CONFIG_F2FS_FS_ENCRYPTION=y
++CONFIG_EXFAT_FS=y
++CONFIG_PSTORE=y
++CONFIG_PSTORE_CONSOLE=y
++CONFIG_PSTORE_PMSG=y
++CONFIG_PSTORE_RAM=y
++# CONFIG_NETWORK_FILESYSTEMS is not set
++CONFIG_NLS_CODEPAGE_437=y
++CONFIG_NLS_CODEPAGE_950=y
++CONFIG_NLS_ASCII=y
++CONFIG_NLS_ISO8859_1=y
++CONFIG_NLS_UTF8=y
++CONFIG_STATIC_USERMODEHELPER=y
++CONFIG_STATIC_USERMODEHELPER_PATH="/system_ext/bin/aee_core_forwarder"
++CONFIG_SECURITY_SELINUX_DEVELOP=y
++CONFIG_CRYPTO_TWOFISH=y
++# CONFIG_CRYPTO_HW is not set
++CONFIG_CRC8=y
++CONFIG_PRINTK_TIME=y
++CONFIG_DYNAMIC_DEBUG=y
++CONFIG_DEBUG_INFO=y
++CONFIG_FRAME_WARN=2800
++CONFIG_PANIC_ON_OOPS=y
++CONFIG_PANIC_TIMEOUT=1
++CONFIG_SCHEDSTATS=y
++# CONFIG_DEBUG_PREEMPT is not set
++# CONFIG_DEBUG_BUGVERBOSE is not set
++CONFIG_RCU_CPU_STALL_TIMEOUT=60
++CONFIG_FAULT_INJECTION=y
++CONFIG_ENABLE_DEFAULT_TRACERS=y
++CONFIG_EROFS_FS=y
++CONFIG_EROFS_FS_ZIP=y
++CONFIG_EROFS_FS_POSIX_ACL=y
++CONFIG_EROFS_FS_SECURITY=y
++CONFIG_EROFS_FS_PCPU_KTHREAD=y
++CONFIG_EROFS_FS_PCPU_KTHREAD_HIPRI=y
++CONFIG_SDCARD_FS=y
++CONFIG_LOCALVERSION="-LandVe"
++CONFIG_LOCALVERSION_AUTO=n
++CONFIG_KPM=n
++CONFIG_KSU=n
++CONFIG_KSU_MANUAL_HOOK=n
+
+From daddc5788db98853a1b365d4932a8f59ad64f85e Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Thu, 16 Apr 2026 02:23:11 +0700
+Subject: [PATCH 05/10] sys: Implement uname release spoofing for root-owned
+ BPF processes
+
+---
+ kernel/sys.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/kernel/sys.c b/kernel/sys.c
+index 173408428525..a843f1744fc0 100644
+--- a/kernel/sys.c
++++ b/kernel/sys.c
+@@ -1257,6 +1257,17 @@ SYSCALL_DEFINE1(newuname, struct new_utsname __user *, name)
+ 
+ 	down_read(&uts_sem);
+ 	memcpy(&tmp, utsname(), sizeof(tmp));
++
++	if (!strncmp(current->comm, "bpfloader", 9) ||
++	    !strncmp(current->comm, "netbpfload", 10) ||
++	    !strncmp(current->comm, "netd", 4)) {
++		if (current_uid().val == 0) {
++			strcpy(tmp.release, "5.4.186");
++			pr_debug("fake uname: %s/%d release=%s\n",
++				 current->comm, current->pid, tmp.release);
++		}
++	}
++	
+ 	up_read(&uts_sem);
+ 	if (copy_to_user(name, &tmp, sizeof(tmp)))
+ 		return -EFAULT;
+
+From fbd6e4deb5d5e8fd3cabf579db216c784855ea9a Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Thu, 16 Apr 2026 03:02:44 +0700
+Subject: [PATCH 06/10] namespace: simplify function and checks path_mounted
+
+---
+ fs/namespace.c | 22 ++++++----------------
+ 1 file changed, 6 insertions(+), 16 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 24e55794c209..5e88d73bdeae 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1696,32 +1696,20 @@ static inline bool may_mandlock(void)
+ }
+ #endif
+ 
+-/**
+- * path_mounted - check whether path is mounted
+- * @path: path to check
+- *
+- * Determine whether @path refers to the root of a mount.
+- *
+- * Return: true if @path is the root of a mount, false if not.
+- */
+-static inline bool path_mounted(const struct path *path)
+-{
+-	return path->mnt->mnt_root == path->dentry;
+-}
+-
+ static int can_umount(const struct path *path, int flags)
+ {
+ 	struct mount *mnt = real_mount(path->mnt);
++	struct super_block *sb = path->dentry->d_sb;
+ 
+ 	if (!may_mount())
+ 		return -EPERM;
+-	if (!path_mounted(path))
++	if (path->dentry != path->mnt->mnt_root)
+ 		return -EINVAL;
+ 	if (!check_mnt(mnt))
+ 		return -EINVAL;
+ 	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
+ 		return -EINVAL;
+-	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
++	if (flags & MNT_FORCE && !ns_capable(sb->s_user_ns, CAP_SYS_ADMIN))
+ 		return -EPERM;
+ 	return 0;
+ }
+@@ -1735,10 +1723,12 @@ int path_umount(struct path *path, int flags)
+ 	ret = can_umount(path, flags);
+ 	if (!ret)
+ 		ret = do_umount(mnt, flags);
+-	
++
+ 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
+ 	dput(path->dentry);
+ 	mntput_no_expire(mnt);
++	if (!ret)
++		sys_umount_trace_print(mnt, flags);
+ 	return ret;
+ }
+ 
+
+From 47e81dcabc68806876ee8a97aaf8feee3e345de9 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Thu, 16 Apr 2026 03:13:32 +0700
+Subject: [PATCH 07/10] defconfig: update KSU configs and remove KPM
+
+Signed-off-by: Youffx <asa.jazal@gmail.com>
+---
+ arch/arm64/configs/rosemary_defconfig | 5 ++---
+ 1 file changed, 2 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index 8efa8dee0a8f..a3a4c8225728 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -475,8 +475,7 @@ CONFIG_EROFS_FS_PCPU_KTHREAD_HIPRI=y
+ CONFIG_SDCARD_FS=y
+ CONFIG_LOCALVERSION="-LandVe"
+ CONFIG_LOCALVERSION_AUTO=n
+-CONFIG_KPM=n
+ CONFIG_KSU=y 
+-CONFIG_KSU_LSM_SECURITY_HOOKS=y
+-CONFIG_KSU_KPROBES_HOOK=n
+ CONFIG_KSU_MANUAL_HOOK=y
++# CONFIG_KSU_KPROBES_HOOK is not set
++# CONFIG_KSU_DEBUG is not set
+
+From f788a38be084b4e14980cfe5f59193537522defe Mon Sep 17 00:00:00 2001
+From: GitHub Actions <actions@github.com>
+Date: Thu, 16 Apr 2026 03:03:24 +0000
+Subject: [PATCH 08/10] Revert "treewide: Import scope-minimized manual
+ KernelSU hooks v1.9"
+
+This reverts commit 5df81c02d3d1f46ce02b1c44a253a78a4d0c8a96.
+---
+ drivers/input/input.c | 11 -----------
+ fs/exec.c             | 27 ++-------------------------
+ fs/open.c             |  9 ---------
+ fs/stat.c             | 26 --------------------------
+ kernel/reboot.c       |  9 ---------
+ 5 files changed, 2 insertions(+), 80 deletions(-)
+
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index 76f62f9c4220..70ffffea3e58 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -378,22 +378,11 @@ static int input_get_disposition(struct input_dev *dev,
+ 	return disposition;
+ }
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-extern bool ksu_input_hook __read_mostly;
+-extern int ksu_handle_input_handle_event(unsigned int *type,
+-					 unsigned int *code, int *value);
+-#endif
+-
+ static void input_handle_event(struct input_dev *dev,
+ 			       unsigned int type, unsigned int code, int value)
+ {
+ 	int disposition = input_get_disposition(dev, type, code, &value);
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	if (unlikely(ksu_input_hook))
+-		ksu_handle_input_handle_event(&type, &code, &value);
+-#endif
+-
+ 	if (disposition != INPUT_IGNORE_EVENT && type != EV_SYN)
+ 		add_input_randomness(type, code, value);
+ 
+diff --git a/fs/exec.c b/fs/exec.c
+index 113cb4ad75a0..9a70a2f943d8 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1993,26 +1993,12 @@ void set_dumpable(struct mm_struct *mm, int value)
+ 	} while (cmpxchg(&mm->flags, old, new) != old);
+ }
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
+-				      void *argv, void *envp, int *flags);
+-#endif
+-
+ SYSCALL_DEFINE3(execve,
+ 		const char __user *, filename,
+ 		const char __user *const __user *, argv,
+ 		const char __user *const __user *, envp)
+ {
+-	struct filename *execve_filename = getname(filename);
+-
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	int ksu_fd = AT_FDCWD;
+-
+-	ksu_handle_execveat(&ksu_fd, &execve_filename,
+-			   (void *)&argv, (void *)&envp, NULL);
+-#endif
+-
+-	return do_execve(execve_filename, argv, envp);
++	return do_execve(getname(filename), argv, envp);
+ }
+ 
+ SYSCALL_DEFINE5(execveat,
+@@ -2033,16 +2019,7 @@ COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
+ 	const compat_uptr_t __user *, argv,
+ 	const compat_uptr_t __user *, envp)
+ {
+-	struct filename *execve_filename = getname(filename);
+-
+-#ifdef CONFIG_KSU_MANUAL_HOOK /* 32-bit ksud and 32-on-64 support */
+-	int ksu_fd = AT_FDCWD;
+-
+-	ksu_handle_execveat(&ksu_fd, &execve_filename,
+-			   (void *)&argv, (void *)&envp, NULL);
+-#endif
+-
+-	return compat_do_execve(execve_filename, argv, envp);
++	return compat_do_execve(getname(filename), argv, envp);
+ }
+ 
+ COMPAT_SYSCALL_DEFINE5(execveat, int, fd,
+diff --git a/fs/open.c b/fs/open.c
+index c68bb150c25a..8c63b52d3073 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -451,17 +451,8 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
+ 	return res;
+ }
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
+-				       int *mode, int *flags);
+-#endif
+-
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
+-#endif
+-
+ 	return do_faccessat(dfd, filename, mode);
+ }
+ 
+diff --git a/fs/stat.c b/fs/stat.c
+index cf986400d0bc..376543199b5a 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -353,12 +353,6 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-extern int ksu_handle_stat(int *dfd, const char __user **filename_user, int *flags);
+-extern void ksu_handle_newfstat_ret(unsigned int *fd,
+-				    struct stat __user **statbuf_ptr);
+-#endif
+-
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -366,10 +360,6 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	ksu_handle_stat(&dfd, &filename, &flag);
+-#endif
+-
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -385,11 +375,6 @@ SYSCALL_DEFINE2(newfstat, unsigned int, fd, struct stat __user *, statbuf)
+ 	if (!error)
+ 		error = cp_new_stat(&stat, statbuf);
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	if (!error)
+-		ksu_handle_newfstat_ret(&fd, &statbuf);
+-#endif
+-
+ 	return error;
+ }
+ 
+@@ -525,10 +510,6 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	ksu_handle_stat(&dfd, &filename, &flag); /* 32-bit su support */
+-#endif
+-
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -669,13 +650,6 @@ COMPAT_SYSCALL_DEFINE4(newfstatat, unsigned int, dfd,
+ 	struct kstat stat;
+ 	int error;
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	int ksu_dfd = (int)dfd;
+-
+-	ksu_handle_stat(&ksu_dfd, &filename, &flag); /* 32-bit su support */
+-	dfd = (unsigned int)ksu_dfd;
+-#endif
+-
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+index 200f535aaa2d..3a87fee47d3a 100644
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -297,11 +297,6 @@ EXPORT_SYMBOL_GPL(kernel_power_off);
+ 
+ DEFINE_MUTEX(system_transition_mutex);
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd,
+-				 void __user **arg);
+-#endif
+-
+ /*
+  * Reboot system call: for obvious reasons only root may call it,
+  * and even root needs to set up some magic numbers in the registers
+@@ -317,10 +312,6 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 	char buffer[256];
+ 	int ret = 0;
+ 
+-#ifdef CONFIG_KSU_MANUAL_HOOK
+-	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
+-#endif
+-
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
+ 		return -EPERM;
+
+From 52ee73eb77dca1993bc77528ac201955e388cc21 Mon Sep 17 00:00:00 2001
+From: Pranav Vashi <neobuddy89@gmail.com>
+Date: Wed, 11 Mar 2026 07:16:29 +0530
+Subject: [PATCH 09/10] kernelsu: Add manual hooks v1.6
+
+Signed-off-by: Pranav Vashi <neobuddy89@gmail.com>
+---
+ drivers/input/input.c | 12 ++++++++++++
+ fs/exec.c             |  8 ++++++++
+ fs/open.c             |  9 +++++++++
+ fs/read_write.c       | 10 ++++++++++
+ fs/stat.c             | 10 ++++++++++
+ kernel/reboot.c       |  9 +++++++++
+ 6 files changed, 58 insertions(+)
+
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index 70ffffea3e58..8e402a178c51 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -444,11 +444,23 @@ static void input_handle_event(struct input_dev *dev,
+  * to 'seed' initial state of a switch or initial position of absolute
+  * axis, etc.
+  */
++
++#ifdef CONFIG_KSU
++extern bool ksu_input_hook __read_mostly;
++extern __attribute__((cold)) int ksu_handle_input_handle_event(
++			unsigned int *type, unsigned int *code, int *value);
++#endif
++
+ void input_event(struct input_dev *dev,
+ 		 unsigned int type, unsigned int code, int value)
+ {
+ 	unsigned long flags;
+ 
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_input_hook))
++		ksu_handle_input_handle_event(&type, &code, &value);
++#endif
++
+ 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
+ 
+ 		spin_lock_irqsave(&dev->event_lock, flags);
+diff --git a/fs/exec.c b/fs/exec.c
+index 9a70a2f943d8..b159193cc717 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1911,12 +1911,20 @@ int do_execve_file(struct file *file, void *__argv, void *__envp)
+ 	return __do_execve_file(AT_FDCWD, NULL, argv, envp, 0, file);
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot))
++extern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,
++				void *argv, void *envp, int *flags);
++#endif
+ int do_execve(struct filename *filename,
+ 	const char __user *const __user *__argv,
+ 	const char __user *const __user *__envp)
+ {
+ 	struct user_arg_ptr argv = { .ptr.native = __argv };
+ 	struct user_arg_ptr envp = { .ptr.native = __envp };
++#ifdef CONFIG_KSU
++	ksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);
++#endif
+ 	return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);
+ }
+ 
+diff --git a/fs/open.c b/fs/open.c
+index 8c63b52d3073..86b41ce459fc 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -451,8 +451,17 @@ long do_faccessat(int dfd, const char __user *filename, int mode)
+ 	return res;
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot)) 
++extern int ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++				int *mode, int *flags);
++#endif
++
+ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 	return do_faccessat(dfd, filename, mode);
+ }
+ 
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 650fc7e0f3a6..d6366353a42d 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -586,8 +586,18 @@ ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
+ 	return ret;
+ }
+ 
++#ifdef CONFIG_KSU
++extern bool ksu_vfs_read_hook __read_mostly;
++extern __attribute__((cold)) int ksu_handle_sys_read(unsigned int fd,
++				char __user **buf_ptr, size_t *count_ptr);
++#endif
++
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
++#ifdef CONFIG_KSU
++	if (unlikely(ksu_vfs_read_hook)) 
++		ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 	return ksys_read(fd, buf, count);
+ }
+ 
+diff --git a/fs/stat.c b/fs/stat.c
+index 376543199b5a..94dc334ef326 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -353,6 +353,12 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#ifdef CONFIG_KSU
++__attribute__((hot)) 
++extern int ksu_handle_stat(int *dfd, const char __user **filename_user,
++				int *flags);
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -360,6 +366,10 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#ifdef CONFIG_KSU
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+diff --git a/kernel/reboot.c b/kernel/reboot.c
+index 3a87fee47d3a..75da948e7b2f 100644
+--- a/kernel/reboot.c
++++ b/kernel/reboot.c
+@@ -305,6 +305,11 @@ DEFINE_MUTEX(system_transition_mutex);
+  *
+  * reboot doesn't sync: do that yourself before calling this.
+  */
++
++#ifdef CONFIG_KSU
++extern int ksu_handle_sys_reboot(int magic1, int magic2, unsigned int cmd, void __user **arg);
++#endif
++
+ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 		void __user *, arg)
+ {
+@@ -312,6 +317,10 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
+ 	char buffer[256];
+ 	int ret = 0;
+ 
++#ifdef CONFIG_KSU 
++	ksu_handle_sys_reboot(magic1, magic2, cmd, &arg);
++#endif
++
+ 	/* We only trust the superuser with rebooting the system. */
+ 	if (!ns_capable(pid_ns->user_ns, CAP_SYS_BOOT))
+ 		return -EPERM;
+
+From e5a35c5e4eb9b9c3a154de72688681965efd7f95 Mon Sep 17 00:00:00 2001
+From: GitHub Actions <actions@github.com>
+Date: Thu, 16 Apr 2026 03:32:39 +0000
+Subject: [PATCH 10/10] Revert "namespace: simplify function and checks
+ path_mounted"
+
+This reverts commit fbd6e4deb5d5e8fd3cabf579db216c784855ea9a.
+---
+ fs/namespace.c | 22 ++++++++++++++++------
+ 1 file changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 5e88d73bdeae..24e55794c209 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1696,20 +1696,32 @@ static inline bool may_mandlock(void)
+ }
+ #endif
+ 
++/**
++ * path_mounted - check whether path is mounted
++ * @path: path to check
++ *
++ * Determine whether @path refers to the root of a mount.
++ *
++ * Return: true if @path is the root of a mount, false if not.
++ */
++static inline bool path_mounted(const struct path *path)
++{
++	return path->mnt->mnt_root == path->dentry;
++}
++
+ static int can_umount(const struct path *path, int flags)
+ {
+ 	struct mount *mnt = real_mount(path->mnt);
+-	struct super_block *sb = path->dentry->d_sb;
+ 
+ 	if (!may_mount())
+ 		return -EPERM;
+-	if (path->dentry != path->mnt->mnt_root)
++	if (!path_mounted(path))
+ 		return -EINVAL;
+ 	if (!check_mnt(mnt))
+ 		return -EINVAL;
+ 	if (mnt->mnt.mnt_flags & MNT_LOCKED) /* Check optimistically */
+ 		return -EINVAL;
+-	if (flags & MNT_FORCE && !ns_capable(sb->s_user_ns, CAP_SYS_ADMIN))
++	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
+ 		return -EPERM;
+ 	return 0;
+ }
+@@ -1723,12 +1735,10 @@ int path_umount(struct path *path, int flags)
+ 	ret = can_umount(path, flags);
+ 	if (!ret)
+ 		ret = do_umount(mnt, flags);
+-
++	
+ 	/* we mustn't call path_put() as that would clear mnt_expiry_mark */
+ 	dput(path->dentry);
+ 	mntput_no_expire(mnt);
+-	if (!ret)
+-		sys_umount_trace_print(mnt, flags);
+ 	return ret;
+ }
+ 
+ From 035ebbca16e3ff57b078bab9473e034de4332d76 Mon Sep 17 00:00:00 2001
+From: Youff <asa.jazal@gmail.com>
+Date: Thu, 16 Apr 2026 11:53:08 +0700
+Subject: [PATCH] kernel: Remove CIP and ST version tags from the local version
+ string
+
+---
+ localversion-cip | 1 -
+ localversion-st  | 1 -
+ 2 files changed, 2 deletions(-)
+
+diff --git a/localversion-cip b/localversion-cip
+index 8a67a80c58b5..e69de29bb2d1 100644
+--- a/localversion-cip
++++ b/localversion-cip
+@@ -1 +0,0 @@
+--cip124
+diff --git a/localversion-st b/localversion-st
+index c995154ccec6..e69de29bb2d1 100644
+--- a/localversion-st
++++ b/localversion-st
+@@ -1 +0,0 @@
+--st8
+ 
