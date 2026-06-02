@@ -18,11 +18,6 @@ on:
       merge:
         description: "Large Patch multi-commit"
         required: false
-      use_theirs:
-        description: 'theirs'
-        type: boolean
-        required: false
-        default: false
       zip_url:
         description: "ZIP URL"
         required: false
