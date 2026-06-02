@@ -1,0 +1,158 @@
+diff --git a/drivers/cpuidle/governors/menu.c b/drivers/cpuidle/governors/menu.c
+index c7820a09fa65..436807afcd83 100644
+--- a/drivers/cpuidle/governors/menu.c
++++ b/drivers/cpuidle/governors/menu.c
+@@ -12,7 +12,6 @@
+ 
+ #include <linux/kernel.h>
+ #include <linux/cpuidle.h>
+-#include <linux/pm_qos.h>
+ #include <linux/time.h>
+ #include <linux/ktime.h>
+ #include <linux/hrtimer.h>
+@@ -21,7 +20,6 @@
+ #include <linux/sched/loadavg.h>
+ #include <linux/sched/stat.h>
+ #include <linux/math64.h>
+-#include <linux/cpu.h>
+ 
+ /*
+  * Please note when changing the tuning values:
+@@ -298,15 +296,13 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		       bool *stop_tick)
+ {
+ 	struct menu_device *data = this_cpu_ptr(&menu_devices);
+-	struct device *device = get_cpu_device(dev->cpu);
+-	int latency_req = pm_qos_request(PM_QOS_CPU_DMA_LATENCY);
++	int latency_req = cpuidle_governor_latency_req(dev->cpu);
+ 	int i;
+ 	int first_idx;
+ 	int idx;
+ 	unsigned int interactivity_req;
+ 	unsigned int expected_interval;
+ 	unsigned long nr_iowaiters, cpu_load;
+-	int resume_latency = dev_pm_qos_raw_read_value(device);
+ 	ktime_t delta_next;
+ 
+ 	if (data->needs_update) {
+@@ -314,10 +310,6 @@ static int menu_select(struct cpuidle_driver *drv, struct cpuidle_device *dev,
+ 		data->needs_update = 0;
+ 	}
+ 
+-	/* resume_latency is 0 means no restriction */
+-	if (resume_latency && resume_latency < latency_req)
+-		latency_req = resume_latency;
+-
+ 	/* Special case when user has set very strict latency requirement */
+ 	if (unlikely(latency_req == 0)) {
+ 		*stop_tick = false;
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index a85289a4b5d2..5866f12c11b4 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -26,6 +26,14 @@ CONFIG_MTK_SCHED_TRACERS=n
+ CONFIG_MTK_SCHED_CPU_PREFER=n
+ CONFIG_MTK_SCHED_BIG_TASK_MIGRATE=n
+ CONFIG_SCHED_CASS=y
++CONFIG_CPU_IDLE=y
++CONFIG_CPU_IDLE_MULTIPLE_DRIVERS=y
++# CONFIG_CPU_IDLE_GOV_LADDER is not set
++CONFIG_CPU_IDLE_GOV_MENU=y
++# CONFIG_CPU_IDLE_GOV_MTK is not set
++CONFIG_CPU_IDLE_GOV_MTK_MENU=y
++# CONFIG_CPU_IDLE_NO_MTK is not set
++CONFIG_CPU_IDLE_GOV_TEO=y
+ # CONFIG_SLUB_DEBUG is not set
+ CONFIG_MACH_MT6785=y
+ CONFIG_CFQ_GROUP_IOSCHED=y
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index f376f4caccb4..69eb812ac5a5 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -524,7 +524,7 @@ static int teo_enable_device(struct cpuidle_driver *drv,
+ 
+ static struct cpuidle_governor teo_governor = {
+ 	.name =		"teo",
+-	.rating =	19,
++	.rating =	150,
+ 	.enable =	teo_enable_device,
+ 	.select =	teo_select,
+ 	.reflect =	teo_reflect,
+diff --git a/drivers/cpuidle/governors/teo.c b/drivers/cpuidle/governors/teo.c
+index 69eb812ac5a5..0746c17ce70a 100644
+--- a/drivers/cpuidle/governors/teo.c
++++ b/drivers/cpuidle/governors/teo.c
+@@ -507,6 +507,7 @@ static void teo_reflect(struct cpuidle_device *dev, int state)
+  * teo_enable_device - Initialize the governor's data for the target CPU.
+  * @drv: cpuidle driver (not used).
+  * @dev: Target CPU.
++ * update commit title
+  */
+ static int teo_enable_device(struct cpuidle_driver *drv,
+ 			     struct cpuidle_device *dev)
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index 5866f12c11b4..d4fcca218031 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -30,9 +30,7 @@ CONFIG_CPU_IDLE=y
+ CONFIG_CPU_IDLE_MULTIPLE_DRIVERS=y
+ # CONFIG_CPU_IDLE_GOV_LADDER is not set
+ CONFIG_CPU_IDLE_GOV_MENU=y
+-# CONFIG_CPU_IDLE_GOV_MTK is not set
+-CONFIG_CPU_IDLE_GOV_MTK_MENU=y
+-# CONFIG_CPU_IDLE_NO_MTK is not set
++CONFIG_CPU_IDLE_NO_MTK=y
+ CONFIG_CPU_IDLE_GOV_TEO=y
+ # CONFIG_SLUB_DEBUG is not set
+ CONFIG_MACH_MT6785=y
+diff --git a/drivers/cpuidle/Kconfig b/drivers/cpuidle/Kconfig
+index b7a3fc519f62..177cfffbb527 100644
+--- a/drivers/cpuidle/Kconfig
++++ b/drivers/cpuidle/Kconfig
+@@ -51,12 +51,14 @@ config CPU_IDLE_GOV_MTK_MENU
+ 
+ config CPU_IDLE_NO_MTK
+ 	bool "Disable MTK related cpuidle driver / governor"
++	default y
+ 	help
+ 	  MTK added many proprietary cpuidle drivers and governors.
+ 	  And some of them set to be default for all projects.
+ 	  But not all (MTK) projects use these driver.
+ 	  Set this option to avoid using MTK driver / gorvernor by default.
+ 
++
+ config DT_IDLE_STATES
+ 	bool
+diff --git a/drivers/cpuidle/Kconfig b/drivers/cpuidle/Kconfig
+index 177cfffbb527..b7a3fc519f62 100644
+--- a/drivers/cpuidle/Kconfig
++++ b/drivers/cpuidle/Kconfig
+@@ -51,14 +51,12 @@ config CPU_IDLE_GOV_MTK_MENU
+ 
+ config CPU_IDLE_NO_MTK
+ 	bool "Disable MTK related cpuidle driver / governor"
+-	default y
+ 	help
+ 	  MTK added many proprietary cpuidle drivers and governors.
+ 	  And some of them set to be default for all projects.
+ 	  But not all (MTK) projects use these driver.
+ 	  Set this option to avoid using MTK driver / gorvernor by default.
+ 
+-
+ config DT_IDLE_STATES
+ 	bool
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+index d4fcca218031..5866f12c11b4 100644
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -30,7 +30,9 @@ CONFIG_CPU_IDLE=y
+ CONFIG_CPU_IDLE_MULTIPLE_DRIVERS=y
+ # CONFIG_CPU_IDLE_GOV_LADDER is not set
+ CONFIG_CPU_IDLE_GOV_MENU=y
+-CONFIG_CPU_IDLE_NO_MTK=y
++# CONFIG_CPU_IDLE_GOV_MTK is not set
++CONFIG_CPU_IDLE_GOV_MTK_MENU=y
++# CONFIG_CPU_IDLE_NO_MTK is not set
+ CONFIG_CPU_IDLE_GOV_TEO=y
+ # CONFIG_SLUB_DEBUG is not set
+ CONFIG_MACH_MT6785=y
