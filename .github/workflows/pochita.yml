@@ -1,0 +1,43 @@
+name: Bot
+
+on:
+  workflow_dispatch:
+    inputs:
+      question:
+        description: 'Masukkan pertanyaan untuk Gemini'
+        required: true
+        default: 'Halo Gemini 2.0 Flash, berikan satu baris kutipan motivasi singkat untuk programmer kernel.'
+
+jobs:
+  test-ai:
+    runs-on: ubuntu-latest
+    env:
+      GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Execute Gemini Request
+        run: |
+          if [ -z "$GEMINI_KEY" ]; then
+            echo "Eror: GEMINI_API_KEY tidak ditemukan di Secrets repositori."
+            exit 1
+          fi
+
+          echo "Pertanyaan yang dikirim: ${{ github.event.inputs.question }}"
+
+          JSON_PAYLOAD=$(jq -n --arg pr "${{ github.event.inputs.question }}" '{contents: [{parts: [{text: $pr}]}]}')
+
+          RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=$GEMINI_KEY" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD")
+
+          AI_RESPONSE=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text' 2>/dev/null)
+
+          if [ -n "$AI_RESPONSE" ] && [ "$AI_RESPONSE" != "null" ]; then
+            echo "================ RESPON GEMINI ================"
+            echo "$AI_RESPONSE"
+            echo "==============================================="
+          else
+            echo "Gagal mendapatkan respon. Konten mentah dari API:"
+            echo "$RESPONSE"
+            exit 1
+          fi
+          
