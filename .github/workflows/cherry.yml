@@ -269,13 +269,30 @@ jobs:
           MERGE_FAIL_FILE="../merge_fail_info.txt"
           echo "" > "$MERGE_FAIL_FILE"
 
-          IFS=' ' read -r -a MERGE_LIST <<< "${{ github.event.inputs.merge }}"
+                    TOKENS=(${{ github.event.inputs.merge }})
+          URLS=()
+          declare -A SKIP_MAP
+
+          LAST_URL=""
+          for token in "${TOKENS[@]}"; do
+            if [[ "$token" =~ ^https?:// ]]; then
+              URLS+=("$token")
+              LAST_URL="$token"
+              SKIP_MAP["$LAST_URL"]=""
+            else
+              if [ -n "$LAST_URL" ]; then
+                SKIP_MAP["$LAST_URL"]="${SKIP_MAP["$LAST_URL"]} $token"
+              fi
+            fi
+          done
 
           MERGE_FAIL_COUNT=0
 
-          for merge_url in "${MERGE_LIST[@]}"
+          for merge_url in "${URLS[@]}"
           do
+            SKIPS="${SKIP_MAP[$merge_url]}"
             echo "Processing merge patch: $merge_url"
+            echo "Excluded commit numbers: $SKIPS"
 
             RAW_URL="$merge_url"
 
@@ -309,6 +326,24 @@ jobs:
               if [ ! -s "$split_patch" ]; then
                 continue
               fi
+              
+              RAW_SUBJECT_LINE=$(awk '/^Subject:/{flag=1; printf "%s", $0; next} flag && /^[ \t]/{printf "%s", $0; next} flag{exit}' "$split_patch")
+              PATCH_NUM=$(echo "$RAW_SUBJECT_LINE" | grep -oE '\[PATCH [0-9]+' | grep -oE '[0-9]+' || true)
+
+              if [ -n "$PATCH_NUM" ] && [ -n "$SKIPS" ]; then
+                SHOULD_SKIP=false
+                for skip_num in $SKIPS; do
+                  if [ "$PATCH_NUM" -eq "$skip_num" ] 2>/dev/null; then
+                    SHOULD_SKIP=true
+                    break
+                  fi
+                done
+                if [ "$SHOULD_SKIP" = "true" ]; then
+                  echo "Skipping patch index $PATCH_NUM based on exclusion rule."
+                  continue
+                fi
+              fi
+              
 
               SUBJECT=$(awk '/^Subject:/{flag=1; sub(/^Subject:[ \t]*/, ""); printf "%s", $0; next} flag && /^[ \t]/{sub(/^[ \t]*/, " "); printf "%s", $0; next} flag{exit}' "$split_patch" | sed -E 's/\[PATCH[^]]*\]//g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed 's/[[:space:]]\+/ /g')
 
