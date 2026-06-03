@@ -299,8 +299,6 @@ jobs:
             git reset --hard HEAD
             git clean -fd
 
-            echo "Splitting patch series..."
-
             csplit -s -f /tmp/merge_split_ "$TEMP_PATCH" \
               '/^From [0-9a-f]\{40\} Mon Sep 17 00:00:00 2001$/' '{*}' || true
 
@@ -312,7 +310,7 @@ jobs:
                 continue
               fi
 
-              SUBJECT=$(awk '/^Subject:/{flag=1; sub(/^Subject:[ \t]*/, ""); printf "%s", $0; next} flag && /^[ \t]/{sub(/^[ \t]*/, " "); printf "%s", $0; next} flag{exit}' "$split_patch" | sed 's/[[:space:]]\+/ /g')
+              SUBJECT=$(awk '/^Subject:/{flag=1; sub(/^Subject:[ \t]*/, ""); printf "%s", $0; next} flag && /^[ \t]/{sub(/^[ \t]*/, " "); printf "%s", $0; next} flag{exit}' "$split_patch" | sed -E 's/\[PATCH[^]]*\]//g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed 's/[[:space:]]\+/ /g')
 
               echo "Applying commit: $SUBJECT"
 
@@ -326,10 +324,9 @@ jobs:
               if git am --3way "$split_patch"; then
                 AM_SUCCESS=true
               else
-                echo "Application failed, checking for conflicts..."
-
+                echo "Git am failed, scanning for conflict markers..."
+                
                 if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
-                  echo "Executing smart conflict resolver..."
                   git diff --name-only --diff-filter=U | while read -r file; do
                     python3 ../.github/scripts/smart_resolve.py "$file" "$split_patch"
                     
@@ -377,32 +374,34 @@ jobs:
                   if git -c core.editor=true am --continue; then
                     AM_SUCCESS=true
                   fi
-                else
-                  echo "No conflict markers found, attempting fallback application..."
-                  git am --abort 2>/dev/null || true
-                  git reset --hard "$BEFORE_COMMIT"
-                  git clean -fd
+                fi
+              fi
 
-                  if git apply --ignore-whitespace "$split_patch"; then
-                    echo "Fallback git apply successful"
+              if [ "$AM_SUCCESS" = "false" ]; then
+                echo "Git am conflict flow failed or no markers found, starting hard fallback..."
+                git am --abort 2>/dev/null || true
+                git reset --hard "$BEFORE_COMMIT"
+                git clean -fd
+
+                if git apply --ignore-whitespace "$split_patch"; then
+                  echo "Fallback git apply successful"
+                  git add -A
+                  if git commit -m "$SUBJECT"; then
+                    AM_SUCCESS=true
+                  fi
+                else
+                  echo "Fallback git apply failed, trying patch utility..."
+                  patch -p1 --fuzz=3 --no-backup-if-mismatch < "$split_patch" || true
+                  
+                  find . -name '*.rej' -exec cp {} ../merge_rejects/ \; 2>/dev/null || true
+                  find . -name '*.rej' -delete 2>/dev/null || true
+                  find . -name '*.orig' -delete 2>/dev/null || true
+
+                  if ! git diff --quiet; then
+                    echo "Partial patch application successful, committing successful hunks..."
                     git add -A
                     if git commit -m "$SUBJECT"; then
                       AM_SUCCESS=true
-                    fi
-                  else
-                    echo "Fallback git apply failed, trying patch utility..."
-                    patch -p1 --fuzz=3 --no-backup-if-mismatch < "$split_patch" || true
-                    
-                    find . -name '*.rej' -exec cp {} ../merge_rejects/ \; 2>/dev/null || true
-                    find . -name '*.rej' -delete 2>/dev/null || true
-                    find . -name '*.orig' -delete 2>/dev/null || true
-
-                    if ! git diff --quiet; then
-                      echo "Partial patch application successful, committing successful hunks..."
-                      git add -A
-                      if git commit -m "$SUBJECT"; then
-                        AM_SUCCESS=true
-                      fi
                     fi
                   fi
                 fi
@@ -427,7 +426,7 @@ jobs:
                   --trailer "Signed-off-by: Youffx <asa.jazal@gmail.com>" || true
 
                 LAST_MSG=$(git log -1 --pretty=%B)
-                CLEAN_MSG=$(printf "%s" "$LAST_MSG" | sed 's/  / /g')
+                CLEAN_MSG=$(printf "%s" "$LAST_MSG" | sed '1s/\[PATCH[^]]*\]//g' | sed '1s/^[[:space:]]*//' | sed 's/  / /g')
 
                 printf "%s" "$CLEAN_MSG" | git commit --amend -F -
 
