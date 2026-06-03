@@ -269,7 +269,7 @@ jobs:
           MERGE_FAIL_FILE="../merge_fail_info.txt"
           echo "" > "$MERGE_FAIL_FILE"
 
-                    TOKENS=(${{ github.event.inputs.merge }})
+          TOKENS=(${{ github.event.inputs.merge }})
           URLS=()
           declare -A SKIP_MAP
 
