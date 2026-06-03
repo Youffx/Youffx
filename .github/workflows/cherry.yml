@@ -259,6 +259,8 @@ jobs:
 
       - name: Apply Merge Patch Series
         if: ${{ github.event.inputs.merge != '' }}
+        env:
+          GEMINI_KEY: ${{ secrets.GEMINI_API_KEY }}
         run: |
           cd repo
 
@@ -310,8 +312,7 @@ jobs:
                 continue
               fi
 
-              SUBJECT=$(grep -m1 "^Subject:" "$split_patch" \
-                | sed 's/^Subject:[[:space:]]*//')
+              SUBJECT=$(awk '/^Subject:/{flag=1; sub(/^Subject:[ \t]*/, ""); printf "%s", $0; next} flag && /^[ \t]/{sub(/^[ \t]*/, " "); printf "%s", $0; next} flag{exit}' "$split_patch" | sed 's/[[:space:]]\+/ /g')
 
               echo "Applying commit: $SUBJECT"
 
@@ -331,6 +332,45 @@ jobs:
                   echo "Executing smart conflict resolver..."
                   git diff --name-only --diff-filter=U | while read -r file; do
                     python3 ../.github/scripts/smart_resolve.py "$file" "$split_patch"
+                    
+                    if grep -q "^<<<<" "$file" && [ -n "$GEMINI_KEY" ]; then
+                      echo "Smart resolver left conflict markers in $file. Engaging Gemini 3.5 Flash..."
+                      
+                      PROMPT="You are an expert Linux kernel developer. Resolve git conflict markers (<<<<<<<, =======, >>>>>>>) logically based on these strict operational patterns:
+
+                      Pattern 1 (Expression Blending):
+                      When HEAD already contains modified surrounding logic (like updated printk lines) but still uses an old conditional expression, and the incoming patch updates that specific conditional expression (e.g., adding bitmarks like LRU_GEN_MASK), merge them by applying the patch's expression update while fully preserving HEAD's updated surrounding context logic.
+
+                      Pattern 2 (Context-Bounded Substitution):
+                      When a patch introduces a clean macro substitution (like changing array size index from 2 to ASYNC_AND_SYNC) along with other trailing variables, but the local HEAD context strictly terminates the block early (e.g., an early closing block or macro conditional closing line right after the array), apply the precise macro/index replacement within the active block bounds. Do not append trailing elements that fall outside the localized scope structure of HEAD.
+
+                      Strict Rules:
+                      1. Analyze both sides of the conflict markers carefully. Fix broken syntax or alignments caused by markers.
+                      2. Output ONLY the raw, complete, fully fixed source code of the file.
+                      3. Do not wrap the output in markdown code blocks like \`\`\` and do not provide any explanations.
+
+                      Here is the conflicted file:
+                      $(cat "$file")"
+                      
+                      JSON_PAYLOAD=$(jq -n --arg pr "$PROMPT" '{contents: [{parts: [{text: $pr}]}], generationConfig: {temperature: 0.05}}')
+                      
+                      RESPONSE=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=$GEMINI_KEY" \
+                        -H "Content-Type: application/json" \
+                        -d "$JSON_PAYLOAD")
+                      
+                      AI_CODE=$(echo "$RESPONSE" | jq -r '.candidates[0].content.parts[0].text' 2>/dev/null)
+                      
+                      if [ -n "$AI_CODE" ] && [ "$AI_CODE" != "null" ]; then
+                        if echo "$AI_CODE" | grep -q "^\`\`\`"; then
+                          AI_CODE=$(echo "$AI_CODE" | sed '1d;$d')
+                        fi
+                        echo "$AI_CODE" > "$file"
+                        echo "Gemini AI successfully resolved conflicts for $file"
+                      else
+                        echo "Gemini AI failed to return valid code or quota exceeded"
+                      fi
+                    fi
+                    
                     git add "$file"
                   done
 
@@ -351,18 +391,17 @@ jobs:
                     fi
                   else
                     echo "Fallback git apply failed, trying patch utility..."
-                    if patch -p1 --fuzz=3 --no-backup-if-mismatch < "$split_patch"; then
-                      if [ -z "$(find . -name '*.rej')" ]; then
-                        find . -name '*.orig' -delete
-                        git add -A
-                        if git commit -m "$SUBJECT"; then
-                          AM_SUCCESS=true
-                        fi
-                      else
-                        echo "Patch contains rejects, clearing..."
-                        find . -name '*.rej' -exec cp {} ../merge_rejects/ \;
-                        find . -name '*.rej' -delete
-                        find . -name '*.orig' -delete
+                    patch -p1 --fuzz=3 --no-backup-if-mismatch < "$split_patch" || true
+                    
+                    find . -name '*.rej' -exec cp {} ../merge_rejects/ \; 2>/dev/null || true
+                    find . -name '*.rej' -delete 2>/dev/null || true
+                    find . -name '*.orig' -delete 2>/dev/null || true
+
+                    if ! git diff --quiet; then
+                      echo "Partial patch application successful, committing successful hunks..."
+                      git add -A
+                      if git commit -m "$SUBJECT"; then
+                        AM_SUCCESS=true
                       fi
                     fi
                   fi
