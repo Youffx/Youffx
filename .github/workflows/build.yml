@@ -231,7 +231,7 @@ jobs:
           make O=out olddefconfig
 
           echo "--- DEBUG ---"
-          grep -E "CONFIG_IP_NF_TARGET_TTL|CONFIG_DEFAULT_TCP_CONG|CONFIG_TCP_CONG_BBR|CONFIG_DEFAULT_BBR|CONFIG_NET_SCH_FQ|SUSFS" out/.config
+          grep -E "DEBUG_FS|TEO|CASS|LRU|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
           make -j$(nproc --all) O=out \
