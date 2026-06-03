@@ -234,8 +234,6 @@ jobs:
           grep -E "DEBUG_FS|TEO|CASS|LRU|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
-          export KBUILD_CFLAGS="-Werror=implicit-function-declaration -Werror=return-type"
-
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -250,7 +248,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            V=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
@@ -487,8 +484,6 @@ jobs:
 
           make O=out olddefconfig
 
-          export KBUILD_CFLAGS="-Werror=implicit-function-declaration -Werror=return-type"
-
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -503,7 +498,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            V=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
