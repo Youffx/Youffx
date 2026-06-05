@@ -99,7 +99,7 @@ jobs:
               -d chat_id="${CHATID}" \
               -d parse_mode=Markdown \
               -d disable_web_page_preview=true \
-              -d text="$1"
+              -d text="$1" > /dev/null 2>&1
           }
 
           MESSAGE="*GitHub Actions Interactive Session*
