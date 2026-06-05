@@ -8,11 +8,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Install Fastfetch
+      - name: Install Fastfetch via GitHub Release
         run: |
-          sudo apt-get update
-          sudo apt-get install fastfetch -y
+          URL=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep "browser_download_url.*linux-amd64.deb" | cut -d '"' -f 4)
+          curl -L -o fastfetch.deb "$URL"
+          sudo apt-get install ./fastfetch.deb -y
 
       - name: Run Fastfetch with Custom ASCII and Color
         run: |
           fastfetch --logo debian --color red --pipe false
+          
