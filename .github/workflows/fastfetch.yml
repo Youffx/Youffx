@@ -53,7 +53,7 @@ jobs:
               "modules": [
                   {
                       "type": "custom",
-                      "format": "\u001b[1;31mYouffx\u001b[0m@\u001b[1;33mgithub-actions\u001b[0m"
+                      "format": "\u001b[1;31mYouffx\u001b[0m@\u001b[1;33mcollections\u001b[0m"
                   },
                   "separator",
                   "os",
@@ -84,17 +84,15 @@ jobs:
           tmate -S /tmp/tmate.sock wait tmate-ready
           
           SSH_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
-          WEB_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
           
           echo "ssh_conn=$SSH_CONN" >> $GITHUB_OUTPUT
-          echo "web_conn=$WEB_CONN" >> $GITHUB_OUTPUT
 
       - name: Send Terminal Link to Telegram
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
           SSH_URL: ${{ steps.tmate-setup.outputs.ssh_conn }}
-          WEB_URL: ${{ steps.tmate-setup.outputs.web_conn }}
+
         run: |
           tg() {
             curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
@@ -109,8 +107,7 @@ jobs:
           *Repository:* \`${{ github.repository }}\`
           *Triggered By:* \`${{ github.actor }}\`
           
-          • *Web Terminal:* [Open Terminal]($WEB_URL)
-          • *SSH Command:* \`$SSH_URL\`
+          • *SSH Terminal:* [Open Here]($SSH_URL)
           
           _Server ini akan tetap menyala sampai kamu mengetik 'exit' di dalam terminal._"
 
@@ -118,9 +115,9 @@ jobs:
 
       - name: Keep Session Alive Safely
         run: |
-          echo "Menunggu koneksi terminal aktif... Buka link yang dikirim ke Telegram kamu."
+          echo "Waiting..."
           while [ -S /tmp/tmate.sock ]; do
             sleep 5
           done
-          echo "Sesi interaktif telah selesai."
+          echo "Bye, see u later"
           
