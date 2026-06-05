@@ -1,10 +1,10 @@
-name: Fastfetch in Log
+name: Fastfetch Interactive Session (Telegram)
 
 on:
   workflow_dispatch:
 
 jobs:
-  run-fastfetch:
+  interactive-fastfetch:
     runs-on: ubuntu-latest
 
     steps:
@@ -53,7 +53,7 @@ jobs:
               "modules": [
                   {
                       "type": "custom",
-                      "format": "\u001b[1;31mYouffx\u001b[0m@\u001b[1;33mcollections\u001b[0m"
+                      "format": "\u001b[1;31mYouffx\u001b[0m@\u001b[1;33mgithub-actions\u001b[0m"
                   },
                   "separator",
                   "os",
@@ -76,6 +76,47 @@ jobs:
           }
           EOF
 
-      - name: Run Fastfetch with Custom Config
+      - name: Setup Tmate Background Server
+        id: tmate-setup
         run: |
-          fastfetch
+          sudo apt-get install tmate -y
+          tmate -S /tmp/tmate.sock new-session -d
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          
+          SSH_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+          WEB_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
+          
+          echo "ssh_conn=$SSH_CONN" >> $GITHUB_OUTPUT
+          echo "web_conn=$WEB_CONN" >> $GITHUB_OUTPUT
+
+      - name: Send Terminal Link to Telegram
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+          SSH_URL: ${{ steps.tmate-setup.outputs.ssh_conn }}
+          WEB_URL: ${{ steps.tmate-setup.outputs.web_conn }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1"
+          }
+
+          MESSAGE="*GitHub Actions Interactive Session*
+          
+          *Repository:* \`${{ github.repository }}\`
+          *Triggered By:* \`${{ github.actor }}\`
+          
+          • *Web Terminal:* [Open Terminal]($WEB_URL)
+          • *SSH Command:* \`$SSH_URL\`
+          
+          _Server ini akan tetap menyala sampai kamu mengetik 'exit' di dalam terminal._"
+
+          tg "$MESSAGE"
+
+      - name: Keep Session Alive
+        run: |
+          tmate -S /tmp/tmate.sock attach
+          
