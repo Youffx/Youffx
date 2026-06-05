@@ -1,4 +1,4 @@
-name: Fastfetch Interactive Session (Telegram)
+name: Fastfetch
 
 on:
   workflow_dispatch:
@@ -79,7 +79,7 @@ jobs:
       - name: Setup Tmate Background Server
         id: tmate-setup
         run: |
-          sudo apt-get install tmate -y
+          sudo apt-get update && sudo apt-get install tmate -y
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
           
@@ -116,7 +116,11 @@ jobs:
 
           tg "$MESSAGE"
 
-      - name: Keep Session Alive
+      - name: Keep Session Alive Safely
         run: |
-          tmate -S /tmp/tmate.sock attach
+          echo "Menunggu koneksi terminal aktif... Buka link yang dikirim ke Telegram kamu."
+          while [ -S /tmp/tmate.sock ]; do
+            sleep 5
+          done
+          echo "Sesi interaktif telah selesai."
           
