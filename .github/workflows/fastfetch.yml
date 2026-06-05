@@ -8,13 +8,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Cache Fastfetch Binary
+        id: cache-fastfetch
+        uses: actions/cache@v4
+        with:
+          path: /usr/local/bin/fastfetch
+          key: fastfetch-binary-v2
+
       - name: Install Fastfetch via GitHub Release
+        if: steps.cache-fastfetch.outputs.cache-hit != 'true'
         run: |
           URL=$(curl -s https://api.github.com/repos/fastfetch-cli/fastfetch/releases/latest | grep "browser_download_url.*linux-amd64.deb" | cut -d '"' -f 4)
           curl -L -o fastfetch.deb "$URL"
           sudo apt-get install ./fastfetch.deb -y
+          sudo cp /usr/bin/fastfetch /usr/local/bin/fastfetch
 
-      - name: Run Fastfetch with Custom ASCII and Color
+      - name: Inject Cached Fastfetch
+        if: steps.cache-fastfetch.outputs.cache-hit == 'true'
         run: |
-          fastfetch --logo debian --color red --pipe false
-          
+          sudo cp /usr/local/bin/fastfetch /usr/bin/fastfetch
+          sudo chmod +x /usr/bin/fastfetch
+
+      - name: Run Fastfetch with Custom Config
+        env:
+          USER_SECRET: ${{ secrets.USER }}
+        run: |
+          fastfetch --logo arch_small --color green --pipe false --host-id "$USER_SECRET"
