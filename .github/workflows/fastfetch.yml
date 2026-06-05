@@ -29,8 +29,56 @@ jobs:
           sudo cp /usr/local/bin/fastfetch /usr/bin/fastfetch
           sudo chmod +x /usr/bin/fastfetch
 
-      - name: Run Fastfetch with Custom Config
+      - name: Create Custom Fastfetch Config
         env:
           USER_SECRET: ${{ secrets.USER }}
         run: |
-          fastfetch --logo arch_small --color green --pipe false --host-id "$USER_SECRET"
+          mkdir -p ~/.config/fastfetch
+          cat << 'EOF' > ~/.config/fastfetch/config.jsonc
+          {
+              "$schema": "https://github.com/fastfetch-cli/fastfetch/raw/dev/doc/json_schema.json",
+              "logo": {
+                  "type": "small",
+                  "source": "arch",
+                  "color": {
+                      "1": "green",
+                      "2": "green"
+                  }
+              },
+              "display": {
+                  "pipe": false,
+                  "color": {
+                      "keys": "green",
+                      "title": "green"
+                  }
+              },
+              "modules": [
+                  {
+                      "type": "title",
+                      "fqdn": "EOF_ENV_USER_SECRET"
+                  },
+                  "separator",
+                  "os",
+                  "host",
+                  "kernel",
+                  "uptime",
+                  "packages",
+                  "shell",
+                  "display",
+                  "terminal",
+                  "cpu",
+                  "memory",
+                  "swap",
+                  "disk",
+                  "localip",
+                  "locale",
+                  "break",
+                  "colors"
+              ]
+          }
+          EOF
+          sed -i "s/EOF_ENV_USER_SECRET/$USER_SECRET/g" ~/.config/fastfetch/config.jsonc
+
+      - name: Run Fastfetch with Custom Config
+        run: |
+          fastfetch
