@@ -363,7 +363,7 @@ jobs:
                 
                 if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
                   git diff --name-only --diff-filter=U | while read -r file; do
-                    python3 ../scripts/smart_resolve.py "$file" "$split_patch"
+                    python3 $GITHUB_WORKSPACE/scripts/smart_resolve.py "$file" "$split_patch"
                     
                     if grep -q "^<<<<" "$file" && [ -n "$GEMINI_KEY" ]; then
                       echo "Smart resolver left conflict markers in $file. Engaging Gemini 3.5 Flash..."
@@ -422,7 +422,7 @@ jobs:
                   echo "3way fallback applied, forcing Gemini to resolve conflict markers..."
                   
                   git diff --name-only --diff-filter=U | while read -r file; do
-                    python3 ../scripts/smart_resolve.py "$file" "$split_patch"
+                    python3 $GITHUB_WORKSPACE/scripts/smart_resolve.py "$file" "$split_patch"
                     
                     if grep -q "^<<<<" "$file" && [ -n "$GEMINI_KEY" ]; then
                       echo "Smart resolver left conflict markers in $file. Engaging Gemini 3.5 Flash..."
