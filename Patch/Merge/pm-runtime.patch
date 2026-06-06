@@ -889,7 +889,7 @@ index cd863511dedb1d..13bb54f26736df 100644
  static inline int queue_in_flight(struct request_queue *q)
  {
  
- From 154b00d566e221152514ba8259f38b21571081ef Mon Sep 17 00:00:00 2001
+From 154b00d566e221152514ba8259f38b21571081ef Mon Sep 17 00:00:00 2001
 From: Bart Van Assche <bvanassche@acm.org>
 Date: Wed, 26 Sep 2018 14:01:05 -0700
 Subject: [PATCH 3/8] block: Split blk_pm_add_request() and blk_pm_put_request()
@@ -1001,7 +1001,7 @@ index e18ac68626e34d..1c992bf6cfb1c0 100644
  	rq->q = q;
  
  
- From 0d25bd072b494a0290a7855a2e0286c4a0c92041 Mon Sep 17 00:00:00 2001
+From 0d25bd072b494a0290a7855a2e0286c4a0c92041 Mon Sep 17 00:00:00 2001
 From: Bart Van Assche <bvanassche@acm.org>
 Date: Wed, 26 Sep 2018 14:01:06 -0700
 Subject: [PATCH 4/8] block: Schedule runtime resume earlier
@@ -1053,7 +1053,7 @@ index 1c992bf6cfb1c0..e18ac68626e34d 100644
  	rq->q = q;
  
  
- From 18c9a6bbe0645a05172a900740b9d2d379d54320 Mon Sep 17 00:00:00 2001
+From 18c9a6bbe0645a05172a900740b9d2d379d54320 Mon Sep 17 00:00:00 2001
 From: Bart Van Assche <bvanassche@acm.org>
 Date: Wed, 26 Sep 2018 14:01:07 -0700
 Subject: [PATCH 5/8] percpu-refcount: Introduce percpu_ref_resurrect()
@@ -1173,7 +1173,7 @@ index 85a1c1a59c7271..96d501e8663cad 100644
  	}
  }
  
- From 7cedffec8e759480f7f7a9be9cd0d7ebf0aafff2 Mon Sep 17 00:00:00 2001
+From 7cedffec8e759480f7f7a9be9cd0d7ebf0aafff2 Mon Sep 17 00:00:00 2001
 From: Bart Van Assche <bvanassche@acm.org>
 Date: Wed, 26 Sep 2018 14:01:09 -0700
 Subject: [PATCH 7/8] block: Make blk_get_request() block for non-PM requests while
