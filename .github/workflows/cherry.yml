@@ -264,6 +264,8 @@ jobs:
         run: |
           cd repo
 
+          curl -sL "https://raw.githubusercontent.com/Youffx/Youffx/main/scripts/smart_resolve.py" -o /tmp/smart_resolve.py
+
           mkdir -p ../merge_rejects
 
           MERGE_FAIL_FILE="../merge_fail_info.txt"
@@ -363,7 +365,7 @@ jobs:
                 
                 if [ -n "$(git diff --name-only --diff-filter=U)" ]; then
                   git diff --name-only --diff-filter=U | while read -r file; do
-                    python3 $GITHUB_WORKSPACE/scripts/smart_resolve.py "$file" "$split_patch"
+                    python3 /tmp/smart_resolve.py "$file" "$split_patch"
                     
                     if grep -q "^<<<<" "$file" && [ -n "$GEMINI_KEY" ]; then
                       echo "Smart resolver left conflict markers in $file. Engaging Gemini 3.5 Flash..."
@@ -422,7 +424,7 @@ jobs:
                   echo "3way fallback applied, forcing Gemini to resolve conflict markers..."
                   
                   git diff --name-only --diff-filter=U | while read -r file; do
-                    python3 $GITHUB_WORKSPACE/scripts/smart_resolve.py "$file" "$split_patch"
+                    python3 /tmp/smart_resolve.py "$file" "$split_patch"
                     
                     if grep -q "^<<<<" "$file" && [ -n "$GEMINI_KEY" ]; then
                       echo "Smart resolver left conflict markers in $file. Engaging Gemini 3.5 Flash..."
