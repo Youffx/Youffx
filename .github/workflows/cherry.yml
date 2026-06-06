@@ -415,15 +415,22 @@ jobs:
               fi
 
               if [ "$AM_SUCCESS" = "false" ]; then
-                echo "Git am conflict flow failed or no markers found, starting 3way fallback to force conflict markers..."
+                echo "Git am failed and missing SHA1. Using patch --merge to FORCE conflict markers..."
                 git am --abort 2>/dev/null || true
                 git reset --hard "$BEFORE_COMMIT"
                 git clean -fd
 
-                if git apply --3way "$split_patch" 2>/dev/null || [ -n "$(git diff --name-only --diff-filter=U)" ]; then
-                  echo "3way fallback applied, forcing Gemini to resolve conflict markers..."
+                patch -p1 --merge < "$split_patch" || true
+                find . -name '*.orig' -delete 2>/dev/null || true
+
+                git add -A
+                
+                MODIFIED_FILES=$(git diff --name-only --cached)
+
+                if [ -n "$MODIFIED_FILES" ]; then
+                  echo "Patch fallback applied. Scanning for conflict markers..."
                   
-                  git diff --name-only --diff-filter=U | while read -r file; do
+                  echo "$MODIFIED_FILES" | while read -r file; do
                     python3 /tmp/smart_resolve.py "$file" "$split_patch"
                     
                     if grep -q "^<<<<" "$file" && [ -n "$GEMINI_KEY" ]; then
@@ -511,8 +518,8 @@ jobs:
 
                 echo -e "FAILED:\n$FAILED_SUBJECT\n" >> "$MERGE_FAIL_FILE"
 
-                cp "$split_patch" ../merge_rejects/ \
-                  "$(basename "$split_patch").patch" || true
+                cp "$split_patch" "../merge_rejects/$(basename "$split_patch").patch" || true
+
               fi
             done
 
