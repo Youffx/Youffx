@@ -212,7 +212,7 @@ jobs:
           echo "CONFIG_THINLTO=y" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-Genesis"
+          BASE="-Genesis-"
 
           if [ -n "$LV_INPUT" ]; then
             LV="${BASE}${LV_INPUT}"
@@ -451,22 +451,12 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
-          sed -i '/CONFIG_TCP_CONG_BBR/d' out/.config
-          sed -i '/CONFIG_DEFAULT_BBR/d' out/.config
-          sed -i '/CONFIG_DEFAULT_TCP_CONG/d' out/.config
-          sed -i '/CONFIG_NET_SCH_FQ/d' out/.config
-
-          echo 'CONFIG_TCP_CONG_BBR=y' >> out/.config
-          echo 'CONFIG_DEFAULT_BBR=y' >> out/.config
-          echo 'CONFIG_DEFAULT_TCP_CONG="bbr"' >> out/.config
-          echo 'CONFIG_NET_SCH_FQ=y' >> out/.config
-
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
 
           LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-Genesis"
+          BASE="-Genesis-"
 
           if [ -n "$LV_INPUT" ]; then
             LV="${BASE}${LV_INPUT}"
