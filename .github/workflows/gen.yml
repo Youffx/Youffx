@@ -225,7 +225,7 @@ jobs:
           make O=out olddefconfig
 
           echo "--- DEBUG ---"
-          grep -E "DEBUG_FS|TEO|CASS|LRU|KSU|SUSFS" out/.config
+          grep -E "BLK_PM|KYBER|_BASE|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
           make -j$(nproc --all) O=out \
