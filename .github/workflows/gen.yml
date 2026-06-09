@@ -7,10 +7,6 @@ on:
         description: "Select (0,1,2,3,4)"
         required: true
         default: "1"
-      localversion:
-        description: "Youffx 2026"
-        required: false
-        default: ""
       use_llvm22:
         description: "LLVM 22"
         required: false
@@ -211,15 +207,13 @@ jobs:
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
 
-          LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-Genesis-"
+          MONTH_IDX=$(TZ='Asia/Jakarta' date +%-m)
+          DAY_IDX=$(TZ='Asia/Jakarta' date +%-d)
 
-          if [ -n "$LV_INPUT" ]; then
-            LV="${BASE}${LV_INPUT}"
-          else
-            LV="$BASE"
-          fi
+          months=("" "Iānuārıus" "februārıus" "mārtıus" "aprīlıs" "māıus" "Iūnıus" "Iūlıus" "āugıts" "seūptıs" "ōctıs" "nōvlıs" "dectıūs")
+          romans=("" "ı" "ıı" "ııı" "ıv" "v" "vı" "vıı" "vııı" "ıx" "x" "xı" "xıı" "xııı" "xıv" "xv" "xvı" "xvıı" "xvııı" "xıx" "xx" "xxı" "xxıı" "xxııı" "xxıv" "xxv" "xxvı" "xxvıı" "xxvııı" "xxıx" "xxx" "xxxı")
 
+          LV="-GEN-${months[$MONTH_IDX]}-${romans[$DAY_IDX]}"
           LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
 
           if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
@@ -455,15 +449,13 @@ jobs:
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
 
-          LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-Genesis-"
+          MONTH_IDX=$(TZ='Asia/Jakarta' date +%-m)
+          DAY_IDX=$(TZ='Asia/Jakarta' date +%-d)
 
-          if [ -n "$LV_INPUT" ]; then
-            LV="${BASE}${LV_INPUT}"
-          else
-            LV="$BASE"
-          fi
+          months=("" "Iānuārıus" "februārıus" "mārtıus" "aprīlıs" "māıus" "Iūnıus" "Iūlıus" "āugıts" "seūptıs" "ōctıs" "nōvlıs" "dectıūs")
+          romans=("" "ı" "ıı" "ııı" "ıv" "v" "vı" "vıı" "vııı" "ıx" "x" "xı" "xıı" "xııı" "xıv" "xv" "xvı" "xvıı" "xvııı" "xıx" "xx" "xxı" "xxıı" "xxııı" "xxıv" "xxv" "xxvı" "xxvıı" "xxvııı" "xxıx" "xxx" "xxxı")
 
+          LV="-GEN-${months[$MONTH_IDX]}-${romans[$DAY_IDX]}"
           LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
 
           if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
