@@ -21,7 +21,7 @@
   {
     "name": "CI Release",
     "kernel": {
-      "repo": "https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "genesis",
       "fetchDepth": 1
     },
