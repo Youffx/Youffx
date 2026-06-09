@@ -474,11 +474,19 @@ jobs:
                     git add "$file"
                   done
 
-                  if git commit -m "$SUBJECT"; then
+                  PATCH_AUTHOR=$(awk '/^From:/{sub(/^From:[ \t]*/, ""); print; exit}' "$split_patch")
+                  PATCH_DATE=$(awk '/^Date:/{sub(/^Date:[ \t]*/, ""); print; exit}' "$split_patch")
+
+                  COMMIT_OPTS=("-m" "$SUBJECT")
+                  [ -n "$PATCH_AUTHOR" ] && COMMIT_OPTS+=("--author=$PATCH_AUTHOR")
+                  [ -n "$PATCH_DATE" ] && COMMIT_OPTS+=("--date=$PATCH_DATE")
+
+                  if git commit "${COMMIT_OPTS[@]}"; then
                     AM_SUCCESS=true
                   fi
                 fi
               fi
+
 
               if [ "$AM_SUCCESS" = "true" ]; then
 
