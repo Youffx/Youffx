@@ -40,9 +40,11 @@ jobs:
           key: repo-${{ github.event.inputs.branch }}
 
       - name: Prepare Repository
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           INPUT="${{ github.event.inputs.branch }}"
-          REPO_URL="https://github.com/Youffx/kernel_xiaomi_rosemary.git"
+          REPO_URL="https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git"
 
           PARTS=($INPUT)
 
