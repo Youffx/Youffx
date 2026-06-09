@@ -120,12 +120,16 @@ jobs:
           CONFIG_INDEX: ${{ github.event.inputs.config_index }}
 
       - name: Clone Kernel
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
           BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
           DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
 
-          git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
+          REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
+
+          git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
       - name: Setup ccache
         run: |
@@ -394,12 +398,16 @@ jobs:
           CONFIG_INDEX: ${{ github.event.inputs.config_index }}
 
       - name: Clone Kernel
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
           BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
           DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
 
-          git clone --depth=$DEPTH --branch $BRANCH $REPO kernel
+          REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
+
+          git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
       - name: Setup ccache
         run: |
