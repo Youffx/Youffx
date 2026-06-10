@@ -229,6 +229,8 @@ jobs:
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
 
+          echo "LV=$LV" >> $GITHUB_ENV
+
           make O=out olddefconfig
 
           echo "--- DEBUG ---"
@@ -476,6 +478,8 @@ jobs:
           else
             echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
           fi
+
+          echo "LV=$LV" >> $GITHUB_ENV
 
           make O=out olddefconfig
 
