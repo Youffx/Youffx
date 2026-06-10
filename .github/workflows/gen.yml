@@ -207,9 +207,6 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
-          sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
-
-          echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
@@ -457,9 +454,6 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
-          sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
-
-          echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
@@ -587,11 +581,8 @@ jobs:
             ### Genesis Kernel Release
 
             **Build Details:**
-            - Version: Genesis Kernel
+            - Version: Genesis
 
-            **Includes:**
-            - KSU Kernel
-            - NON-KSU Kernel
           files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
