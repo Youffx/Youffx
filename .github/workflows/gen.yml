@@ -252,8 +252,7 @@ jobs:
       - name: Package Flashable Zip KSU
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="Genesis-${CONF_NAME}-KSU-${DATE}"
+          ZIP_NAME="${LV}-KSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -494,8 +493,7 @@ jobs:
       - name: Package Flashable Zip NONKSU
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="Genesis-${CONF_NAME}-NONKSU-${DATE}"
+          ZIP_NAME="${LV}-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
