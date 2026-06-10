@@ -35,7 +35,7 @@ jobs:
             git fetch origin ${{ github.event.inputs.branch }} --depth 1
             git reset --hard origin/${{ github.event.inputs.branch }}
           else
-            git clone --depth 1 --branch ${{ github.event.inputs.branch }} https://github.com/Youffx/kernel_xiaomi_rosemary repo-src
+            git clone --depth 1 --branch ${{ github.event.inputs.branch }} https://x-access-token:${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary.git repo-src
           fi
 
       - name: Search keyword in source
