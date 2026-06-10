@@ -587,7 +587,7 @@ jobs:
             ### Genesis Kernel Release
 
             **Build Details:**
-            - Version: ${{ github.event.inputs.localversion }}+
+            - Version: Genesis Kernel
 
             **Includes:**
             - KSU Kernel
