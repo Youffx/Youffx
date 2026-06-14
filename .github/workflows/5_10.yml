@@ -11,5 +11,6 @@ jobs:
           git config --global http.version HTTP/1.1
           git clone --bare --progress https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
           cd android_kernel_mediatek_5.10.git
-          git push --mirror --progress https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
+          git push --tags --progress https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
+          git push --all --progress https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
           
