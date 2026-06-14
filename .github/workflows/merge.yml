@@ -72,6 +72,39 @@ jobs:
             echo "WORK_BRANCH=$NEW_BRANCH" >> $GITHUB_ENV
           fi
 
+      - name: Backup repo
+        uses: actions/cache@v4
+        with:
+          path: repo
+          key: repo-${{ github.event.inputs.branch }}
+
+      - name: Configure Git + Import GPG
+        run: |
+          git config --global user.name "${{ secrets.USER }}"
+          git config --global user.email "${{ secrets.EMAIL }}"
+
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+          echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
+          gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
+          rm -f private.key
+
+          gpgconf --kill gpg-agent
+          gpg-connect-agent reloadagent /bye
+
+          echo "test" | gpg --clearsign --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" > /dev/null
+
+          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+          git config --global gpg.program gpg
+
       - name: Apply ZIP
         if: ${{ github.event.inputs.zip_url != '' }}
         run: |
