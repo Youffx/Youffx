@@ -1,0 +1,13 @@
+name: Repo
+on:
+  workflow_dispatch:
+jobs:
+  copy-repository:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone and Push
+        run: |
+          git clone --bare https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
+          cd android_kernel_mediatek_5.10.git
+          git push --mirror https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
+          
