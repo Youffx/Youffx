@@ -2,20 +2,23 @@ name: Repo
 on:
   workflow_dispatch:
 jobs:
-  copy-repository:
+  sync-upstream:
     runs-on: ubuntu-latest
     steps:
-      - name: Clone and Push
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.REPO_A_PAT }}
+          ref: lineage-20
+          fetch-depth: 0
+      - name: Configure Git
         run: |
-          git config --global http.postBuffer 524288000
-          git config --global http.version HTTP/1.1
-          git clone --bare --progress https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
-          cd android_kernel_mediatek_5.10.git
-          git remote add target https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
-          git log --reverse --format=%H HEAD | awk 'NR % 15000 == 0' > chunks.txt
-          git rev-parse HEAD >> chunks.txt
-          while read commit; do
-            git push target $commit:refs/heads/temp-branch --force --progress
-          done < chunks.txt
-          git push target --mirror --force --progress
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: Sync Commits
+        run: |
+          git remote add upstream https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
+          git fetch upstream lineage-20
+          git merge upstream/lineage-20 --ff-only
+          git push origin lineage-20
           
