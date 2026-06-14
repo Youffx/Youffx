@@ -17,7 +17,7 @@ on:
         required: false
 
 jobs:
-  cherry-pick:
+  merging:
     runs-on: ubuntu-latest
 
     steps:
