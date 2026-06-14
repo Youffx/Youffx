@@ -7,7 +7,9 @@ jobs:
     steps:
       - name: Clone and Push
         run: |
-          git clone --bare https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
+          git config --global http.postBuffer 524288000
+          git config --global http.version HTTP/1.1
+          git clone --bare --progress https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
           cd android_kernel_mediatek_5.10.git
-          git push --mirror https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
+          git push --mirror --progress https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
           
