@@ -6,14 +6,15 @@ on:
       branch:
         description: "Target branch"
         required: true
-
       title:
         description: "Commit title and description (split with /)"
         required: true
-
       zip_url:
         description: "ZIP URL"
-        required: true
+        required: false
+      repo_paths:
+        description: "Repo URLs (space separated)"
+        required: false
 
 jobs:
   cherry-pick:
@@ -129,6 +130,86 @@ jobs:
 
           rm -rf "$TEMP_DIR"
           rm -f "$ZIP_FILE"
+
+      - name: Merge Repository Paths
+        if: ${{ github.event.inputs.repo_paths != '' }}
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          cd repo
+
+          INPUT="${{ github.event.inputs.repo_paths }}"
+          TITLE_INPUT="${{ github.event.inputs.title }}"
+
+          for URL in $INPUT
+          do
+            echo "Processing $URL"
+
+            CLEAN=$(echo "$URL" | sed 's#https://github.com/##')
+
+            OWNER=$(echo "$CLEAN" | cut -d/ -f1)
+            REPO=$(echo "$CLEAN" | cut -d/ -f2)
+            BRANCH=$(echo "$CLEAN" | cut -d/ -f4)
+
+            SRC_DIR=$(echo "$CLEAN" | cut -d/ -f5- | sed 's#^[^/]*/##')
+
+            CLONE_DIR="/tmp/src_${RANDOM}"
+
+            if [ "$OWNER/$REPO" = "Youffx/kernel_xiaomi_rosemary" ]; then
+              REPO_URL="https://x-access-token:${PAT_TOKEN}@github.com/$OWNER/$REPO.git"
+            else
+              REPO_URL="https://github.com/$OWNER/$REPO.git"
+            fi
+
+            git clone \
+              --depth=1 \
+              --branch "$BRANCH" \
+              "$REPO_URL" \
+              "$CLONE_DIR"
+
+            SOURCE="$CLONE_DIR/$SRC_DIR"
+
+            if [ ! -d "$SOURCE" ]; then
+              echo "Folder not found: $SRC_DIR"
+              rm -rf "$CLONE_DIR"
+              continue
+            fi
+
+            TARGET=$(basename "$SRC_DIR")
+
+            mkdir -p "./$TARGET"
+
+            cp -rf "$SOURCE"/. "./$TARGET"/
+
+            rm -rf "$CLONE_DIR"
+          done
+
+          git add -A
+
+          if ! git diff --cached --quiet; then
+
+            IFS='/' read -ra MSG <<< "$TITLE_INPUT"
+
+            COMMIT_TITLE="${MSG[0]}"
+            COMMIT_BODY=""
+
+            if [ ${#MSG[@]} -gt 1 ]; then
+              for ((i=1;i<${#MSG[@]};i++))
+              do
+                COMMIT_BODY+="${MSG[$i]}"$'\n'
+              done
+            fi
+
+            if [ -n "$COMMIT_BODY" ]; then
+              FINAL_MSG="${COMMIT_TITLE}"$'\n\n'"${COMMIT_BODY}"$'\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"
+            else
+              FINAL_MSG="${COMMIT_TITLE}"$'\n\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"
+            fi
+
+            git commit -m "$FINAL_MSG"
+          else
+            echo "No repo changes"
+          fi
 
       - name: Push to Repository
         if: success()
