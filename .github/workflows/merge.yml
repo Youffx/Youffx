@@ -149,10 +149,10 @@ jobs:
 
             OWNER=$(echo "$CLEAN" | cut -d/ -f1)
             REPO=$(echo "$CLEAN" | cut -d/ -f2)
+            TYPE=$(echo "$CLEAN" | cut -d/ -f3)
             BRANCH=$(echo "$CLEAN" | cut -d/ -f4)
 
-            SRC_DIR=$(echo "$CLEAN" | cut -d/ -f5- | sed 's#^[^/]*/##')
-
+            SRC_DIR=$(echo "$CLEAN" | cut -d/ -f5-)
             CLONE_DIR="/tmp/src_${RANDOM}"
 
             if [ "$OWNER/$REPO" = "Youffx/kernel_xiaomi_rosemary" ]; then
@@ -169,17 +169,37 @@ jobs:
 
             SOURCE="$CLONE_DIR/$SRC_DIR"
 
-            if [ ! -d "$SOURCE" ]; then
-              echo "Folder not found: $SRC_DIR"
-              rm -rf "$CLONE_DIR"
-              continue
+            if [ "$TYPE" = "tree" ]; then
+
+              if [ ! -d "$SOURCE" ]; then
+                echo "Folder not found: $SRC_DIR"
+                rm -rf "$CLONE_DIR"
+                continue
+              fi
+
+              TARGET=$(basename "$SRC_DIR")
+
+              mkdir -p "./$TARGET"
+
+              cp -rf "$SOURCE"/. "./$TARGET"/
+
+            elif [ "$TYPE" = "blob" ]; then
+
+              if [ ! -f "$SOURCE" ]; then
+                echo "File not found: $SRC_DIR"
+                rm -rf "$CLONE_DIR"
+                continue
+              fi
+
+              TARGET_DIR=$(dirname "$SRC_DIR")
+
+              mkdir -p "./$TARGET_DIR"
+
+              cp -f "$SOURCE" "./$SRC_DIR"
+
+            else
+              echo "Unsupported URL"
             fi
-
-            TARGET=$(basename "$SRC_DIR")
-
-            mkdir -p "./$TARGET"
-
-            cp -rf "$SOURCE"/. "./$TARGET"/
 
             rm -rf "$CLONE_DIR"
           done
