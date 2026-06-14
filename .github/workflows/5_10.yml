@@ -9,7 +9,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.REPO_A_PAT }}
-          ref: lineage-20
+          ref: lineage-21
           fetch-depth: 0
       - name: Configure Git
         run: |
@@ -18,7 +18,7 @@ jobs:
       - name: Sync Commits
         run: |
           git remote add upstream https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
-          git fetch upstream lineage-20
-          git merge upstream/lineage-20 --ff-only
-          git push origin lineage-20
+          git fetch upstream lineage-21
+          git merge upstream/lineage-21 --ff-only
+          git push origin lineage-21
           
