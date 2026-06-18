@@ -43,8 +43,6 @@ jobs:
           npm install -g @anthropic-ai/claude-code
 
       - name: Install Free Claude Code
-        env:
-          PATH: /home/runner/.local/bin:${PATH}
         run: |
           git clone \
             --depth 1 \
