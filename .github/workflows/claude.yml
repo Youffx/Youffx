@@ -24,9 +24,18 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install UV
+      - name: Install Dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            curl \
+            build-essential \
+            python3 \
+            python3-pip
+
           curl -LsSf https://astral.sh/uv/install.sh | sh
+
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install Claude Code
