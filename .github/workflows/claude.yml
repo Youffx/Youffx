@@ -69,7 +69,12 @@ jobs:
           MESSAGE="*Claude Code Ready*
           
           • *SSH:* \`$SSH_URL\` "
-          curl -sX POST "https://api.telegram.org/bot/$TOKEN/sendMessage" -d "chat_id=$CHATID" -d "parse_mode=Markdown" -d "text=$MESSAGE" > /dev/null 2>&1
+          curl -sX POST \
+            "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -d "chat_id=${CHATID}" \
+            -d "parse_mode=Markdown" \
+            -d "text=${MESSAGE}" \
+            > /dev/null 2>&1
 
       - name: Keep Session Alive
         run: |
