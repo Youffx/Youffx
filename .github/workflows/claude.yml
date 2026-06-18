@@ -13,7 +13,6 @@ jobs:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           rm -rf ./*
-
           git clone \
             --depth 1 \
             -b master-s \
@@ -33,9 +32,7 @@ jobs:
             build-essential \
             python3 \
             python3-pip
-
           curl -LsSf https://astral.sh/uv/install.sh | sh
-
           echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install Claude Code
@@ -48,9 +45,7 @@ jobs:
             --depth 1 \
             https://github.com/Alishahryar1/free-claude-code.git \
             ~/.fcc-src
-
           cd ~/.fcc-src
-
           uv sync
 
       - name: Configure FCC
@@ -58,15 +53,11 @@ jobs:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           mkdir -p ~/.fcc
-
           cat > ~/.fcc/.env <<EOF
           HOST=127.0.0.1
           PORT=8082
-
           ANTHROPIC_AUTH_TOKEN=${CLAUDE_KEY}
-
           ZAI_API_KEY=${CLAUDE_KEY}
-
           MODEL=zai/glm-5.1
           EOF
 
@@ -75,9 +66,7 @@ jobs:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-
           cd ~/.fcc-src
-
           nohup \
             $HOME/.local/bin/uv \
             run \
@@ -86,7 +75,6 @@ jobs:
             --host 127.0.0.1 \
             --port 8082 \
             > ~/fcc.log 2>&1 &
-
           for i in {1..60}
           do
             if curl \
@@ -98,7 +86,6 @@ jobs:
               echo "Proxy ready"
               break
             fi
-
             sleep 2
           done
 
@@ -107,57 +94,50 @@ jobs:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           mkdir -p ~/bin
-
+          GLOBAL_CLAUDE=$(which claude)
           cat > ~/bin/claude <<EOF
           #!/usr/bin/env bash
-
           export ANTHROPIC_BASE_URL=http://127.0.0.1:8082
           export ANTHROPIC_AUTH_TOKEN=${CLAUDE_KEY}
-
           export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
           export CLAUDE_CODE_AUTO_COMPACT_WINDOW=190000
-
           cd \$GITHUB_WORKSPACE
-
-          exec $HOME/.local/bin/uv \
-            run \
-            ~/.fcc-src/cli/fcc_claude.py "\$@"
+          exec $GLOBAL_CLAUDE "\$@"
           EOF
-
           chmod +x ~/bin/claude
-
           echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
           echo 'export PATH="$HOME/bin:$PATH"' >> ~/.profile
 
       - name: Verify Claude
         run: |
           export PATH="$HOME/bin:$PATH"
-
           timeout 20s claude -p "reply OK" || true
 
-      - name: Setup Tmate
-        id: tmate
-        uses: mxschmitt/action-tmate@v3
-        with:
-          detached: true
-
-      - name: Mask Tmate Outputs
+      - name: Setup Tmate Manually
         run: |
-          echo "::add-mask::${{ steps.tmate.outputs.ssh }}"
-          echo "::add-mask::${{ steps.tmate.outputs.web }}"
+          sudo apt-get update && sudo apt-get install -y tmate
+          mkdir -p ~/.ssh
+          if [ ! -f ~/.ssh/id_rsa ]; then
+            ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
+          fi
+          tmate -S /tmp/tmate.sock new-session -d
+          until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
+            sleep 2
+          done
+          SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+          echo "::add-mask::$SSH_URL"
+          echo "TMATE_SSH=$SSH_URL" >> $GITHUB_ENV
 
       - name: Send Terminal Link to Telegram
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
-          SSH_URL: ${{ steps.tmate.outputs.ssh }}
+          SSH_URL: ${{ env.TMATE_SSH }}
         run: |
           set +x
-
           MESSAGE="*Claude Code Ready*
           
           • *SSH:* \`$SSH_URL\` "
-
           curl -sX POST \
             "https://api.telegram.org/bot${TOKEN}/sendMessage" \
             -d "chat_id=${CHATID}" \
@@ -171,4 +151,3 @@ jobs:
           do
             sleep 60
           done
-          
