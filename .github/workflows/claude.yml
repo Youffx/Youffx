@@ -90,11 +90,7 @@ jobs:
 
       - name: Setup Tmate Manually
         run: |
-          sudo apt-get update && sudo apt-get install -y tmate
-          mkdir -p ~/.ssh
-          if [ ! -f ~/.ssh/id_rsa ]; then
-            ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
-          fi
+          sudo apt-get install -y tmate
           tmate -S /tmp/tmate.sock new-session -d
           until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
             sleep 2
