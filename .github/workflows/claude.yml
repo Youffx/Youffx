@@ -49,12 +49,12 @@ jobs:
           }
           EOF
 
-          GLOBAL_CLAUDE=\$(type -p claude)
+          GLOBAL_CLAUDE=$(which claude)
           cat > ~/bin/claude <<EOF
           export ANTHROPIC_BASE_URL=https://cc.freemodel.dev
           export ANTHROPIC_API_KEY=${CLAUDE_KEY}
           export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-          exec \$GLOBAL_CLAUDE "\$@"
+          exec $GLOBAL_CLAUDE "\$@"
           EOF
           
           chmod +x ~/bin/claude
