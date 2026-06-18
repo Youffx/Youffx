@@ -42,14 +42,25 @@ jobs:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           mkdir -p ~/bin
-          mkdir -p ~/.config/@anthropic-ai/claude-code
           
-          cat > ~/.config/@anthropic-ai/claude-code/config.json <<EOF
+          for dir in ".config/@anthropic-ai/claude-code" ".config/claude-code" ".config/@anthropic-ai-claude-code" ".config/anthropic-ai-claude-code" ".config/@anthropic-ai-claude-code-nodejs" ".config/anthropic-ai-claude-code-nodejs"
+          do
+            mkdir -p ~/$dir
+            cat > ~/$dir/config.json <<EOF
           {
             "token": "${CLAUDE_KEY}",
-            "accountType": "console"
+            "accountType": "console",
+            "acceptedTerms": true,
+            "primaryProfile": "default",
+            "profiles": {
+              "default": {
+                "accountType": "console",
+                "token": "${CLAUDE_KEY}"
+              }
+            }
           }
           EOF
+          done
 
           GLOBAL_CLAUDE=$(which claude)
           cat > ~/bin/claude <<EOF
