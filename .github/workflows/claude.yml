@@ -18,10 +18,10 @@ jobs:
             -b master-s \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+          - name: Setup Node
+            uses: actions/setup-node@v4
+            with:
+              node-version: 20
 
       - name: Install Dependencies
         run: |
@@ -32,78 +32,36 @@ jobs:
             build-essential \
             python3 \
             python3-pip
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install Claude Code
         run: |
           npm install -g @anthropic-ai/claude-code
 
-      - name: Install Free Claude Code
-        run: |
-          git clone \
-            --depth 1 \
-            https://github.com/Alishahryar1/free-claude-code.git \
-            ~/.fcc-src
-          cd ~/.fcc-src
-          uv sync
-
-      - name: Configure FCC
-        env:
-          CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
-        run: |
-          mkdir -p ~/.fcc
-          cat > ~/.fcc/.env <<EOF
-          HOST=127.0.0.1
-          PORT=8082
-          ANTHROPIC_AUTH_TOKEN=${CLAUDE_KEY}
-          ZAI_API_KEY=${CLAUDE_KEY}
-          MODEL=zai/glm-5.1
-          EOF
-
-      - name: Start FCC Proxy
-        env:
-          CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
-        run: |
-          export PATH="$HOME/.local/bin:$PATH"
-          cd ~/.fcc-src
-          nohup \
-            $HOME/.local/bin/uv \
-            run \
-            uvicorn \
-            server:app \
-            --host 127.0.0.1 \
-            --port 8082 \
-            > ~/fcc.log 2>&1 &
-          for i in {1..60}
-          do
-            if curl \
-              -fs \
-              http://127.0.0.1:8082/v1/models \
-              -H "x-api-key: ${CLAUDE_KEY}" \
-              >/dev/null
-            then
-              echo "Proxy ready"
-              break
-            fi
-            sleep 2
-          done
-
-      - name: Replace Claude Command
+      - name: Configure Claude for Freemodel
         env:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           mkdir -p ~/bin
+          mkdir -p ~/.config/@anthropic-ai/claude-code
+          
+          cat > ~/.config/@anthropic-ai/claude-code/config.json <<EOF
+          {
+            "token": "${CLAUDE_KEY}",
+            "accountType": "console"
+          }
+          EOF
+
           GLOBAL_CLAUDE=$(which claude)
           cat > ~/bin/claude <<EOF
           #!/usr/bin/env bash
-          export ANTHROPIC_BASE_URL=http://127.0.0.1:8082
-          export ANTHROPIC_AUTH_TOKEN=${CLAUDE_KEY}
+          export ANTHROPIC_BASE_URL=https://cc.freemodel.dev
+          export ANTHROPIC_API_KEY=${CLAUDE_KEY}
           export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
           export CLAUDE_CODE_AUTO_COMPACT_WINDOW=190000
           cd \$GITHUB_WORKSPACE
           exec $GLOBAL_CLAUDE "\$@"
           EOF
+          
           chmod +x ~/bin/claude
           echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
           echo 'export PATH="$HOME/bin:$PATH"' >> ~/.profile
@@ -151,3 +109,4 @@ jobs:
           do
             sleep 60
           done
+          
