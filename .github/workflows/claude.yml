@@ -101,12 +101,10 @@ jobs:
           }
           EOF
 
-          curl -fsSL "https://raw.githubusercontent.com/mksglu/context-mode/main/context-mode-cache-heal.mjs" -o ~/.claude/hooks/context-mode-cache-heal.mjs || log "Menggunakan skrip fallback lokal jika repo privat"
+          curl -fsSL "https://raw.githubusercontent.com/mksglu/context-mode/main/context-mode-cache-heal.mjs" -o ~/.claude/hooks/context-mode-cache-heal.mjs || true
           
           if [ ! -f ~/.claude/hooks/context-mode-cache-heal.mjs ]; then
             cat > ~/.claude/hooks/context-mode-cache-heal.mjs <<'INNER_EOF'
-          import os from 'os';
-          import fs from 'fs';
           console.log('Cache healer bypass active');
           INNER_EOF
           fi
