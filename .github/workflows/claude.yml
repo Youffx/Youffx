@@ -27,7 +27,7 @@ jobs:
 
       - name: Configure Freemodel Advanced Settings
         run: |
-          mkdir -p ~/.claude/hooks
+          mkdir -p ~/.claude
           
           cat > ~/.claude/settings.json <<EOF
           {
@@ -56,37 +56,12 @@ jobs:
               ]
             },
             "enabledPlugins": {
-              "caveman@caveman": false,
-              "context-mode@context-mode": false,
-              "andrej-karpathy-skills@karpathy-skills": true,
-              "obsidian@obsidian-skills": true
-            },
-            "extraKnownMarketplaces": {
-              "caveman": {
-                "source": {
-                  "source": "github",
-                  "repo": "JuliusBrussee/caveman"
-                }
-              },
-              "karpathy-skills": {
-                "source": {
-                  "source": "github",
-                  "repo": "forrestchang/andrej-karpathy-skills"
-                }
-              },
-              "obsidian-skills": {
-                "source": {
-                  "source": "git",
-                  "url": "https://github.com/kepano/obsidian-skills.git"
-                }
-              }
+              "context-mode@context-mode": false
             },
             "effortLevel": "low",
             "theme": "auto"
           }
           EOF
-          
-          timeout 30s claude plugins install || true
 
       - name: Setup Tmate Manually
         run: |
