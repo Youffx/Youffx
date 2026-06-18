@@ -24,25 +24,42 @@ jobs:
         run: |
           npm install -g @anthropic-ai/claude-code
 
-      - name: Configure Settings
+      - name: Configure Native Environment and Settings
         env:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
+          mkdir -p ~/bin
           mkdir -p ~/.claude
+          
           cat > ~/.claude/settings.json <<EOF
           {
-            "env": {
-              "ANTHROPIC_API_KEY": "$CLAUDE_KEY",
-              "ANTHROPIC_BASE_URL": "https://cc.freemodel.dev",
-              "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
-            },
             "permissions": {
               "allow": [],
               "deny": []
-            },
-            "apiKeyHelper": "echo '$CLAUDE_KEY'"
+            }
           }
           EOF
+
+          cat > ~/.claude/session.json <<EOF
+          {
+            "account": {
+              "primaryEmail": "freemodel@github.action"
+            },
+            "oauthToken": "freemodel-session-bypass"
+          }
+          EOF
+
+          GLOBAL_CLAUDE=\$(type -p claude)
+          cat > ~/bin/claude <<EOF
+          export ANTHROPIC_BASE_URL=https://cc.freemodel.dev
+          export ANTHROPIC_API_KEY=${CLAUDE_KEY}
+          export CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
+          exec \$GLOBAL_CLAUDE "\$@"
+          EOF
+          
+          chmod +x ~/bin/claude
+          echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+          echo 'export PATH="$HOME/bin:$PATH"' >> ~/.profile
 
       - name: Setup Tmate Manually
         run: |
