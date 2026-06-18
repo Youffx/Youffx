@@ -33,6 +33,11 @@ jobs:
           
           cat > ~/.claude/settings.json <<EOF
           {
+            "env": {
+              "ANTHROPIC_API_KEY": "$CLAUDE_KEY",
+              "ANTHROPIC_BASE_URL": "https://cc.freemodel.dev",
+              "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+            },
             "permissions": {
               "allow": [],
               "deny": []
@@ -45,7 +50,7 @@ jobs:
             "account": {
               "primaryEmail": "freemodel@github.action"
             },
-            "oauthToken": "freemodel-session-bypass"
+            "accessToken": "$CLAUDE_KEY"
           }
           EOF
 
