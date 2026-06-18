@@ -27,7 +27,7 @@ jobs:
 
       - name: Configure Freemodel Advanced Settings
         run: |
-          mkdir -p ~/.claude
+          mkdir -p ~/.claude/hooks
           
           cat > ~/.claude/settings.json <<EOF
           {
@@ -42,10 +42,51 @@ jobs:
               "deny": []
             },
             "model": "sonnet",
+            "hooks": {
+              "PreToolUse": [
+                {
+                  "matcher": "Bash",
+                  "hooks": [
+                    {
+                      "type": "command",
+                      "command": "rtk hook claude"
+                    }
+                  ]
+                }
+              ]
+            },
+            "enabledPlugins": {
+              "caveman@caveman": false,
+              "context-mode@context-mode": false,
+              "andrej-karpathy-skills@karpathy-skills": true,
+              "obsidian@obsidian-skills": true
+            },
+            "extraKnownMarketplaces": {
+              "caveman": {
+                "source": {
+                  "source": "github",
+                  "repo": "JuliusBrussee/caveman"
+                }
+              },
+              "karpathy-skills": {
+                "source": {
+                  "source": "github",
+                  "repo": "forrestchang/andrej-karpathy-skills"
+                }
+              },
+              "obsidian-skills": {
+                "source": {
+                  "source": "git",
+                  "url": "https://github.com/kepano/obsidian-skills.git"
+                }
+              }
+            },
             "effortLevel": "low",
             "theme": "auto"
           }
           EOF
+          
+          timeout 30s claude plugins install || true
 
       - name: Setup Tmate Manually
         run: |
