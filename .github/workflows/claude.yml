@@ -13,105 +13,36 @@ jobs:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           rm -rf ./*
-          git clone \
-            --depth 1 \
-            -b master-s \
-            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
+          git clone --depth 1 -b master-s https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
 
-          - name: Setup Node
-            uses: actions/setup-node@v4
-            with:
-              node-version: 20
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y git curl build-essential python3 python3-pip
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Install Claude Code
         run: |
           npm install -g @anthropic-ai/claude-code
 
-      - name: Configure and Start Native Stream Proxy
+      - name: Configure Settings
         env:
           CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
-          mkdir -p ~/bin
-          mkdir -p ~/.config/@anthropic-ai/claude-code
-          mkdir -p ~/.config/claude-code
-          mkdir -p ~/.cache/@anthropic-ai/claude-code
-          mkdir -p ~/.cache/claude-code
-          mkdir -p ~/.config/configstore
-
-          cat > ~/.config/@anthropic-ai/claude-code/config.json <<EOF
+          mkdir -p ~/.claude
+          cat > ~/.claude/settings.json <<EOF
           {
-            "primaryProfile": "default",
-            "acceptedTerms": true,
-            "profiles": {
-              "default": {
-                "accountType": "console",
-                "token": "sk-ant-cor01-fccBypassTokenLongEnoughToPassRegexValidation1234567890AbCdEfGhIjKlMnOpQrStUvWxYz",
-                "acceptedTerms": true
-              }
-            }
+            "env": {
+              "ANTHROPIC_API_KEY": "$CLAUDE_KEY",
+              "ANTHROPIC_BASE_URL": "https://cc.freemodel.dev",
+              "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
+            },
+            "permissions": {
+              "allow": [],
+              "deny": []
+            },
+            "apiKeyHelper": "echo '$CLAUDE_KEY'"
           }
           EOF
-
-          cp ~/.config/@anthropic-ai/claude-code/config.json ~/.config/claude-code/config.json
-          cp ~/.config/@anthropic-ai/claude-code/config.json ~/.cache/@anthropic-ai/claude-code/config.json
-          cp ~/.config/@anthropic-ai/claude-code/config.json ~/.cache/claude-code/config.json
-          cp ~/.config/@anthropic-ai/claude-code/config.json ~/.config/configstore/@anthropic-ai-claude-code.json
-          cp ~/.config/@anthropic-ai/claude-code/config.json ~/.config/configstore/claude-code.json
-
-          cat > ~/proxy.js <<EOF
-          const http = require('http');
-          const https = require('https');
-          const port = 8082;
-          const realKey = process.env.CLAUDE_KEY;
-          http.createServer((req, res) => {
-              const options = {
-                  hostname: 'cc.freemodel.dev',
-                  port: 443,
-                  path: req.url,
-                  method: req.method,
-                  headers: {
-                      ...req.headers,
-                      'host': 'cc.freemodel.dev',
-                      'x-api-key': realKey
-                  }
-              };
-              const proxyReq = https.request(options, (proxyRes) => {
-                  res.writeHead(proxyRes.statusCode, proxyRes.headers);
-                  proxyRes.pipe(res);
-              });
-              proxyReq.on('error', (err) => {
-                  res.writeHead(500);
-                  res.end(err.message);
-              });
-              req.pipe(proxyReq);
-          }).listen(port, '127.0.0.1');
-          EOF
-
-          nohup node ~/proxy.js > ~/proxy.log 2>&1 &
-          sleep 2
-
-          GLOBAL_CLAUDE=\$(type -p claude)
-          cat > ~/bin/claude <<EOF
-          export ANTHROPIC_BASE_URL=http://127.0.0.1:8082
-          export ANTHROPIC_API_KEY=sk-ant-cor01-fccBypassTokenLongEnoughToPassRegexValidation1234567890AbCdEfGhIjKlMnOpQrStUvWxYz
-          export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=0
-          export CLAUDE_CODE_AUTO_COMPACT_WINDOW=190000
-          exec \$GLOBAL_CLAUDE "\$@"
-          EOF
-          
-          chmod +x ~/bin/claude
-          echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
-          echo 'export PATH="$HOME/bin:$PATH"' >> ~/.profile
-
-      - name: Verify Claude
-        run: |
-          export PATH="$HOME/bin:$PATH"
-          timeout 20s claude -p "reply OK" || true
 
       - name: Setup Tmate Manually
         run: |
@@ -139,12 +70,7 @@ jobs:
           MESSAGE="*Claude Code Ready*
           
           • *SSH:* \`$SSH_URL\` "
-          curl -sX POST \
-            "https://api.telegram.org/bot\${TOKEN}/sendMessage" \
-            -d "chat_id=\${CHATID}" \
-            -d "parse_mode=Markdown" \
-            -d "text=\${MESSAGE}" \
-            > /dev/null 2>&1
+          curl -sX POST "https://api.telegram.org/bot\${TOKEN}/sendMessage" -d "chat_id=\${CHATID}" -d "parse_mode=Markdown" -d "text=\${MESSAGE}" > /dev/null 2>&1
 
       - name: Keep Session Alive
         run: |
