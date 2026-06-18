@@ -12,52 +12,108 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
-          rm -rf * .git
-          git clone --depth 1 -b master-s https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
+          rm -rf ./*
 
-      - name: Setup Node.js
+          git clone \
+            --depth 1 \
+            -b master-s \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
+
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Install UV
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
       - name: Install Claude Code
         run: |
           npm install -g @anthropic-ai/claude-code
 
-      - name: Setup Free Claude Code Proxy Backend
+      - name: Install Free Claude Code
+        env:
+          PATH: /home/runner/.local/bin:${PATH}
         run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv tool install free-claude-code
+
+      - name: Configure FCC
+        run: |
+          mkdir -p ~/.fcc
+
+          cat > ~/.fcc/.env <<EOF
+          HOST=127.0.0.1
+          PORT=8082
+
+          ANTHROPIC_AUTH_TOKEN=fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5
+
+          ZAI_API_KEY=fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5
+
+          MODEL=zai/glm-5.1
+          EOF
+
+      - name: Start FCC Proxy
+        run: |
           export PATH="$HOME/.local/bin:$PATH"
-          git clone --depth 1 https://github.com/Alishahryar1/free-claude-code.git ~/.local/share/claude-free
-          cd ~/.local/share/claude-free
-          $HOME/.local/bin/uv sync
-          $HOME/.local/bin/uv run uvicorn server:app --host 127.0.0.1 --port 8082 > proxy.log 2>&1 &
-          sleep 3
 
-      - name: Pre-configure Claude Code
-        run: |
-          mkdir -p ~/.config/claude
-          echo '{"apiKey": "fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5", "baseUrl": "http://127.0.0.1:8082"}' > ~/.config/claude/config.json
-          echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:8082"' >> ~/.bashrc
-          echo 'export ANTHROPIC_API_KEY="fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5"' >> ~/.bashrc
+          nohup fcc-server \
+            > ~/fcc.log \
+            2>&1 &
 
-      - name: Setup Tmate Background Server
-        id: tmate-setup
+          for i in {1..40}; do
+            if curl -fs \
+              http://127.0.0.1:8082/v1/models \
+              -H "x-api-key: fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5" \
+              >/dev/null
+            then
+              echo "Proxy ready"
+              break
+            fi
+
+            sleep 2
+          done
+
+      - name: Replace Claude Command
         run: |
-          sudo apt-get update && sudo apt-get install tmate -y
-          tmate -S /tmp/tmate.sock new-session -d
-          tmate -S /tmp/tmate.sock wait tmate-ready
-          SSH_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
-          echo "::add-mask::$SSH_CONN"
-          echo "ssh_conn=$SSH_CONN" >> $GITHUB_OUTPUT
+          mkdir -p ~/bin
+
+          cat > ~/bin/claude <<'EOF'
+          #!/usr/bin/env bash
+
+          export ANTHROPIC_BASE_URL=http://127.0.0.1:8082
+          export ANTHROPIC_AUTH_TOKEN=fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5
+
+          export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
+          export CLAUDE_CODE_AUTO_COMPACT_WINDOW=190000
+
+          exec fcc-claude "$@"
+          EOF
+
+          chmod +x ~/bin/claude
+
+          echo 'export PATH="$HOME/bin:$PATH"' >> ~/.bashrc
+          echo 'export PATH="$HOME/bin:$PATH"' >> ~/.profile
+
+      - name: Verify Claude
+        run: |
+          export PATH="$HOME/bin:$PATH"
+
+          timeout 20s claude -p "reply OK" || true
+
+      - name: Setup Tmate
+        id: tmate
+        uses: mxschmitt/action-tmate@v3
 
       - name: Send Terminal Link to Telegram
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
-          SSH_URL: ${{ steps.tmate-setup.outputs.ssh_conn }}
+          SSH_URL: ${{ steps.tmate.outputs.ssh }}
         run: |
           set +x
+
           MESSAGE="*Claude Code Ready*
           
           • *SSH:* \`$SSH_URL\`
@@ -72,8 +128,10 @@ jobs:
             -d "parse_mode=Markdown" \
             -d "text=${MESSAGE}" > /dev/null 2>&1
 
-      - name: Keep Session Alive Safely
+      - name: Keep Session Alive
         run: |
-          while [ -S /tmp/tmate.sock ]; do
-            sleep 5
+          while true
+          do
+            sleep 60
           done
+          
