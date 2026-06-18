@@ -98,10 +98,9 @@ jobs:
             -d "text=${MESSAGE}" \
             > /dev/null 2>&1
 
-      - name: Keep Session Alive
+      - name: Keep Session Alive Until Exit
         run: |
-          while true
+          while tmate -S /tmp/tmate.sock has-session 2>/dev/null
           do
-            sleep 60
+            sleep 5
           done
-          
