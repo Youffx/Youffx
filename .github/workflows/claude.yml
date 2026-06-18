@@ -37,9 +37,18 @@ jobs:
         env:
           PATH: /home/runner/.local/bin:${PATH}
         run: |
-          uv tool install free-claude-code
+          git clone \
+            --depth 1 \
+            https://github.com/Alishahryar1/free-claude-code.git \
+            ~/.fcc-src
+
+          cd ~/.fcc-src
+
+          uv sync
 
       - name: Configure FCC
+        env:
+          CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           mkdir -p ~/.fcc
 
@@ -47,25 +56,36 @@ jobs:
           HOST=127.0.0.1
           PORT=8082
 
-          ANTHROPIC_AUTH_TOKEN=fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5
+          ANTHROPIC_AUTH_TOKEN=${CLAUDE_KEY}
 
-          ZAI_API_KEY=fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5
+          ZAI_API_KEY=${CLAUDE_KEY}
 
           MODEL=zai/glm-5.1
           EOF
 
       - name: Start FCC Proxy
+        env:
+          CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           export PATH="$HOME/.local/bin:$PATH"
 
-          nohup fcc-server \
-            > ~/fcc.log \
-            2>&1 &
+          cd ~/.fcc-src
 
-          for i in {1..40}; do
-            if curl -fs \
+          nohup \
+            $HOME/.local/bin/uv \
+            run \
+            uvicorn \
+            server:app \
+            --host 127.0.0.1 \
+            --port 8082 \
+            > ~/fcc.log 2>&1 &
+
+          for i in {1..60}
+          do
+            if curl \
+              -fs \
               http://127.0.0.1:8082/v1/models \
-              -H "x-api-key: fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5" \
+              -H "x-api-key: ${CLAUDE_KEY}" \
               >/dev/null
             then
               echo "Proxy ready"
@@ -76,19 +96,25 @@ jobs:
           done
 
       - name: Replace Claude Command
+        env:
+          CLAUDE_KEY: ${{ secrets.CLAUDE_KEY }}
         run: |
           mkdir -p ~/bin
 
-          cat > ~/bin/claude <<'EOF'
+          cat > ~/bin/claude <<EOF
           #!/usr/bin/env bash
 
           export ANTHROPIC_BASE_URL=http://127.0.0.1:8082
-          export ANTHROPIC_AUTH_TOKEN=fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5
+          export ANTHROPIC_AUTH_TOKEN=${CLAUDE_KEY}
 
           export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
           export CLAUDE_CODE_AUTO_COMPACT_WINDOW=190000
 
-          exec fcc-claude "$@"
+          cd \$GITHUB_WORKSPACE
+
+          exec $HOME/.local/bin/uv \
+            run \
+            ~/.fcc-src/cli/fcc_claude.py "\$@"
           EOF
 
           chmod +x ~/bin/claude
@@ -116,17 +142,14 @@ jobs:
 
           MESSAGE="*Claude Code Ready*
           
-          • *SSH:* \`$SSH_URL\`
-          
-          *Cara pakai:* 
-          1. SSH ke link di atas.
-          2. Tekan 'q'.
-          3. Ketik 'claude'."
+          • *SSH:* \`$SSH_URL\` "
 
-          curl -sX POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+          curl -sX POST \
+            "https://api.telegram.org/bot${TOKEN}/sendMessage" \
             -d "chat_id=${CHATID}" \
             -d "parse_mode=Markdown" \
-            -d "text=${MESSAGE}" > /dev/null 2>&1
+            -d "text=${MESSAGE}" \
+            > /dev/null 2>&1
 
       - name: Keep Session Alive
         run: |
