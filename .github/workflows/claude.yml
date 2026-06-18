@@ -1,4 +1,4 @@
-name: Claude Code Kernel Editor
+name: Claude Code
 
 on:
   workflow_dispatch:
@@ -34,17 +34,12 @@ jobs:
           $HOME/.local/bin/uv run uvicorn server:app --host 127.0.0.1 --port 8082 > proxy.log 2>&1 &
           sleep 3
 
-      - name: Force Pre-configure Claude Code
+      - name: Pre-configure Claude Code
         run: |
-          # Buat folder config yang dibaca claude-code
           mkdir -p ~/.config/claude
-          # Tulis config agar dia mengira sudah login
           echo '{"apiKey": "fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5", "baseUrl": "http://127.0.0.1:8082"}' > ~/.config/claude/config.json
-          
-          # Tambahkan alias ke bashrc agar dia otomatis non-interactive dan pakai config
           echo 'export ANTHROPIC_BASE_URL="http://127.0.0.1:8082"' >> ~/.bashrc
           echo 'export ANTHROPIC_API_KEY="fe_oa_ecf0198216093c023ae1ed4f65abcdaae2d0494052956eb5"' >> ~/.bashrc
-          echo 'alias claude="claude --non-interactive"' >> ~/.bashrc
 
       - name: Setup Tmate Background Server
         id: tmate-setup
@@ -53,6 +48,7 @@ jobs:
           tmate -S /tmp/tmate.sock new-session -d
           tmate -S /tmp/tmate.sock wait tmate-ready
           SSH_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+          echo "::add-mask::$SSH_CONN"
           echo "ssh_conn=$SSH_CONN" >> $GITHUB_OUTPUT
 
       - name: Send Terminal Link to Telegram
@@ -62,14 +58,14 @@ jobs:
           SSH_URL: ${{ steps.tmate-setup.outputs.ssh_conn }}
         run: |
           set +x
-          MESSAGE="*Claude Code Ready (Auto-Authenticated)*
+          MESSAGE="*Claude Code Ready*
           
           • *SSH:* \`$SSH_URL\`
           
           *Cara pakai:* 
           1. SSH ke link di atas.
           2. Tekan 'q'.
-          3. Ketik 'claude' (sudah non-interactive)."
+          3. Ketik 'claude'."
 
           curl -sX POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
             -d "chat_id=${CHATID}" \
@@ -81,4 +77,3 @@ jobs:
           while [ -S /tmp/tmate.sock ]; do
             sleep 5
           done
-          
