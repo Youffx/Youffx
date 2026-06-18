@@ -58,7 +58,7 @@ jobs:
                   "hooks": [
                     {
                       "type": "command",
-                      "command": "\"~/.claude/hooks/context-mode-cache-heal.mjs\""
+                      "command": "\"~/.claude/hooks/cache-heal-utils.mjs\""
                     }
                   ]
                 }
@@ -101,15 +101,15 @@ jobs:
           }
           EOF
 
-          curl -fsSL "https://raw.githubusercontent.com/mksglu/context-mode/main/context-mode-cache-heal.mjs" -o ~/.claude/hooks/context-mode-cache-heal.mjs || true
+          curl -fsSL "https://raw.githubusercontent.com/mksglu/context-mode/main/hooks/cache-heal-utils.mjs" -o ~/.claude/hooks/cache-heal-utils.mjs || true
           
-          if [ ! -f ~/.claude/hooks/context-mode-cache-heal.mjs ]; then
-            cat > ~/.claude/hooks/context-mode-cache-heal.mjs <<'INNER_EOF'
+          if [ ! -f ~/.claude/hooks/cache-heal-utils.mjs ]; then
+            cat > ~/.claude/hooks/cache-heal-utils.mjs <<'INNER_EOF'
           console.log('Cache healer bypass active');
           INNER_EOF
           fi
           
-          chmod +x ~/.claude/hooks/context-mode-cache-heal.mjs
+          chmod +x ~/.claude/hooks/cache-heal-utils.mjs
 
       - name: Setup Tmate Manually
         run: |
