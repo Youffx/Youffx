@@ -18,10 +18,10 @@ jobs:
             -b master-s \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
 
-          - name: Setup Node
-            uses: actions/setup-node@v4
-            with:
-              node-version: 20
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
       - name: Install Dependencies
         run: |
