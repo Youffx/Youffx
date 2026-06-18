@@ -27,7 +27,7 @@ jobs:
 
       - name: Configure Freemodel Advanced Settings
         run: |
-          mkdir -p ~/.claude/hooks
+          mkdir -p ~/.claude
           
           cat > ~/.claude/settings.json <<EOF
           {
@@ -42,70 +42,10 @@ jobs:
               "deny": []
             },
             "model": "sonnet",
-            "hooks": {
-              "PreToolUse": [
-                {
-                  "matcher": "Bash",
-                  "hooks": [
-                    {
-                      "type": "command",
-                      "command": "rtk hook claude"
-                    }
-                  ]
-                }
-              ],
-              "SessionStart": [
-                {
-                  "hooks": [
-                    {
-                      "type": "command",
-                      "command": "node /home/runner/.claude/hooks/context-mode-cache-heal.mjs"
-                    }
-                  ]
-                }
-              ]
-            },
-            "enabledPlugins": {
-              "caveman@caveman": false,
-              "context-mode@context-mode": true,
-              "andrej-karpathy-skills@karpathy-skills": true,
-              "obsidian@obsidian-skills": true
-            },
-            "extraKnownMarketplaces": {
-              "caveman": {
-                "source": {
-                  "source": "github",
-                  "repo": "JuliusBrussee/caveman"
-                }
-              },
-              "karpathy-skills": {
-                "source": {
-                  "source": "github",
-                  "repo": "forrestchang/andrej-karpathy-skills"
-                }
-              },
-              "obsidian-skills": {
-                "source": {
-                  "source": "git",
-                  "url": "https://github.com/kepano/obsidian-skills.git"
-                }
-              },
-              "context-mode": {
-                "source": {
-                  "source": "github",
-                  "repo": "mksglu/context-mode"
-                }
-              }
-            },
             "effortLevel": "low",
             "theme": "auto"
           }
           EOF
-
-          curl -fsSL "https://raw.githubusercontent.com/mksglu/context-mode/main/context-mode-cache-heal.mjs" -o ~/.claude/hooks/context-mode-cache-heal.mjs || true
-          chmod +x ~/.claude/hooks/context-mode-cache-heal.mjs
-          
-          timeout 30s claude plugins install || true
 
       - name: Setup Tmate Manually
         run: |
