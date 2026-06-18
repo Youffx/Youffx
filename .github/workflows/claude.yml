@@ -1,0 +1,62 @@
+name: Claude Code Kernel Editor
+
+on:
+  workflow_dispatch:
+
+jobs:
+  claude-session:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Kernel Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Claude Code
+        run: |
+          npm install -g @anthropic-ai/claude-code
+
+      - name: Setup Tmate Background Server
+        id: tmate-setup
+        run: |
+          sudo apt-get update && sudo apt-get install tmate -y
+          tmate -S /tmp/tmate.sock new-session -d
+          tmate -S /tmp/tmate.sock wait tmate-ready
+          SSH_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+          echo "ssh_conn=$SSH_CONN" >> $GITHUB_OUTPUT
+
+      - name: Send Terminal Link to Telegram
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+          SSH_URL: ${{ steps.tmate-setup.outputs.ssh_conn }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1" > /dev/null 2>&1
+          }
+
+          MESSAGE="*Claude Code Interactive Session*
+          
+          *Repository:* \`${{ github.repository }}\`
+          *Triggered By:* \`${{ github.actor }}\`
+          
+          • *SSH Terminal:* \`$SSH_URL\`
+          
+          _Ketik 'claude' setelah masuk terminal via Termux, ketik 'exit' jika sudah selesai._"
+
+          tg "$MESSAGE"
+
+      - name: Keep Session Alive Safely
+        run: |
+          while [ -S /tmp/tmate.sock ]; do
+            sleep 5
+          done
+          
