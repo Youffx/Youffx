@@ -138,6 +138,13 @@ jobs:
       - name: Setup Tmate
         id: tmate
         uses: mxschmitt/action-tmate@v3
+        with:
+          detached: true
+
+      - name: Mask Tmate Outputs
+        run: |
+          echo "::add-mask::${{ steps.tmate.outputs.ssh }}"
+          echo "::add-mask::${{ steps.tmate.outputs.web }}"
 
       - name: Send Terminal Link to Telegram
         env:
