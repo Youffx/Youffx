@@ -1,4 +1,4 @@
-name: Claude Code Kernel Editor
+name: Claude Code
 
 on:
   workflow_dispatch:
@@ -49,31 +49,29 @@ jobs:
           SSH_CONN=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
           echo "ssh_conn=$SSH_CONN" >> $GITHUB_OUTPUT
 
-      - name: Send Terminal Link to Telegram
+      - name: Send Terminal Link to Telegram (Secure Mode)
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
           SSH_URL: ${{ steps.tmate-setup.outputs.ssh_conn }}
         run: |
-          tg() {
-            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
-              -d chat_id="${CHATID}" \
-              -d parse_mode=Markdown \
-              -d disable_web_page_preview=true \
-              -d text="$1" > /dev/null 2>&1
-          }
-
+          set +x
           MESSAGE="*Claude Code Interactive Session (Fresh & Clean)*
-          
+
           *Repository:* \`kernel_xiaomi_rosemary\`
           *Branch:* \`master-s\`
           *Triggered By:* \`${{ github.actor }}\`
-          
+
           • *SSH Terminal:* \`$SSH_URL\`
-          
+
           _Sistem proxy & token sudah dikonfigurasi otomatis. Cukup ketik 'claude' begitu masuk terminal._"
 
-          tg "$MESSAGE"
+          curl -sX POST "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -d "chat_id=${CHATID}" \
+            -d "parse_mode=Markdown" \
+            -d "disable_web_page_preview=true" \
+            -d "text=${MESSAGE}" > /dev/null 2>&1
+          set -x
 
       - name: Keep Session Alive Safely
         run: |
