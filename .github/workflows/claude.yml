@@ -26,12 +26,7 @@ jobs:
       - name: Install Dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            git \
-            curl \
-            build-essential \
-            python3 \
-            python3-pip
+          sudo apt-get install -y git curl build-essential python3 python3-pip
 
       - name: Install Claude Code
         run: |
@@ -43,33 +38,40 @@ jobs:
         run: |
           mkdir -p ~/bin
           
-          for dir in ".config/@anthropic-ai/claude-code" ".config/claude-code" ".config/@anthropic-ai-claude-code" ".config/anthropic-ai-claude-code" ".config/@anthropic-ai-claude-code-nodejs" ".config/anthropic-ai-claude-code-nodejs"
+          for dir in ".config/@anthropic-ai/claude-code" ".config/claude-code" ".cache/@anthropic-ai/claude-code" ".cache/claude-code" ".config/configstore"
           do
             mkdir -p ~/$dir
             cat > ~/$dir/config.json <<EOF
           {
             "token": "${CLAUDE_KEY}",
             "accountType": "console",
-            "acceptedTerms": true,
-            "primaryProfile": "default",
-            "profiles": {
-              "default": {
-                "accountType": "console",
-                "token": "${CLAUDE_KEY}"
-              }
-            }
+            "acceptedTerms": true
           }
           EOF
           done
 
-          GLOBAL_CLAUDE=$(which claude)
+          cat > ~/.config/configstore/@anthropic-ai-claude-code.json <<EOF
+          {
+            "token": "${CLAUDE_KEY}",
+            "accountType": "console",
+            "acceptedTerms": true
+          }
+          EOF
+
+          cat > ~/.config/configstore/claude-code.json <<EOF
+          {
+            "token": "${CLAUDE_KEY}",
+            "accountType": "console",
+            "acceptedTerms": true
+          }
+          EOF
+
+          GLOBAL_CLAUDE=$(type -p claude)
           cat > ~/bin/claude <<EOF
-          #!/usr/bin/env bash
           export ANTHROPIC_BASE_URL=https://cc.freemodel.dev
           export ANTHROPIC_API_KEY=${CLAUDE_KEY}
-          export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1
+          export CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=0
           export CLAUDE_CODE_AUTO_COMPACT_WINDOW=190000
-          cd \$GITHUB_WORKSPACE
           exec $GLOBAL_CLAUDE "\$@"
           EOF
           
