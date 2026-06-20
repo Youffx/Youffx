@@ -1,0 +1,14 @@
+name: Cleanup GitHub Actions Cache
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear GitHub Actions Cache
+        uses: alexander-akait/actions-cleanup-caches@v3
