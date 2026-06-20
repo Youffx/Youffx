@@ -22,7 +22,7 @@
     "name": "CI Release",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "genesis",
+      "branch": "master-s",
       "fetchDepth": 1
     },
     "root": {
