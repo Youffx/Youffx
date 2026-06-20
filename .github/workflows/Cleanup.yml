@@ -1,4 +1,4 @@
-name: Cleanup GitHub Actions Cache
+name: Cleanup Cache
 
 on:
   workflow_dispatch:
@@ -11,4 +11,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Clear GitHub Actions Cache
-        uses: alexander-akait/actions-cleanup-caches@v3
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh extension install actions/gh-actions-cache
+          REPO="${{ github.repository }}"
+          
+          echo "Fetching cache list..."
+          caches=$(gh actions-cache list -R "$REPO" --limit 100 | awk '{print $1}')
+          
+          if [ -z "$caches" ]; then
+            echo "No caches found to delete."
+            exit 0
+          fi
+          
+          for cache in $caches; do
+            echo "Deleting cache: $cache"
+            gh actions-cache delete "$cache" -R "$REPO" --confirm
+          done
+          echo "All caches successfully cleared."
+          
