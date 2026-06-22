@@ -13,7 +13,7 @@ jobs:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           rm -rf ./*
-          git clone --depth 1 -b master-s https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
+          git clone --depth=31 -b master-s https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git .
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -22,46 +22,8 @@ jobs:
 
       - name: Install Claude Code and Dependencies
         run: |
-          npm install -g @anthropic-ai/claude-code
+          npm i -g opencode-ai
           npm install -g rtk
-
-      - name: Configure Freemodel Advanced Settings
-        run: |
-          mkdir -p ~/.claude
-          
-          cat > ~/.claude/settings.json <<EOF
-          {
-            "apiKeyHelper": "echo ''",
-            "env": {
-              "ANTHROPIC_BASE_URL": "https://cc.freemodel.dev",
-              "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
-            },
-            "mcpServers": {},
-            "permissions": {
-              "allow": [],
-              "deny": []
-            },
-            "model": "sonnet",
-            "hooks": {
-              "PreToolUse": [
-                {
-                  "matcher": "Bash",
-                  "hooks": [
-                    {
-                      "type": "command",
-                      "command": "rtk hook claude"
-                    }
-                  ]
-                }
-              ]
-            },
-            "enabledPlugins": {
-              "context-mode@context-mode": false
-            },
-            "effortLevel": "low",
-            "theme": "auto"
-          }
-          EOF
 
       - name: Setup Tmate Manually
         run: |
