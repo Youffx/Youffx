@@ -15,6 +15,9 @@ on:
       repo_paths:
         description: "Repo URLs (space separated)"
         required: false
+      diff_urls:
+        description: "Diff URLs (space separated)"
+        required: false
 
 jobs:
   merging:
@@ -256,6 +259,63 @@ jobs:
             git commit -m "$FINAL_MSG"
           else
             echo "No repo changes"
+          fi
+
+      - name: Apply Diff Patches
+        if: ${{ github.event.inputs.diff_urls != '' }}
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          cd repo
+
+          INPUT="${{ github.event.inputs.diff_urls }}"
+          TITLE_INPUT="${{ github.event.inputs.title }}"
+
+          for URL in $INPUT
+          do
+            echo "Processing diff: $URL"
+            TEMP_DIFF="/tmp/patch_${RANDOM}.diff"
+
+            if echo "$URL" | grep -q "Youffx/kernel_xiaomi_rosemary"; then
+              curl -sL -H "Authorization: token $PAT_TOKEN" "$URL" -o "$TEMP_DIFF"
+            else
+              curl -sL "$URL" -o "$TEMP_DIFF"
+            fi
+
+            if [ -s "$TEMP_DIFF" ]; then
+              git apply "$TEMP_DIFF" || patch -p1 < "$TEMP_DIFF"
+            else
+              echo "Empty or invalid diff file"
+            fi
+
+            rm -f "$TEMP_DIFF"
+          done
+
+          git add -A
+
+          if ! git diff --cached --quiet; then
+
+            IFS='/' read -ra MSG <<< "$TITLE_INPUT"
+
+            COMMIT_TITLE="${MSG[0]}"
+            COMMIT_BODY=""
+
+            if [ ${#MSG[@]} -gt 1 ]; then
+              for ((i=1;i<${#MSG[@]};i++))
+              do
+                COMMIT_BODY+="${MSG[$i]}"$'\n'
+              done
+            fi
+
+            if [ -n "$COMMIT_BODY" ]; then
+              FINAL_MSG="${COMMIT_TITLE}"$'\n\n'"${COMMIT_BODY}"$'\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"
+            else
+              FINAL_MSG="${COMMIT_TITLE}"$'\n\n'"Signed-off-by: Youffx <asa.jazal@gmail.com>"
+            fi
+
+            git commit -m "$FINAL_MSG"
+          else
+            echo "No diff changes applied"
           fi
 
       - name: Push to Repository
