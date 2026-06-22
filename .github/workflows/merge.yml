@@ -273,19 +273,17 @@ jobs:
 
           for URL in $INPUT
           do
-            echo "Processing diff: $URL"
             TEMP_DIFF="/tmp/patch_${RANDOM}.diff"
 
             if echo "$URL" | grep -q "Youffx/kernel_xiaomi_rosemary"; then
-              curl -sL -H "Authorization: token $PAT_TOKEN" "$URL" -o "$TEMP_DIFF"
+              SHA=$(echo "$URL" | sed -n 's#.*/commit/\([a-f0-9]*\).*#\1#p')
+              curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3.diff" "https://api.github.com/repos/Youffx/kernel_xiaomi_rosemary/commits/$SHA" -o "$TEMP_DIFF"
             else
               curl -sL "$URL" -o "$TEMP_DIFF"
             fi
 
-            if [ -s "$TEMP_DIFF" ]; then
+            if [ -s "$TEMP_DIFF" ] && ! grep -q "DOCTYPE html" "$TEMP_DIFF"; then
               git apply "$TEMP_DIFF" || patch -p1 < "$TEMP_DIFF"
-            else
-              echo "Empty or invalid diff file"
             fi
 
             rm -f "$TEMP_DIFF"
@@ -314,8 +312,6 @@ jobs:
             fi
 
             git commit -m "$FINAL_MSG"
-          else
-            echo "No diff changes applied"
           fi
 
       - name: Push to Repository
