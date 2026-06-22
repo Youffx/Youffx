@@ -28,14 +28,18 @@ jobs:
       - name: Setup Tmate Manually
         run: |
           sudo apt-get install -y tmate
-          tmate -S /tmp/tmate.sock new-session -d
+
+          tmate -S /tmp/tmate.sock new-session -d "cd $GITHUB_WORKSPACE && exec bash"
+
           until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
             sleep 2
           done
+
           SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
           echo "::add-mask::$SSH_URL"
           echo "TMATE_SSH=$SSH_URL" >> $GITHUB_ENV
 
+            
       - name: Send Terminal Link to Telegram
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
