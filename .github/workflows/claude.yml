@@ -13,8 +13,8 @@ jobs:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           rm -rf ./*
-          git clone --depth=33 -b master-s https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-          kernel_xiaomi_rosemary
+          git clone --depth=1 -b main https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
+          Youffx
 
       - name: Configure Git + Import GPG
         run: |
@@ -57,7 +57,7 @@ jobs:
         run: |
           sudo apt-get install -y tmate
 
-          tmate -S /tmp/tmate.sock new-session -d "cd $GITHUB_WORKSPACE/kernel_xiaomi_rosemary && exec bash"
+          tmate -S /tmp/tmate.sock new-session -d "cd $GITHUB_WORKSPACE/Youffx && exec bash"
 
           until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
             sleep 2
