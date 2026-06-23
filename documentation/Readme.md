@@ -47,32 +47,29 @@ The inclusion of Multi-Queue Block Layer (`blk-mq`) and Host Performance Booster
 The structural non-determinism of this bug means that success or failure is determined by a highly specific timing window during storage initialization:
 
 ```
-                      [ Device Boot Process Initiated ]
-                                     │
-                     ┌───────────────┴───────────────┐
-                     ▼                               ▼
+                                [ Device Boot Process Initiated ]
+                                                ▼
+                          ┌────────────┴────────────┐
+                          ▼                                          ▼
              ┌───────────────┐               ┌───────────────┐
-             │   Device A    │               │   Device B    │
+             │        Device A         │               │         Device B        │
              └───────┬───────┘               └───────┬───────┘
-                     │                               │
-         (Storage requests execute)      (Storage requests execute)
-         (   in normal sequence   )      (in slightly altered order)
-                     │                               │
-                     ▼                               ▼
+                          ▼                                          ▼
+               (Storage requests execute)                (Storage requests execute)
+               (   in normal sequence   )                (in slightly altered order)                               │
+                          ▼                                          ▼
              ┌───────────────┐               ┌───────────────┐
-             │ System Boots  │               │ Race Condition│
-             │   Normally    │               │   Triggered   │
+             │       System Boots      │               │      Race Condition     │
+             │         Normally        │               │        Triggered        │
              └───────────────┘               └───────┬───────┘
-                                                     │
-                                                     ▼
-                                             ┌───────────────┐
-                                             │ Kernel Panic  │
-                                             └───────┬───────┘
-                                                     │
-                                                     ▼
-                                             ┌───────────────┐
-                                             │   Bootloop    │
-                                             └───────────────┘
+                                                                      ▼
+                                                        ┌───────────────┐
+                                                        │       Kernel Panic      │
+                                                        └───────┬───────┘
+                                                                      ▼
+                                                        ┌───────────────┐
+                                                        │         Bootloop        │
+                                                        └───────────────┘
 ```
 
 ---
