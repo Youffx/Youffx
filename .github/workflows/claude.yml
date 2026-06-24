@@ -8,6 +8,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Setup LLVM 22
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          CODENAME=$(lsb_release -cs)
+          sudo add-apt-repository -y "deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-22 main"
+          sudo apt-get update -y
+          mkdir -p llvm-22-debs
+          sudo apt-get install --download-only -y clang-22 lld-22 llvm-22
+          cp /var/cache/apt/archives/*22*.deb llvm-22-debs/ 2>/dev/null || cp /var/cache/apt/archives/*.deb llvm-22-debs/
+          sudo dpkg -i llvm-22-debs/*.deb || sudo apt-get install -f -y
+          mkdir -p llvm/bin
+          for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
+            ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
+          done
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+          
       - name: Clone Target Kernel Repository
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
