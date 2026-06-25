@@ -27,8 +27,8 @@
     },
     "root": {
       "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy-susfs",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
+      "arg": "keep-alive",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
