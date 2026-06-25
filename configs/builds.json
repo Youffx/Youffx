@@ -1,28 +1,28 @@
 [
   {
-    "name": "K3",
+    "name": "CI Release non KASSLR",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "master",
+      "branch": "master-s",
       "fetchDepth": 1
     },
     "root": {
       "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy_susfs/kernel/setup.sh",
-      "arg": "legacy_susfs",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
+      "arg": "keep-alive",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
-    "susfs": true
+    "susfs": false
   },
   {
     "name": "CI Release",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "master-s",
+      "branch": "s-backup",
       "fetchDepth": 1
     },
     "root": {
