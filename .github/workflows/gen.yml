@@ -207,10 +207,6 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
-          echo "CONFIG_LTO=y" >> out/.config
-          echo "CONFIG_LTO_CLANG=y" >> out/.config
-          echo "CONFIG_THINLTO=y" >> out/.config
-
           MONTH_IDX=$(TZ='Asia/Jakarta' date +%-m)
           DAY_IDX=$(TZ='Asia/Jakarta' date +%-d)
 
