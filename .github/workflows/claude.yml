@@ -73,7 +73,7 @@ jobs:
         run: |
           sudo apt-get install -y tmate
 
-          tmate -S /tmp/tmate.sock new-session -d "cd $GITHUB_WORKSPACE/kernel_xiaomi_rosemary && exec bash"
+          tmate -S /tmp/tmate.sock new-session -d "cd $GITHUB_WORKSPACE && exec bash"
 
           until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
             sleep 2
