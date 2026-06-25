@@ -1,10 +1,10 @@
-name: Claude Code
+name: OpenCode
 
 on:
   workflow_dispatch:
 
 jobs:
-  claude-session:
+  code-session:
     runs-on: ubuntu-latest
 
     steps:        
@@ -48,18 +48,18 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install OpenCode and Dependencies
+      - name: Install OpenCode + Ponytail
         run: |
           npm i -g opencode-ai
-          npm install -g rtk
+          npm i -g @dietrichgebert/ponytail
+          npm i -g rtk
 
-      - name: Setup Ponytail
+      - name: Configure OpenCode
         working-directory: ${{ github.workspace }}/kernel_xiaomi_rosemary
         run: |
-          npm install -D @dietrichgebert/ponytail
-
           cat > opencode.json <<'EOF'
           {
+            "$schema": "https://opencode.ai/config.json",
             "plugin": [
               "@dietrichgebert/ponytail"
             ]
