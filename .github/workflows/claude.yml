@@ -1,106 +1,125 @@
 name: OpenCode
 
 on:
-  workflow_dispatch:
+ workflow_dispatch:
 
 jobs:
-  code-session:
-    runs-on: ubuntu-latest
+ code-session:
+  runs-on: ubuntu-latest
+    
+  steps:
+  - name: Clone Target Kernel Repository
+    env:
+      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+    run: |
+      rm -rf ./*
+      git clone --depth=33 -b master-s \
+        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+        kernel_xiaomi_rosemary
 
-    steps:        
-      - name: Clone Target Kernel Repository
-        env:
-          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-        run: |
-          rm -rf ./*
-          git clone --depth=33 -b master-s https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-          kernel_xiaomi_rosemary
+  - name: Configure Git + Import GPG
+    run: |
+      git config --global user.name "${{ secrets.USER }}"
+      git config --global user.email "${{ secrets.EMAIL }}"
 
-      - name: Configure Git + Import GPG
-        run: |
-          git config --global user.name "${{ secrets.USER }}"
-          git config --global user.email "${{ secrets.EMAIL }}"
+      mkdir -p ~/.gnupg
+      chmod 700 ~/.gnupg
 
-          mkdir -p ~/.gnupg
-          chmod 700 ~/.gnupg
+      echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+      echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+      echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+      echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
 
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
-          echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+      echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
+      gpg --batch --yes --pinentry-mode loopback \
+        --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+        --import private.key
+      rm -f private.key
 
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
-          gpg --batch --yes --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" --import private.key
-          rm -f private.key
+      gpgconf --kill gpg-agent
+      gpg-connect-agent reloadagent /bye
 
-          gpgconf --kill gpg-agent
-          gpg-connect-agent reloadagent /bye
+      echo "test" | gpg --clearsign \
+        --batch \
+        --pinentry-mode loopback \
+        --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+        > /dev/null
 
-          echo "test" | gpg --clearsign --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" > /dev/null
+      git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+      git config --global commit.gpgsign true
+      git config --global tag.gpgsign true
+      git config --global gpg.program gpg
 
-          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
-          git config --global commit.gpgsign true
-          git config --global tag.gpgsign true
-          git config --global gpg.program gpg
+  - name: Setup Node
+    uses: actions/setup-node@v4
+    with:
+      node-version: 20
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+  - name: Cache NPM
+    uses: actions/cache@v4
+    with:
+      path: ~/.npm
+      key: ${{ runner.os }}-npm-opencode-v1
+      restore-keys: |
+        ${{ runner.os }}-npm-
 
-      - name: Install OpenCode + Ponytail
-        run: |
-          npm i -g opencode-ai
-          npm i -g @dietrichgebert/ponytail
-          npm i -g rtk
+  - name: Install OpenCode + Ponytail
+    run: |
+      npm i -g opencode-ai
+      npm i -g @dietrichgebert/ponytail
+      npm i -g rtk
 
-      - name: Configure OpenCode
-        working-directory: ${{ github.workspace }}/kernel_xiaomi_rosemary
-        run: |
-          cat > opencode.json <<'EOF'
-          {
-            "$schema": "https://opencode.ai/config.json",
-            "plugin": [
-              "@dietrichgebert/ponytail"
-            ]
-          }
-          EOF
+  - name: Configure OpenCode
+    working-directory: ${{ github.workspace }}/kernel_xiaomi_rosemary
+    run: |
+      cat > opencode.json <<'EOF'
+      {
+        "$schema": "https://opencode.ai/config.json",
+        "plugin": [
+          "@dietrichgebert/ponytail"
+        ]
+      }
+      EOF
 
-      - name: Setup Tmate Manually
-        run: |
-          sudo apt-get install -y tmate
+  - name: Setup Tmate Manually
+    run: |
+      sudo apt-get update
+      sudo apt-get install -y tmate
 
-          tmate -S /tmp/tmate.sock new-session -d "cd $GITHUB_WORKSPACE/kernel_xiaomi_rosemary && exec bash"
+      tmate -S /tmp/tmate.sock new-session -d \
+        "cd $GITHUB_WORKSPACE/kernel_xiaomi_rosemary && exec bash"
 
-          until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
-            sleep 2
-          done
+      until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
+        sleep 2
+      done
 
-          SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
-          echo "::add-mask::$SSH_URL"
-          echo "TMATE_SSH=$SSH_URL" >> $GITHUB_ENV
+      SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
 
-            
-      - name: Send Terminal Link to Telegram
-        env:
-          TOKEN: ${{ secrets.TG_TOKEN }}
-          CHATID: ${{ secrets.TG_CHATID }}
-          SSH_URL: ${{ env.TMATE_SSH }}
-        run: |
-          set +x
-          MESSAGE="*Claude Code Ready*
-          
-          • *SSH:* \`$SSH_URL\` "
-          curl -sX POST \
-            "https://api.telegram.org/bot${TOKEN}/sendMessage" \
-            -d "chat_id=${CHATID}" \
-            -d "parse_mode=Markdown" \
-            -d "text=${MESSAGE}" \
-            > /dev/null 2>&1
+      echo "::add-mask::$SSH_URL"
+      echo "TMATE_SSH=$SSH_URL" >> $GITHUB_ENV
 
-      - name: Keep Session Alive Until Exit
-        run: |
-          while tmate -S /tmp/tmate.sock has-session 2>/dev/null
-          do
-            sleep 5
-          done
+  - name: Send Terminal Link to Telegram
+    env:
+      TOKEN: ${{ secrets.TG_TOKEN }}
+      CHATID: ${{ secrets.TG_CHATID }}
+      SSH_URL: ${{ env.TMATE_SSH }}
+    run: |
+      set +x
+
+      MESSAGE="*OpenCode Ready*
+
+      • *SSH:* \`$SSH_URL\`"
+
+      curl -sX POST \
+        "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+        -d "chat_id=${CHATID}" \
+        -d "parse_mode=Markdown" \
+        -d "text=${MESSAGE}" \
+        > /dev/null 2>&1
+
+  - name: Keep Session Alive Until Exit
+    run: |
+      while tmate -S /tmp/tmate.sock has-session 2>/dev/null
+      do
+        sleep 5
+      done
