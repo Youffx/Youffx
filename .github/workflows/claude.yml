@@ -48,10 +48,23 @@ jobs:
         with:
           node-version: 20
 
-      - name: Install Claude Code and Dependencies
+      - name: Install OpenCode and Dependencies
         run: |
           npm i -g opencode-ai
           npm install -g rtk
+
+      - name: Setup Ponytail
+        working-directory: ${{ github.workspace }}/kernel_xiaomi_rosemary
+        run: |
+          npm install -D @dietrichgebert/ponytail
+
+          cat > opencode.json <<'EOF'
+          {
+            "plugin": [
+              "@dietrichgebert/ponytail"
+            ]
+          }
+          EOF
 
       - name: Setup Tmate Manually
         run: |
