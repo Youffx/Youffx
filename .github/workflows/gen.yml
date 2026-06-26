@@ -109,6 +109,25 @@ jobs:
           done
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
+      - name: Cache AOSP Clang 22
+        if: github.event.inputs.use_aosp_clang == 'true'
+        id: cache-aosp-clang
+        uses: actions/cache@v4
+        with:
+          path: llvm
+          key: aosp-clang-r584948b
+
+      - name: Setup AOSP Clang 22
+        if: github.event.inputs.use_aosp_clang == 'true'
+        run: |
+          if [ "${{ steps.cache-aosp-clang.outputs.cache-hit }}" != "true" ]; then
+            mkdir -p llvm
+            wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r584948b.tar.gz -O clang.tar.gz
+            tar -C llvm -xzf clang.tar.gz
+            rm clang.tar.gz
+          fi
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
       - name: Load Config
         id: cfg
         run: |
@@ -387,6 +406,25 @@ jobs:
           for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
             ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
           done
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
+      - name: Cache AOSP Clang 22
+        if: github.event.inputs.use_aosp_clang == 'true'
+        id: cache-aosp-clang
+        uses: actions/cache@v4
+        with:
+          path: llvm
+          key: aosp-clang-r584948b
+
+      - name: Setup AOSP Clang 22
+        if: github.event.inputs.use_aosp_clang == 'true'
+        run: |
+          if [ "${{ steps.cache-aosp-clang.outputs.cache-hit }}" != "true" ]; then
+            mkdir -p llvm
+            wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r584948b.tar.gz -O clang.tar.gz
+            tar -C llvm -xzf clang.tar.gz
+            rm clang.tar.gz
+          fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
