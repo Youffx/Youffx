@@ -169,7 +169,7 @@ jobs:
           PGO_URL: ${{ secrets.GEN_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
-          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
+          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ] || [ "${{ github.event.inputs.use_aosp_clang }}" = "true" ]; then
             sudo apt-get install -y llvm-17
             llvm-profdata-17 merge -o kernel/vmlinux.profdata vmlinux.profraw
           else
@@ -468,7 +468,7 @@ jobs:
           PGO_URL: ${{ secrets.PGO_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
-          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
+          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ] || [ "${{ github.event.inputs.use_aosp_clang }}" = "true" ]; then
             sudo apt-get install -y llvm-17
             llvm-profdata-17 merge -o kernel/vmlinux.profdata vmlinux.profraw
           else
