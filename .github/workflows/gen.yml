@@ -127,7 +127,7 @@ jobs:
         run: |
           if [ "${{ steps.cache-aosp-clang.outputs.cache-hit }}" != "true" ]; then
             mkdir -p llvm
-            wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r584948b.tar.gz -O clang.tar.gz
+            wget -q oid.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r584948b.tar.gz -O clang.tar.gz
             tar -C llvm -xzf clang.tar.gz
             rm clang.tar.gz
           fi
@@ -430,7 +430,7 @@ jobs:
         run: |
           if [ "${{ steps.cache-aosp-clang.outputs.cache-hit }}" != "true" ]; then
             mkdir -p llvm
-            wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r584948b.tar.gz -O clang.tar.gz
+            wget -q oid.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/mirror-goog-main-llvm-toolchain-source/clang-r584948b.tar.gz -O clang.tar.gz
             tar -C llvm -xzf clang.tar.gz
             rm clang.tar.gz
           fi
