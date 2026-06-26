@@ -215,37 +215,38 @@ jobs:
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
           sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
 
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH"
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
           export KCONFIG_NOTIMESTAMP=1
           export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CC="ccache clang"
-          export CXX="ccache clang++"
-          export LD=ld.lld
-          export AR=llvm-ar
-          export NM=llvm-nm
-          export OBJCOPY=llvm-objcopy
-          export OBJDUMP=llvm-objdump
-          export STRIP=llvm-strip
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export LLVM=1
-          export LLVM_IAS=1
-          export CROSS_COMPILE=aarch64-linux-gnu-
-          export CROSS_COMPILE_ARM32=arm-linux-gnueabi-
-          export KCFLAGS="-mllvm -enable-ml-inliner=release"
-          export KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
 
-          ccache -s
+          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" ccache -s
 
           cd kernel
-          make O=out $DEFCONFIG
+
+          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" make O=out \
+            ARCH=arm64 \
+            SUBARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="ccache clang" \
+            CXX="ccache clang++" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            KCFLAGS="-mllvm -enable-ml-inliner=release" \
+            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
+            $DEFCONFIG
 
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
@@ -268,13 +269,49 @@ jobs:
 
           echo "LV=$LV" >> $GITHUB_ENV
 
-          make O=out olddefconfig
+          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" make O=out \
+            ARCH=arm64 \
+            SUBARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="ccache clang" \
+            CXX="ccache clang++" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            KCFLAGS="-mllvm -enable-ml-inliner=release" \
+            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
+            olddefconfig
 
           echo "--- DEBUG ---"
           grep -E "LTO|CONSERVATIVE|BLK_PM|KYBER|RANDOMIZE_BASE|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
-          make -j$(nproc --all) O=out Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
+          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            SUBARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="ccache clang" \
+            CXX="ccache clang++" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
+            KCFLAGS="-mllvm -enable-ml-inliner=release" \
+            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
       - name: Package Flashable Zip KSU
         run: |
