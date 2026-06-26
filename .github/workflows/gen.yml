@@ -244,6 +244,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            KCFLAGS="-mllvm -enable-ml-inliner=release -mllvm -regalloc-evict-advisor=release" \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
