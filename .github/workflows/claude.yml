@@ -13,7 +13,7 @@ jobs:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
       rm -rf ./*
-      git clone --depth=33 -b master-s \
+      git clone --depth=33 -b s-backup \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
         kernel_xiaomi_rosemary
 
