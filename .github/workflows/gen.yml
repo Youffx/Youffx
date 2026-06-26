@@ -12,6 +12,11 @@ on:
         required: false
         type: boolean
         default: false
+      use_aosp_clang:
+        description: "Use AOSP Clang 22"
+        required: false
+        type: boolean
+        default: false
       use_pgo:
         description: 'Enable PGO Optimization'
         required: false
@@ -67,14 +72,14 @@ jobs:
             ccache-ksu-${{ runner.os }}-
 
       - name: Restore LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true'
+        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
         uses: actions/cache@v4
         with:
           path: llvm
           key: clang+llvm-17.0.6
 
       - name: Setup LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true'
+        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
         run: |
           if [ ! -d "llvm/bin" ]; then
             mkdir -p llvm
@@ -366,14 +371,14 @@ jobs:
             ccache-nonksu-${{ runner.os }}-
 
       - name: Restore LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true'
+        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
         uses: actions/cache@v4
         with:
           path: llvm
           key: clang+llvm-17.0.6
 
       - name: Setup LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true'
+        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
         run: |
           if [ ! -d "llvm/bin" ]; then
             mkdir -p llvm
