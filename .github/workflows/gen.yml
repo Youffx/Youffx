@@ -12,11 +12,6 @@ on:
         required: false
         type: boolean
         default: false
-      use_aosp_clang:
-        description: "Use AOSP Clang 22"
-        required: false
-        type: boolean
-        default: false
       use_pgo:
         description: 'Enable PGO Optimization'
         required: false
@@ -72,14 +67,14 @@ jobs:
             ccache-ksu-${{ runner.os }}-
 
       - name: Restore LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
+        if: github.event.inputs.use_llvm22 != 'true'
         uses: actions/cache@v4
         with:
           path: llvm
           key: clang+llvm-17.0.6
 
       - name: Setup LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
+        if: github.event.inputs.use_llvm22 != 'true'
         run: |
           if [ ! -d "llvm/bin" ]; then
             mkdir -p llvm
@@ -112,25 +107,6 @@ jobs:
           for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
             ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
           done
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
-
-      - name: Cache AOSP Clang 22
-        if: github.event.inputs.use_aosp_clang == 'true'
-        id: cache-aosp-clang
-        uses: actions/cache@v4
-        with:
-          path: llvm
-          key: aosp-clang-22
-
-      - name: Setup AOSP Clang 22
-        if: github.event.inputs.use_aosp_clang == 'true'
-        run: |
-          if [ "${{ steps.cache-aosp-clang.outputs.cache-hit }}" != "true" ]; then
-            mkdir -p llvm
-            wget -q https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250928-release/Clang-22.0.0git-20250928.tar.gz -O clang.tar.gz
-            tar -C llvm -xzf clang.tar.gz --strip-components=1
-            rm clang.tar.gz
-          fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
@@ -169,7 +145,7 @@ jobs:
           PGO_URL: ${{ secrets.GEN_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
-          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ] || [ "${{ github.event.inputs.use_aosp_clang }}" = "true" ]; then
+          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
             sudo apt-get install -y llvm-17
             llvm-profdata-17 merge -o kernel/vmlinux.profdata vmlinux.profraw
           else
@@ -212,41 +188,24 @@ jobs:
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libtinfo.so.6 /usr/lib/x86_64-linux-gnu/libtinfo.so.5
-          sudo ln -sf /usr/lib/x86_64-linux-gnu/libncurses.so.6 /usr/lib/x86_64-linux-gnu/libncurses.so.5
-
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$PWD/llvm/bin:$PATH"
           export KBUILD_BUILD_USER="youffx"
           export KBUILD_BUILD_HOST="collection"
           export KBUILD_BUILD_VERSION=1
           export KCONFIG_NOTIMESTAMP=1
           export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
+          export CC="ccache clang"
+          export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
 
-          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" ccache -s
+          ccache -s
 
           cd kernel
-
-          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" make O=out \
-            ARCH=arm64 \
-            SUBARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            CXX="ccache clang++" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            KCFLAGS="-mllvm -enable-ml-inliner=release" \
-            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
-            $DEFCONFIG
+          make O=out $DEFCONFIG
 
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
@@ -269,37 +228,17 @@ jobs:
 
           echo "LV=$LV" >> $GITHUB_ENV
 
-          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" make O=out \
-            ARCH=arm64 \
-            SUBARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            CXX="ccache clang++" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            KCFLAGS="-mllvm -enable-ml-inliner=release" \
-            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
-            olddefconfig
+          make O=out olddefconfig
 
           echo "--- DEBUG ---"
           grep -E "LTO|CONSERVATIVE|BLK_PM|KYBER|RANDOMIZE_BASE|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
-          PATH="$GITHUB_WORKSPACE/llvm/bin:$PATH" make -j$(nproc --all) O=out \
+          make -j$(nproc --all) O=out \
             ARCH=arm64 \
-            SUBARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
             CC="ccache clang" \
-            CXX="ccache clang++" \
             LD=ld.lld \
             AR=llvm-ar \
             NM=llvm-nm \
@@ -309,8 +248,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS="-mllvm -enable-ml-inliner=release" \
-            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
+            KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
       - name: Package Flashable Zip KSU
@@ -408,14 +346,14 @@ jobs:
             ccache-nonksu-${{ runner.os }}-
 
       - name: Restore LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
+        if: github.event.inputs.use_llvm22 != 'true'
         uses: actions/cache@v4
         with:
           path: llvm
           key: clang+llvm-17.0.6
 
       - name: Setup LLVM 17
-        if: github.event.inputs.use_llvm22 != 'true' && github.event.inputs.use_aosp_clang != 'true'
+        if: github.event.inputs.use_llvm22 != 'true'
         run: |
           if [ ! -d "llvm/bin" ]; then
             mkdir -p llvm
@@ -448,25 +386,6 @@ jobs:
           for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
             ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
           done
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
-
-      - name: Cache AOSP Clang 22
-        if: github.event.inputs.use_aosp_clang == 'true'
-        id: cache-aosp-clang
-        uses: actions/cache@v4
-        with:
-          path: llvm
-          key: aosp-clang-22
-
-      - name: Setup AOSP Clang 22
-        if: github.event.inputs.use_aosp_clang == 'true'
-        run: |
-          if [ "${{ steps.cache-aosp-clang.outputs.cache-hit }}" != "true" ]; then
-            mkdir -p llvm
-            wget -q https://github.com/ZyCromerZ/Clang/releases/download/22.0.0git-20250928-release/Clang-22.0.0git-20250928.tar.gz -O clang.tar.gz
-            tar -C llvm -xzf clang.tar.gz --strip-components=1
-            rm clang.tar.gz
-          fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
@@ -505,7 +424,7 @@ jobs:
           PGO_URL: ${{ secrets.PGO_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
-          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ] || [ "${{ github.event.inputs.use_aosp_clang }}" = "true" ]; then
+          if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
             sudo apt-get install -y llvm-17
             llvm-profdata-17 merge -o kernel/vmlinux.profdata vmlinux.profraw
           else
@@ -572,8 +491,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            KCFLAGS="-mllvm -enable-ml-inliner=release" \
-            KBUILD_LDFLAGS="-m aarch64elf --emit-relocs --trace-symbol=__bad_udelay" \
+            KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
       - name: Package Flashable Zip NONKSU
