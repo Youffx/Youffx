@@ -142,7 +142,7 @@ jobs:
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
         env:
-          PGO_URL: ${{ secrets.PGO_FILE }}
+          PGO_URL: ${{ secrets.GEN_FILE }}
         run: |
           curl -L -o vmlinux.profraw "$PGO_URL"
           if [ "${{ github.event.inputs.use_llvm22 }}" = "true" ]; then
