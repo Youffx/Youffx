@@ -194,8 +194,7 @@ jobs:
           export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
-          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-
-     ml-regalloc=release"
+          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-ml-regalloc=release"
 
           ccache -s
 
@@ -436,8 +435,7 @@ jobs:
           export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
-          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-
-     ml-regalloc=release"
+          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-ml-regalloc=release"
 
           ccache -s
 
