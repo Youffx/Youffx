@@ -200,7 +200,10 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
+          
+          sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
 
+          echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
@@ -442,6 +445,9 @@ jobs:
           cd kernel
           make O=out $DEFCONFIG
 
+          sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
+
+          echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
           echo "CONFIG_THINLTO=y" >> out/.config
