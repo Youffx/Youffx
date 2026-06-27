@@ -8,10 +8,10 @@ on:
         required: true
         default: "1"
       use_llvm22:
-        description: "LLVM 22"
+        description: "Clang 20"
         required: false
         type: boolean
-        default: false
+        default: true
       use_pgo:
         description: 'Enable PGO Optimization'
         required: false
@@ -82,31 +82,24 @@ jobs:
           fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
-      - name: Cache LLVM 22 DEBs
+      - name: Cache Clang 20
         if: github.event.inputs.use_llvm22 == 'true'
         id: cache-llvm
         uses: actions/cache@v4
         with:
-          path: llvm-22-debs
-          key: llvm-22-debs-${{ runner.os }}
+          path: llvm
+          key: llvm-mlgo-r547379
 
-      - name: Setup LLVM 22
+      - name: Setup Clang 20
         if: github.event.inputs.use_llvm22 == 'true'
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          CODENAME=$(lsb_release -cs)
-          sudo add-apt-repository -y "deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-22 main"
-          sudo apt-get update -y
-          if [ "${{ steps.cache-llvm.outputs.cache-hit }}" != "true" ]; then
-            mkdir -p llvm-22-debs
-            sudo apt-get install --download-only -y clang-22 lld-22 llvm-22
-            cp /var/cache/apt/archives/*22*.deb llvm-22-debs/ 2>/dev/null || cp /var/cache/apt/archives/*.deb llvm-22-debs/
+          if [ ! -d "llvm/bin" ]; then
+            export LLVM_DIR="$PWD/llvm"
+            rm -rf "$LLVM_DIR"
+            mkdir -p "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" | tar xz -C "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/mlgo-models.tar.gz" | tar xz -C "$LLVM_DIR" || true
           fi
-          sudo dpkg -i llvm-22-debs/*.deb || sudo apt-get install -f -y
-          mkdir -p llvm/bin
-          for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
-            ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
-          done
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
@@ -201,6 +194,8 @@ jobs:
           export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
+          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-
+     ml-regalloc=release"
 
           ccache -s
 
@@ -361,31 +356,24 @@ jobs:
           fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
-      - name: Cache LLVM 22 DEBs
+      - name: Cache Clang 20
         if: github.event.inputs.use_llvm22 == 'true'
         id: cache-llvm
         uses: actions/cache@v4
         with:
-          path: llvm-22-debs
-          key: llvm-22-debs-${{ runner.os }}
+          path: llvm
+          key: llvm-mlgo-r547379
 
-      - name: Setup LLVM 22
+      - name: Setup Clang 20
         if: github.event.inputs.use_llvm22 == 'true'
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          CODENAME=$(lsb_release -cs)
-          sudo add-apt-repository -y "deb http://apt.llvm.org/${CODENAME}/ llvm-toolchain-${CODENAME}-22 main"
-          sudo apt-get update -y
-          if [ "${{ steps.cache-llvm.outputs.cache-hit }}" != "true" ]; then
-            mkdir -p llvm-22-debs
-            sudo apt-get install --download-only -y clang-22 lld-22 llvm-22
-            cp /var/cache/apt/archives/*22*.deb llvm-22-debs/ 2>/dev/null || cp /var/cache/apt/archives/*.deb llvm-22-debs/
+          if [ ! -d "llvm/bin" ]; then
+            export LLVM_DIR="$PWD/llvm"
+            rm -rf "$LLVM_DIR"
+            mkdir -p "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" | tar xz -C "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/mlgo-models.tar.gz" | tar xz -C "$LLVM_DIR" || true
           fi
-          sudo dpkg -i llvm-22-debs/*.deb || sudo apt-get install -f -y
-          mkdir -p llvm/bin
-          for tool in clang clang++ ld.lld llvm-ar llvm-nm llvm-objcopy llvm-objdump llvm-strip llvm-profdata; do
-            ln -sf /usr/bin/${tool}-22 llvm/bin/${tool}
-          done
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
       - name: Load Config
@@ -448,6 +436,8 @@ jobs:
           export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
+          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-
+     ml-regalloc=release"
 
           ccache -s
 
