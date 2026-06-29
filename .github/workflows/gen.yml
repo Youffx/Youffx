@@ -202,7 +202,9 @@ jobs:
           make O=out $DEFCONFIG
           
           sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
+          sed -i '/CONFIG_MQ_IOSCHED_DEFAULT_KYBER/d' out/.config
 
+          echo "CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y" >> out/.config
           echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
@@ -446,7 +448,9 @@ jobs:
           make O=out $DEFCONFIG
 
           sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
+          sed -i '/CONFIG_MQ_IOSCHED_DEFAULT_KYBER/d' out/.config
 
+          echo "CONFIG_MQ_IOSCHED_DEFAULT_ADIOS=y" >> out/.config
           echo "CONFIG_RANDOMIZE_BASE=y" >> out/.config
           echo "CONFIG_LTO=y" >> out/.config
           echo "CONFIG_LTO_CLANG=y" >> out/.config
