@@ -83,46 +83,52 @@ jobs:
         ]
       }
       EOF
-
-  - name: Setup Tmate Manually
+  
+  - name: Install Cloudflared
     run: |
       sudo apt-get update
-      sudo apt-get install -y tmate
+      sudo apt-get install -y curl
 
-      tmate -S /tmp/tmate.sock new-session -d \
-        "cd $GITHUB_WORKSPACE && exec bash"
+      curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
+        -o cloudflared
 
-      until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
-        sleep 2
-      done
+      chmod +x cloudflared
+      sudo mv cloudflared /usr/local/bin/
 
-      SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+  - name: Start SSH + Cloudflare Tunnel
+    run: |
+      sudo apt-get install -y openssh-server
 
-      echo "::add-mask::$SSH_URL"
-      echo "TMATE_SSH=$SSH_URL" >> $GITHUB_ENV
+      sudo service ssh start
+
+      cloudflared tunnel --url ssh://localhost:22 > tunnel.log 2>&1 &
+
+      sleep 5
+
+      TUNNEL_URL=$(grep -o 'https://.*trycloudflare.com' tunnel.log | head -n 1)
+
+      echo "::add-mask::$TUNNEL_URL"
+      echo "CF_URL=$TUNNEL_URL" >> $GITHUB_ENV
 
   - name: Send Terminal Link to Telegram
     env:
       TOKEN: ${{ secrets.TG_TOKEN }}
       CHATID: ${{ secrets.TG_CHATID }}
-      SSH_URL: ${{ env.TMATE_SSH }}
+      CF_URL: ${{ env.CF_URL }}
     run: |
-      set +x
+      MESSAGE="*OpenCode Ready (Cloudflare Tunnel)*
 
-      MESSAGE="*OpenCode Ready*
-
-      • *SSH:* \`$SSH_URL\`"
+      • *URL:* \`$CF_URL\`"
 
       curl -sX POST \
         "https://api.telegram.org/bot${TOKEN}/sendMessage" \
         -d "chat_id=${CHATID}" \
         -d "parse_mode=Markdown" \
         -d "text=${MESSAGE}" \
-        > /dev/null 2>&1
+        > /dev/null
 
-  - name: Keep Session Alive Until Exit
+  - name: Keep Session Alive
     run: |
-      while tmate -S /tmp/tmate.sock has-session 2>/dev/null
-      do
-        sleep 5
+      while true; do
+        sleep 60
       done
