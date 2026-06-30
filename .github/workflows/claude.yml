@@ -13,12 +13,12 @@ jobs:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
       rm -rf ./*
-      git clone --depth=33 -b master-s \
+      git clone --depth=1 -b master \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-        kernel_xiaomi_rosemary_4.19
+        kernel_xiaomi_rosemary_4.19base
       git clone --depth=1 -b lineage-21 \
-        https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git \
-        kernel_xiaomi_base_5.10
+        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+        kernel_xiaomi_rosemary_5.10base
 
   - name: Configure Git + Import GPG
     run: |
