@@ -83,52 +83,46 @@ jobs:
         ]
       }
       EOF
-  
-  - name: Setup Ngrok SSH
-    env:
-      NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
-      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+
+  - name: Setup Tmate Manually
     run: |
       sudo apt-get update
-      sudo apt-get install -y openssh-server jq
-      sudo mkdir -p /var/run/sshd
-      echo "runner:${SSH_PASSWORD}" | sudo chpasswd
-      sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
-      sudo service ssh restart
+      sudo apt-get install -y tmate
 
-      curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xz
-      sudo mv ngrok /usr/local/bin
-      
-      ngrok config add-authtoken $NGROK_TOKEN
-      ngrok tcp 22 --log=stdout > ngrok.log &
-      sleep 10
-      
-      SSH_URL=$(curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' | sed 's/tcp:\/\///')
-      
+      tmate -S /tmp/tmate.sock new-session -d \
+        "cd $GITHUB_WORKSPACE && exec bash"
+
+      until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
+        sleep 2
+      done
+
+      SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+
       echo "::add-mask::$SSH_URL"
-      echo "SSH_URL=$SSH_URL" >> $GITHUB_ENV
+      echo "TMATE_SSH=$SSH_URL" >> $GITHUB_ENV
 
   - name: Send Terminal Link to Telegram
     env:
       TOKEN: ${{ secrets.TG_TOKEN }}
       CHATID: ${{ secrets.TG_CHATID }}
-      SSH_URL: ${{ env.SSH_URL }}
+      SSH_URL: ${{ env.TMATE_SSH }}
     run: |
       set +x
-      
-      MESSAGE="OpenCode Ready! Akses SSH menggunakan: ssh runner@${SSH_URL}"
-      
+
+      MESSAGE="*OpenCode Ready*
+
+      • *SSH:* \`$SSH_URL\`"
+
       curl -sX POST \
         "https://api.telegram.org/bot${TOKEN}/sendMessage" \
         -d "chat_id=${CHATID}" \
+        -d "parse_mode=Markdown" \
         -d "text=${MESSAGE}" \
         > /dev/null 2>&1
 
   - name: Keep Session Alive Until Exit
     run: |
-      while true
+      while tmate -S /tmp/tmate.sock has-session 2>/dev/null
       do
-        echo "Ngrok SSH session active"
-        sleep 120
+        sleep 5
       done
-      
