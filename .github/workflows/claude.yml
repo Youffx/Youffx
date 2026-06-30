@@ -84,51 +84,51 @@ jobs:
       }
       EOF
   
-  - name: Install Cloudflared
+  - name: Setup Ngrok SSH
+    env:
+      NGROK_TOKEN: ${{ secrets.NGROK_TOKEN }}
+      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
     run: |
       sudo apt-get update
-      sudo apt-get install -y curl
+      sudo apt-get install -y openssh-server jq
+      sudo mkdir -p /var/run/sshd
+      echo "runner:${SSH_PASSWORD}" | sudo chpasswd
+      sudo sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+      sudo service ssh restart
 
-      curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 \
-        -o cloudflared
-
-      chmod +x cloudflared
-      sudo mv cloudflared /usr/local/bin/
-
-  - name: Start SSH + Cloudflare Tunnel
-    run: |
-      sudo apt-get install -y openssh-server
-
-      sudo service ssh start
-
-      cloudflared tunnel --url ssh://localhost:22 > tunnel.log 2>&1 &
-
-      sleep 5
-
-      TUNNEL_URL=$(grep -o 'https://.*trycloudflare.com' tunnel.log | head -n 1)
-
-      echo "::add-mask::$TUNNEL_URL"
-      echo "CF_URL=$TUNNEL_URL" >> $GITHUB_ENV
+      curl -sL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar xz
+      sudo mv ngrok /usr/local/bin
+      
+      ngrok config add-authtoken $NGROK_TOKEN
+      ngrok tcp 22 --log=stdout > ngrok.log &
+      sleep 10
+      
+      SSH_URL=$(curl -s localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' | sed 's/tcp:\/\///')
+      
+      echo "::add-mask::$SSH_URL"
+      echo "SSH_URL=$SSH_URL" >> $GITHUB_ENV
 
   - name: Send Terminal Link to Telegram
     env:
       TOKEN: ${{ secrets.TG_TOKEN }}
       CHATID: ${{ secrets.TG_CHATID }}
-      CF_URL: ${{ env.CF_URL }}
+      SSH_URL: ${{ env.SSH_URL }}
     run: |
-      MESSAGE="*OpenCode Ready (Cloudflare Tunnel)*
-
-      • *URL:* \`$CF_URL\`"
-
+      set +x
+      
+      MESSAGE="OpenCode Ready! Akses SSH menggunakan: ssh runner@${SSH_URL}"
+      
       curl -sX POST \
         "https://api.telegram.org/bot${TOKEN}/sendMessage" \
         -d "chat_id=${CHATID}" \
-        -d "parse_mode=Markdown" \
         -d "text=${MESSAGE}" \
-        > /dev/null
+        > /dev/null 2>&1
 
-  - name: Keep Session Alive
+  - name: Keep Session Alive Until Exit
     run: |
-      while true; do
-        sleep 60
+      while true
+      do
+        echo "Ngrok SSH session active"
+        sleep 120
       done
+      
