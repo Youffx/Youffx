@@ -15,7 +15,10 @@ jobs:
       rm -rf ./*
       git clone --depth=33 -b master-s \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-        kernel_xiaomi_rosemary
+        kernel_xiaomi_rosemary_4.19
+      git clone --depth=1 -b lineage-21 \
+        https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git \
+        kernel_xiaomi_base_5.10
 
   - name: Configure Git + Import GPG
     run: |
@@ -87,7 +90,7 @@ jobs:
       sudo apt-get install -y tmate
 
       tmate -S /tmp/tmate.sock new-session -d \
-        "cd $GITHUB_WORKSPACE/kernel_xiaomi_rosemary && exec bash"
+        "cd $GITHUB_WORKSPACE && exec bash"
 
       until tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}' | grep -q "ssh "; do
         sleep 2
