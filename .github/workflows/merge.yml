@@ -324,11 +324,16 @@ jobs:
         run: |
           cd repo
 
-          git config http.postBuffer 524288000
+          git config core.compression 9
+          git config pack.window 250
+          git config pack.depth 250
+          git config http.postBuffer 2147483648
           git config http.version HTTP/1.1
 
+          git gc --aggressive --prune=now
+
           git remote set-url origin \
-          https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
+          https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git
 
           git push origin $WORK_BRANCH
 
