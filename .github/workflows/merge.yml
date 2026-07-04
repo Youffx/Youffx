@@ -324,6 +324,9 @@ jobs:
         run: |
           cd repo
 
+          git config http.postBuffer 524288000
+          git config http.version HTTP/1.1
+
           git remote set-url origin \
           https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git
 
