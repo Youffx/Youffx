@@ -11,7 +11,7 @@ jobs:
           git config --global http.version HTTP/1.1
           git clone --branch lineage-21 --single-branch --progress https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
           cd android_kernel_mediatek_5.10
-          git remote add target https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
+          git remote add target https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git
           git log --reverse --format=%H HEAD | awk 'NR % 30000 == 0' > chunks.txt
           git rev-parse HEAD >> chunks.txt
           while read commit; do
