@@ -1,25 +1,21 @@
-name: Sync Upstream Fast-Forward
+name: Repo
 on:
   workflow_dispatch:
 jobs:
-  sync-upstream:
+  copy-repository:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.REPO_A_PAT }}
-          repository: Youffx/kernel_xiaomi_rosemary_5.10
-          ref: lineage-21
-          fetch-depth: 0
-      - name: Configure Git
+      - name: Clone and Push
         run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Sync Commits
-        run: |
-          git remote add upstream https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
-          git fetch upstream lineage-21
-          git merge upstream/lineage-21 --ff-only
-          git push origin lineage-21
+          git config --global http.postBuffer 524288000
+          git config --global http.version HTTP/1.1
+          git clone --branch lineage-21 --single-branch --progress https://github.com/PQEnablers-Devices/android_kernel_mediatek_5.10.git
+          cd android_kernel_mediatek_5.10
+          git remote add target https://${{ secrets.REPO_A_PAT }}@github.com/Youffx/kernel_xiaomi_rosemary_5.10.git
+          git log --reverse --format=%H HEAD | awk 'NR % 30000 == 0' > chunks.txt
+          git rev-parse HEAD >> chunks.txt
+          while read commit; do
+            git push target $commit:refs/heads/lineage-21 --force --progress
+          done < chunks.txt
+          git push target lineage-21 --force --progress
           
