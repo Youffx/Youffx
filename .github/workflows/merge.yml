@@ -278,6 +278,9 @@ jobs:
             if echo "$URL" | grep -q "Youffx/kernel_xiaomi_rosemary"; then
               SHA=$(echo "$URL" | sed -n 's#.*/commit/\([a-f0-9]*\).*#\1#p')
               curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3.diff" "https://api.github.com/repos/Youffx/kernel_xiaomi_rosemary/commits/$SHA" -o "$TEMP_DIFF"
+            elif echo "$URL" | grep -q "drive.google.com"; then
+              FILE_ID=$(echo "$URL" | sed -n 's#.*\/d\/\([^/]*\)\/.*#\1#p')
+              curl -sL "https://drive.google.com/uc?export=download&id=$FILE_ID" -o "$TEMP_DIFF"
             else
               curl -sL "$URL" -o "$TEMP_DIFF"
             fi
