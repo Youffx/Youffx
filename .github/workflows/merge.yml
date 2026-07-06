@@ -87,7 +87,7 @@ jobs:
               NEW_BRANCH="$CUSTOM_BRANCH"
             else
               NEW_BRANCH="merge-${TARGET:0:7}"
-            fi
+          fi
 
             git checkout -b "$NEW_BRANCH" "$TARGET"
             echo "WORK_BRANCH=$NEW_BRANCH" >> $GITHUB_ENV
@@ -292,9 +292,14 @@ jobs:
           do
             TEMP_DIFF="/tmp/patch_${RANDOM}.diff"
 
-            if echo "$URL" | grep -q "Youffx/kernel_xiaomi_rosemary"; then
-              SHA=$(echo "$URL" | sed -n 's#.*/commit/\([a-f0-9]*\).*#\1#p')
-              curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3.diff" "https://api.github.com/repos/Youffx/kernel_xiaomi_rosemary/commits/$SHA" -o "$TEMP_DIFF"
+            if echo "$URL" | grep -q "github.com/Youffx/"; then
+              if echo "$URL" | grep -q "/commit/"; then
+                REPO=$(echo "$URL" | sed -n 's#.*github.com/Youffx/\([^/]*\)/commit/.*#\1#p')
+                SHA=$(echo "$URL" | sed -n 's#.*/commit/\([a-f0-9]*\).*#\1#p')
+                curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3.diff" "https://api.github.com/repos/Youffx/${REPO}/commits/${SHA}" -o "$TEMP_DIFF"
+              else
+                curl -sL "$URL" -o "$TEMP_DIFF"
+              fi
             elif echo "$URL" | grep -q "drive.google.com"; then
               FILE_ID=$(echo "$URL" | sed -n 's#.*\/d\/\([^/]*\)\/.*#\1#p')
               curl -sL "https://drive.google.com/uc?export=download&id=$FILE_ID" -o "$TEMP_DIFF"
