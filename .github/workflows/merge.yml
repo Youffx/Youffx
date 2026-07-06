@@ -352,6 +352,8 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
+          cd repo
+
           GC_OPTION="${{ github.event.inputs.gc_mode }}"
 
           if [ "$GC_OPTION" = "prune" ]; then
