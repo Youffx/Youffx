@@ -1,4 +1,4 @@
-Name: Merge ZIP
+name: Merge ZIP
 
 on:
   workflow_dispatch:
