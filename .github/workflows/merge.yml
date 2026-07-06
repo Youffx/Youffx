@@ -11,6 +11,14 @@ on:
           - "5.10"
           - "4.19"
           - "kernelsu"
+      gc_mode:
+        description: "Push Mode"
+        required: true
+        type: choice
+        options:
+          - "none"
+          - "prune"
+        default: "none"
       branch:
         description: "Target branch"
         required: true
@@ -344,15 +352,17 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
-          cd repo
+          GC_OPTION="${{ github.event.inputs.gc_mode }}"
 
-          git config core.compression 9
-          git config pack.window 250
-          git config pack.depth 250
-          git config http.postBuffer 2147483648
-          git config http.version HTTP/1.1
+          if [ "$GC_OPTION" = "prune" ]; then
+            git config core.compression 9
+            git config pack.window 250
+            git config pack.depth 250
+            git config http.postBuffer 2147483648
+            git config http.version HTTP/1.1
 
-          git gc --aggressive --prune=now
+            git gc --aggressive --prune=now
+          fi
 
           git remote set-url origin \
           https://x-access-token:${PAT_TOKEN}@github.com/Youffx/${REPO_NAME}.git
