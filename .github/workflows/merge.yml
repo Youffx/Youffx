@@ -1,8 +1,16 @@
-name: Merge ZIP
+Name: Merge ZIP
 
 on:
   workflow_dispatch:
     inputs:
+      repo_target:
+        description: "Target Repository"
+        required: true
+        type: choice
+        options:
+          - "5.10"
+          - "4.19"
+          - "kernelsu"
       branch:
         description: "Target branch"
         required: true
@@ -28,14 +36,24 @@ jobs:
         uses: actions/cache@v4
         with:
           path: repo
-          key: repo-${{ github.event.inputs.branch }}
+          key: repo-${{ github.event.inputs.repo_target }}-${{ github.event.inputs.branch }}
 
       - name: Prepare Repository
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
+          TARGET_REPO="${{ github.event.inputs.repo_target }}"
+          if [ "$TARGET_REPO" = "5.10" ]; then
+            REPO_NAME="android_kernel_xiaomi_mt6785_5.10"
+          elif [ "$TARGET_REPO" = "4.19" ]; then
+            REPO_NAME="kernel_xiaomi_rosemary"
+          else
+            REPO_NAME="Kernelsu-Next"
+          fi
+          echo "REPO_NAME=$REPO_NAME" >> $GITHUB_ENV
+
           INPUT="${{ github.event.inputs.branch }}"
-          REPO_URL="https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git"
+          REPO_URL="https://x-access-token:${PAT_TOKEN}@github.com/Youffx/${REPO_NAME}.git"
 
           PARTS=($INPUT)
 
@@ -77,9 +95,6 @@ jobs:
 
       - name: Configure Git + Import GPG
         run: |
-          git config --global user.name "${{ secrets.USER }}"
-          git config --global user.email "${{ secrets.EMAIL }}"
-
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
 
@@ -97,6 +112,8 @@ jobs:
 
           echo "test" | gpg --clearsign --batch --pinentry-mode loopback --passphrase "${{ secrets.GPG_PASSPHRASE }}" > /dev/null
 
+          git config --global user.name "${{ secrets.USER }}"
+          git config --global user.email "${{ secrets.EMAIL }}"
           git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
           git config --global commit.gpgsign true
           git config --global tag.gpgsign true
@@ -333,7 +350,7 @@ jobs:
           git gc --aggressive --prune=now
 
           git remote set-url origin \
-          https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git
+          https://x-access-token:${PAT_TOKEN}@github.com/Youffx/${REPO_NAME}.git
 
           git push origin $WORK_BRANCH
 
@@ -341,7 +358,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: repo
-          key: repo-${{ github.event.inputs.branch }}
+          key: repo-${{ github.event.inputs.repo_target }}-${{ github.event.inputs.branch }}
 
       - name: Notification
         env:
@@ -355,3 +372,4 @@ jobs:
           -d chat_id="${CHATID}" \
           -d parse_mode=Markdown \
           --data-urlencode text="$MESSAGE"
+          
