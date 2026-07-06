@@ -307,7 +307,7 @@ jobs:
                 curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.diff" "https://api.github.com/repos/Youffx/${REPO}/commits/${SHA}" -o "$TEMP_DIFF"
               elif echo "$URL" | grep -q "/compare/"; then
                 REPO=$(echo "$URL" | sed -n 's|.*github.com/Youffx/\([^/]*\)/compare/.*|\1|p')
-                RANGE=$(echo "$URL" | sed -n 's|.*/compare/\(.*\)|\1|p' | sed 's/\.diff//')
+                RANGE=$(echo "$URL" | sed -n 's|.*/compare/\(.*\)|\1|p' | sed 's/\.diff//' | sed 's/\.\./\.\.\./')
                 curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.diff" "https://api.github.com/repos/Youffx/${REPO}/compare/${RANGE}" -o "$TEMP_DIFF"
               else
                 curl -sL "$URL" -o "$TEMP_DIFF"
@@ -319,7 +319,7 @@ jobs:
               curl -sL "$URL" -o "$TEMP_DIFF"
             fi
 
-            if [ -s "$TEMP_DIFF" ] && ! grep -q "DOCTYPE html" "$TEMP_DIFF"; then
+            if [ -s "$TEMP_DIFF" ] && ! grep -q "DOCTYPE html" "$TEMP_DIFF" && ! grep -q "{" "$TEMP_DIFF"; then
               git apply "$TEMP_DIFF" || patch -p1 < "$TEMP_DIFF"
             fi
 
