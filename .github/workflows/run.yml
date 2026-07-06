@@ -156,7 +156,7 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="LandVe-${CONF_NAME}-KSU-${DATE}"
+          ZIP_NAME="Lineage-23.2-KSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -307,7 +307,7 @@ jobs:
         run: |
           DATE=$(date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="LandVe-${CONF_NAME}-NONKSU-${DATE}"
+          ZIP_NAME="Lineage-23.2-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -369,10 +369,13 @@ jobs:
           tag_name: Release-${{ github.run_id }}
           name: LandVe Kernel Release
           body: |
-            ### LandVe Kernel Release
+            ### LineageOS Kernel Release
 
             **Build Details:**
-            - Version: ${{ github.event.inputs.localversion }}+
+            - Latest KernelSu-Next
+            - Support EROFS
+            - Support both AOSP & NON-AOSP
+            - Sync with latest LineageOS kernel source
 
             **Includes:**
             - KSU Kernel
