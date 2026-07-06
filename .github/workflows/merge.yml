@@ -302,18 +302,18 @@ jobs:
 
             if echo "$URL" | grep -q "github.com/Youffx/"; then
               if echo "$URL" | grep -q "/commit/"; then
-                REPO=$(echo "$URL" | sed -n 's#.*github.com/Youffx/\([^/]*\)/commit/.*#\1#p')
-                SHA=$(echo "$URL" | sed -n 's#.*/commit/\([a-f0-9]*\).*#\1#p')
-                curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3.diff" "https://api.github.com/repos/Youffx/${REPO}/commits/${SHA}" -o "$TEMP_DIFF"
+                REPO=$(echo "$URL" | sed -n 's|.*github.com/Youffx/\([^/]*\)/commit/.*|\1|p')
+                SHA=$(echo "$URL" | sed -n 's|.*/commit/\([a-f0-9]*\).*|\1|p')
+                curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.diff" "https://api.github.com/repos/Youffx/${REPO}/commits/${SHA}" -o "$TEMP_DIFF"
               elif echo "$URL" | grep -q "/compare/"; then
-                REPO=$(echo "$URL" | sed -n 's#.*github.com/Youffx/\([^/]*\)/compare/.*#\1#p')
-                RANGE=$(echo "$URL" | sed -n 's#.*/compare/\(.*\)#\1#p' | sed 's#\.diff##')
-                curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.v3.diff" "https://api.github.com/repos/Youffx/${REPO}/compare/${RANGE}" -o "$TEMP_DIFF"
+                REPO=$(echo "$URL" | sed -n 's|.*github.com/Youffx/\([^/]*\)/compare/.*|\1|p')
+                RANGE=$(echo "$URL" | sed -n 's|.*/compare/\(.*\)|\1|p' | sed 's/\.diff//')
+                curl -sL -H "Authorization: token $PAT_TOKEN" -H "Accept: application/vnd.github.diff" "https://api.github.com/repos/Youffx/${REPO}/compare/${RANGE}" -o "$TEMP_DIFF"
               else
                 curl -sL "$URL" -o "$TEMP_DIFF"
               fi
             elif echo "$URL" | grep -q "drive.google.com"; then
-              FILE_ID=$(echo "$URL" | sed -n 's#.*\/d\/\([^/]*\)\/.*#\1#p')
+              FILE_ID=$(echo "$URL" | sed -n 's|.*/d/\([^/]*\)/.*|\1|p')
               curl -sL "https://drive.google.com/uc?export=download&id=$FILE_ID" -o "$TEMP_DIFF"
             else
               curl -sL "$URL" -o "$TEMP_DIFF"
