@@ -110,27 +110,10 @@ jobs:
           if [ "$ROOT_TYPE" != "none" ]; then
             SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
             ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
-            PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.manualPatch')
-            EXTRA_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.extraPatch // empty')
-            SUSFS_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.susfsPatch // empty')
-            i_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iPatch // empty')
-            ii_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iiPatch // empty')
-            iii_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.iiiPatch // empty')
-            iv_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.ivPatch // empty')
-            v_PATCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.vPatch // empty')
 
             cd kernel
 
             curl -LSs "$SETUP" | bash -s $ARG
-
-            [ "$PATCH" != "null" ] && curl -LSs "$PATCH" | patch -p1 || true
-            [ -n "$EXTRA_PATCH" ] && curl -LSs "$EXTRA_PATCH" | patch -p1 || true
-            [ -n "$SUSFS_PATCH" ] && curl -LSs "$SUSFS_PATCH" | patch -p1 || true
-            [ -n "$i_PATCH" ] && curl -LSs "$i_PATCH" | patch -p1 || true
-            [ -n "$ii_PATCH" ] && curl -LSs "$ii_PATCH" | patch -p1 || true
-            [ -n "$iii_PATCH" ] && curl -LSs "$iii_PATCH" | patch -p1 || true
-            [ -n "$iv_PATCH" ] && curl -LSs "$iv_PATCH" | patch -p1 || true
-            [ -n "$v_PATCH" ] && curl -LSs "$v_PATCH" | patch -p1 || true
 
             cd ..
           fi
@@ -142,11 +125,6 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
-          export KBUILD_BUILD_USER="youffx"
-          export KBUILD_BUILD_HOST="collection"
-          export KBUILD_BUILD_VERSION=1
-          export KCONFIG_NOTIMESTAMP=1
-          export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
           export CXX="ccache clang++"
@@ -158,28 +136,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-
-          LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-LandVe"
-
-          if [ -n "$LV_INPUT" ]; then
-            LV="${BASE}${LV_INPUT}"
-          else
-            LV="$BASE"
-          fi
-
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-
           make O=out olddefconfig
-
-          echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -319,11 +276,6 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
-          export KBUILD_BUILD_USER="youffx"
-          export KBUILD_BUILD_HOST="collection"
-          export KBUILD_BUILD_VERSION=1
-          export KCONFIG_NOTIMESTAMP=1
-          export KBUILD_BUILD_TIMESTAMP="Thu Jan 1 00:00:00 UTC 1970"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
           export CXX="ccache clang++"
@@ -335,28 +287,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-
-          LV_INPUT="${{ github.event.inputs.localversion }}"
-          BASE="-LandVe"
-
-          if [ -n "$LV_INPUT" ]; then
-            LV="${BASE}${LV_INPUT}"
-          else
-            LV="$BASE"
-          fi
-
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-
           make O=out olddefconfig
-
-          echo "===== LANDVE DEBUGS ====="
-          grep -E "CPU_FREQ_UNDERCLOCK_LIMIT|SSG|CASS|TEO" out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
