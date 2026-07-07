@@ -118,20 +118,6 @@ jobs:
             cd ..
           fi
 
-      - name: Patch KSU selinux_hide for 4.19 compat
-        run: |
-          FILE=$(find kernel -name selinux_hide.c -path '*/feature/*' 2>/dev/null | head -1)
-          [ -z "$FILE" ] && { echo "selinux_hide.c not found"; exit 0; }
-
-          sed -i '/^static u32 ksu_sid/,/^static u32 priv_app_sid/d' "$FILE"
-          sed -i '/^static int ksu_selinux_get_sids/,/^}$/d' "$FILE"
-          sed -i '/if (ksu_selinux_get_sids())/,+1d' "$FILE"
-          sed -i '/^#if defined(CONFIG_KPROBES)$/{N;N;/\n.*slow_avc_audit_kp/d;/\n.*destroy_kprobe/d}' "$FILE"
-          sed -i '/^#include "feature\/selinux_hide.h"/a\#ifndef __nocfi\n#define __nocfi\n#endif' "$FILE"
-
-          echo "Patched $FILE"
-        
-
       - name: Build Kernel (KSU)
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
