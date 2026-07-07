@@ -46,8 +46,8 @@
     },
     "root": {
       "type": "ksun",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "legacy"
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
+      "arg": "keep-alive"
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
