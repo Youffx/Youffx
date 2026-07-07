@@ -118,6 +118,27 @@ jobs:
             cd ..
           fi
 
+      - name: Patch SELinux Kprobes Functions
+        run: |
+          cat << 'EOF' >> kernel/security/selinux/avc.c
+
+          struct kprobe *slow_avc_audit_kp = NULL;
+          int slow_avc_audit_pre_handler(struct kprobe *p, struct pt_regs *regs)
+          {
+          	return 0;
+          }
+          EOF
+          python3 -c '
+          with open("kernel/security/selinux/include/selinux.h", "r") as f:
+              text = f.read()
+          idx = text.rfind("#endif")
+          if idx != -1:
+              code = "\n#include <linux/kprobes.h>\n#include <linux/slab.h>\nextern struct kprobe *slow_avc_audit_kp;\nint slow_avc_audit_pre_handler(struct kprobe *p, struct pt_regs *regs);\nstatic inline struct kprobe *init_kprobe(const char *symbol, void *handler)\n{\n\tstruct kprobe *kp = kzalloc(sizeof(struct kprobe), GFP_KERNEL);\n\tif (!kp)\n\t\treturn NULL;\n\tkp->symbol_name = symbol;\n\tkp->pre_handler = handler;\n\tif (register_kprobe(kp) < 0) {\n\t\tkfree(kp);\n\t\treturn NULL;\n\t}\n\treturn kp;\n}\nstatic inline void destroy_kprobe(struct kprobe **kp)\n{\n\tif (kp && *kp) {\n\t\tunregister_kprobe(*kp);\n\t\tkfree(*kp);\n\t\t*kp = NULL;\n\t}\n}\n"
+              text = text[:idx] + code + text[idx:]
+              with open("kernel/security/selinux/include/selinux.h", "w") as f:
+                  f.write(text)
+          '
+
       - name: Build Kernel (KSU)
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
