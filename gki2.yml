@@ -132,9 +132,8 @@ jobs:
         run: |
           mkdir -p output
           mkdir -p .github/Flash/kernels
-          mkdir -p .github/Flash/modules
           cp kernel/out/arch/arm64/boot/Image.gz .github/Flash/kernels/
-          find kernel/out -name "*.ko" -exec cp {} .github/Flash/modules/ \;
+          find kernel/out -name "*.ko" -exec cp {} output/ \;
           cd .github/Flash
           zip -r "../../output/gki-kernel-5.10.zip" ./*
           cd ../../
@@ -145,7 +144,7 @@ jobs:
           name: gki-build
           path: |
             output/gki-kernel-5.10.zip
-            kernel/out/modules/
+            output/*.ko
 
   create-release:
     runs-on: ubuntu-22.04
@@ -179,13 +178,14 @@ jobs:
             ### GKI Build
             - **Branch:** `gki`
             - **Config:** `rosemary_gki_defconfig`
-            - **Output:** `Image.gz` (GKI kernel) + vendor `.ko` modules
+            - **Output:** `Image.gz` (GKI kernel) + vendor `.ko` modules (uploaded separately)
 
             ### Files
             | File | Description |
             |------|-------------|
             | `legacy-kernel-5.10.zip` | Legacy kernel with DTBs |
-            | `gki-kernel-5.10.zip` | GKI kernel + vendor modules |
+            | `gki-kernel-5.10.zip` | GKI kernel (without modules) |
+            | `*.ko` | GKI vendor modules |
 
             ### Build Info
             - **Run ID:** ${{ github.run_id }}
@@ -193,5 +193,7 @@ jobs:
             - **Date:** ${{ steps.date.outputs.date }}
           files: |
             *.zip
+            *.ko
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
