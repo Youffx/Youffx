@@ -1,0 +1,197 @@
+name: 5.10 Kernel Build (Legacy + GKI)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-legacy:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Workflow Repo
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Checkout Kernel Source (Legacy)
+        uses: actions/checkout@v4
+        with:
+          repository: Youffx/android_kernel_xiaomi_mt6785_5.10
+          ref: legacy
+          path: kernel
+          fetch-depth: 1
+
+      - name: Cache Clang 18
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: llvm
+          key: llvm-r522817
+
+      - name: Setup Clang 18
+        run: |
+          if [ ! -d "llvm/bin" ]; then
+            export LLVM_DIR="$PWD/llvm"
+            rm -rf "$LLVM_DIR"
+            mkdir -p "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz" | tar xz -C "$LLVM_DIR"
+          fi
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
+      - name: Build Legacy Kernel
+        run: |
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC="ccache clang"
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          cd kernel
+          make O=out rosemary_defconfig
+          make O=out -j$(nproc) Image.gz-dtb
+          cd ..
+
+      - name: Package Legacy Zip
+        run: |
+          mkdir -p output
+          mkdir -p .github/Flash/kernels
+          cp kernel/out/arch/arm64/boot/Image.gz-dtb .github/Flash/kernels/
+          cd .github/Flash
+          zip -r "../../output/legacy-kernel-5.10.zip" ./*
+          cd ../../
+
+      - name: Upload Legacy Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: legacy-build
+          path: output/legacy-kernel-5.10.zip
+
+  build-gki:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout Workflow Repo
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y bc bison build-essential ccache curl flex git gnupg gperf libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+      - name: Checkout Kernel Source (GKI)
+        uses: actions/checkout@v4
+        with:
+          repository: Youffx/android_kernel_xiaomi_mt6785_5.10
+          ref: gki
+          path: kernel
+          fetch-depth: 1
+
+      - name: Cache Clang 18
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: llvm
+          key: llvm-r522817
+
+      - name: Setup Clang 18
+        run: |
+          if [ ! -d "llvm/bin" ]; then
+            export LLVM_DIR="$PWD/llvm"
+            rm -rf "$LLVM_DIR"
+            mkdir -p "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz" | tar xz -C "$LLVM_DIR"
+          fi
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
+      - name: Cache Ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-rosemary-gki-${{ github.sha }}
+          restore-keys: |
+            ccache-rosemary-gki-
+
+      - name: Setup Ccache
+        run: |
+          mkdir -p ~/.cache/ccache
+          echo "max_size = 2.0G" > ~/.cache/ccache/ccache.conf
+          echo "compression = true" >> ~/.cache/ccache/ccache.conf
+
+      - name: Build GKI Kernel
+        run: |
+          export ARCH=arm64
+          export CROSS_COMPILE=aarch64-linux-gnu-
+          export CC="ccache clang"
+          export CLANG_TRIPLE=aarch64-linux-gnu-
+          cd kernel
+          make O=out rosemary_gki_defconfig
+          make O=out -j$(nproc) Image.gz
+          make O=out -j$(nproc) modules
+          cd ..
+
+      - name: Package GKI Zip
+        run: |
+          mkdir -p output
+          mkdir -p .github/Flash/kernels
+          mkdir -p .github/Flash/modules
+          cp kernel/out/arch/arm64/boot/Image.gz .github/Flash/kernels/
+          find kernel/out -name "*.ko" -exec cp {} .github/Flash/modules/ \;
+          cd .github/Flash
+          zip -r "../../output/gki-kernel-5.10.zip" ./*
+          cd ../../
+
+      - name: Upload GKI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gki-build
+          path: |
+            output/gki-kernel-5.10.zip
+            kernel/out/modules/
+
+  create-release:
+    runs-on: ubuntu-22.04
+    needs: [build-legacy, build-gki]
+    permissions:
+      contents: write
+    steps:
+      - name: Download Legacy Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: legacy-build
+
+      - name: Download GKI Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: gki-build
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: Release-${{ github.run_id }}
+          name: Pre-release
+          body: |
+            ## 5.10 Kernel Build
+
+            ### Legacy Build
+            - **Branch:** `legacy`
+            - **Config:** `rosemary_defconfig`
+            - **Output:** `Image.gz-dtb` (kernel + DTB)
+
+            ### GKI Build
+            - **Branch:** `gki`
+            - **Config:** `rosemary_gki_defconfig`
+            - **Output:** `Image.gz` (GKI kernel) + vendor `.ko` modules
+
+            ### Files
+            | File | Description |
+            |------|-------------|
+            | `legacy-kernel-5.10.zip` | Legacy kernel with DTBs |
+            | `gki-kernel-5.10.zip` | GKI kernel + vendor modules |
+
+            ### Build Info
+            - **Run ID:** ${{ github.run_id }}
+            - **Commit:** ${{ github.sha }}
+            - **Date:** ${{ steps.date.outputs.date }}
+          files: |
+            *.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
