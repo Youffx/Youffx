@@ -2,6 +2,12 @@ name: OpenCode
 
 on:
  workflow_dispatch:
+   inputs:
+     do_clone:
+      description: "include repo"
+      required: false
+      type: boolean
+      default: true
 
 jobs:
  code-session:
@@ -9,6 +15,7 @@ jobs:
     
   steps:
   - name: Clone Target Kernel Repository
+    if: github.event.inputs.do_clone == 'true'
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
