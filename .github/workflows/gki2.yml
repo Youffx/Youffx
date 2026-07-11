@@ -12,8 +12,10 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y bc bison build-essential cc_wrapper ccache curl flex g++-multilib gcc-multilib git gnupg gperf lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzops pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex git gnupg gperf \
+            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
       - name: Checkout Kernel Source
         uses: actions/checkout@v4
