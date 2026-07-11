@@ -187,10 +187,6 @@ jobs:
             | `gki-kernel-5.10.zip` | GKI kernel (without modules) |
             | `*.ko` | GKI vendor modules |
 
-            ### Build Info
-            - **Run ID:** ${{ github.run_id }}
-            - **Commit:** ${{ github.sha }}
-            - **Date:** ${{ steps.date.outputs.date }}
           files: |
             *.zip
             *.ko
