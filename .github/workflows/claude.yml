@@ -16,9 +16,16 @@ jobs:
       git clone --depth=1 -b vanilla \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
         4.19
-      git clone --depth=1 -b dev-test \
+        
+      git clone --depth=1 -b gki \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git \
         5.10
+      cd 5.10
+      git fetch --depth=1 origin \
+        gki:gki \
+        legacy:legacy
+      cd ..
+      
       git clone --depth=1 \
         https://github.com/KernelSU-Next/KernelSU-Next.git \
         ksu
