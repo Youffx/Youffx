@@ -1,4 +1,4 @@
-name: Build
+name: GKI2 Build
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: llvm
-          key: llvm-r510928
+          key: llvm-r522817
 
       - name: Setup Clang 18
         run: |
@@ -36,7 +36,7 @@ jobs:
             export LLVM_DIR="$PWD/llvm"
             rm -rf "$LLVM_DIR"
             mkdir -p "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r510928.tar.gz" | tar xz -C "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r522817.tar.gz" | tar xz -C "$LLVM_DIR"
           fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
