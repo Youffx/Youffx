@@ -22,7 +22,6 @@ jobs:
         5.10
       cd 5.10
       git fetch --depth=1 origin \
-        gki:gki \
         legacy:legacy
       cd ..
       
