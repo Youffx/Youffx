@@ -41,7 +41,7 @@ jobs:
         https://github.com/KernelSU-Next/KernelSU-Next.git \
         ksu
 
-  - name: Clone Target Kernel Repository
+  - name: Clone BWX
     if: github.event.inputs.do_bwx == 'true'
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
