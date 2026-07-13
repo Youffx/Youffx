@@ -49,6 +49,7 @@ jobs:
       git clone --depth=1 -b main \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Infra-BWX.git \
         Infra-BWX
+      cd Infra-BWX
 
   - name: Configure Git + Import GPG
     run: |
