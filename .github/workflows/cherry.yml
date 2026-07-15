@@ -317,10 +317,10 @@ jobs:
             PATCH_NAME=$(basename "$SAFE_NAME")
             TEMP_PATCH="/tmp/${PATCH_NAME}.patch"
 
-            if echo "$RAW_URL" | grep -q "github.com"; then
-              RAW_URL=$(echo "$RAW_URL" \
-                | sed 's|https://github.com/|https://raw.githubusercontent.com/|' \
-                | sed 's|/blob/|/|')
+            if echo "$RAW_URL" | grep -q "/blob/"; then
+                 RAW_URL=$(echo "$RAW_URL" \
+                    | sed 's|https://github.com/|https://raw.githubusercontent.com/|' \
+                    | sed 's|/blob/|/|')
             fi
 
             echo "Downloading: $RAW_URL"
