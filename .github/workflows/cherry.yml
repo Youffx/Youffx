@@ -364,6 +364,11 @@ jobs:
 
               SUBJECT=$(awk '/^Subject:/{flag=1; sub(/^Subject:[ \t]*/, ""); printf "%s", $0; next} flag && /^[ \t]/{sub(/^[ \t]*/, " "); printf "%s", $0; next} flag{exit}' "$split_patch" | sed -E 's/\[PATCH[^]]*\]//g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//' | sed 's/[[:space:]]\+/ /g')
 
+              if sed -n 's/^--- a\///p' "$split_patch" | grep -q '^manager/'; then
+                echo "Skipping commit because it modifies manager/ files."
+                continue
+              fi
+
               echo "Applying commit: $SUBJECT"
 
               git reset --hard HEAD
