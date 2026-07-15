@@ -9,7 +9,7 @@
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
-      "arg": "keep-alive",
+      "arg": "legacy",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
