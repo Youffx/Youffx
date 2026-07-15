@@ -8,7 +8,7 @@
     },
     "root": {
       "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy/kernel/setup.sh",
       "arg": "legacy",
       "manualPatch": "",
       "extraPatch": "",
