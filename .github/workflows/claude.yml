@@ -3,13 +3,23 @@ name: OpenCode
 on:
  workflow_dispatch:
    inputs:
-     do_clone:
-      description: "include repo"
+     do_legacy:
+      description: "4.19"
+      required: false
+      type: boolean
+      default: true
+     do_gki:
+      description: "5.10"
+      required: false
+      type: boolean
+      default: false
+     do_ksu:
+      description: "KernelSU"
       required: false
       type: boolean
       default: false
      do_bwx:
-      description: "For BWX"
+      description: "INF App"
       required: false
       type: boolean
       default: false
@@ -20,23 +30,28 @@ jobs:
     
   steps:
   - name: Clone Target Kernel Repository
-    if: github.event.inputs.do_clone == 'true'
+    if: github.event.inputs.do_legacy == 'true'
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      rm -rf ./*
-      git clone --depth=1 -b vanilla \
+      git clone --depth=400 -b master-s \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
         4.19
-        
+
+  - name: Clone Target Kernel Repository
+    if: github.event.inputs.do_gki == 'true'
+    env:
+      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+    run: |
       git clone --depth=1 -b gki \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git \
         5.10
-      cd 5.10
-      git fetch --depth=1 origin \
-        legacy:legacy
-      cd ..
-      
+
+  - name: Clone Target Kernel Repository
+    if: github.event.inputs.do_ksu == 'true'
+    env:
+      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+    run: |
       git clone --depth=1 \
         https://github.com/KernelSU-Next/KernelSU-Next.git \
         ksu
@@ -49,7 +64,6 @@ jobs:
       git clone --depth=1 -b main \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Infra-BWX.git \
         Infra-BWX
-      cd Infra-BWX
 
   - name: Configure Git + Import GPG
     run: |
