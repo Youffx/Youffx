@@ -107,10 +107,12 @@ jobs:
 
       - name: Add Source Repository
         if: ${{ github.event.inputs.source != '' }}
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
           cd repo
           git remote remove source || true
-          git remote add source https://github.com/${{ github.event.inputs.source }}.git
+          git remote add source https://x-access-token:${PAT_TOKEN}@github.com/${{ github.event.inputs.source }}.git
           git fetch source
 
       - name: Configure Git + Import GPG
