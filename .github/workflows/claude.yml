@@ -39,7 +39,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=400 -b master-s \
+      git clone --depth=1 -b master \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
         4.19
 
@@ -48,7 +48,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=1 -b gki \
+      git clone --depth=1 \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git \
         5.10
 
@@ -66,7 +66,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=1 -b main \
+      git clone --depth=1 \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Infra-BWX.git \
         Infra-BWX
         
@@ -75,7 +75,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=1 -b main \
+      git clone --depth=1 \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
         other
 
