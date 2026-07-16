@@ -10,6 +10,7 @@ on:
         options:
           - "5.10"
           - "4.19"
+          - "public-4.19"
           - "kernelsu"
       branch:
         description: "Target branch"
@@ -56,6 +57,8 @@ jobs:
             REPO_NAME="android_kernel_xiaomi_mt6785_5.10"
           elif [ "$TARGET_REPO" = "4.19" ]; then
             REPO_NAME="kernel_xiaomi_rosemary"
+          elif [ "$TARGET_REPO" = "public-4.19" ]; then
+            REPO_NAME="android_kernel_xiaomi_mt6785"
           else
             REPO_NAME="Kernelsu-Next"
           fi
