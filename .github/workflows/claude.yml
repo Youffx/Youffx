@@ -23,6 +23,11 @@ on:
       required: false
       type: boolean
       default: false
+     do_other:
+      description: "other"
+      required: false
+      type: boolean
+      default: false
 
 jobs:
  code-session:
@@ -64,6 +69,15 @@ jobs:
       git clone --depth=1 -b main \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Infra-BWX.git \
         Infra-BWX
+        
+  - name: Clone Other
+    if: github.event.inputs.do_bwx == 'true'
+    env:
+      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+    run: |
+      git clone --depth=1 -b main \
+        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
+        other
 
   - name: Configure Git + Import GPG
     run: |
