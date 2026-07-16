@@ -2,12 +2,17 @@
   {
     "name": "CI Release non KASSLR",
     "kernel": {
-      "repo": "https://github.com/Youffx/android_kernel_xiaomi_mt6785",
-      "branch": "genesis",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "master-s",
       "fetchDepth": 1
     },
     "root": {
-      "type": "none"
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy/kernel/setup.sh",
+      "arg": "legacy",
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
@@ -16,12 +21,17 @@
   {
     "name": "CI Release",
     "kernel": {
-      "repo": "https://github.com/Youffx/android_kernel_xiaomi_mt6785",
-      "branch": "genesis",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "s-backup",
       "fetchDepth": 1
     },
     "root": {
-      "type": "none"
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
+      "arg": "keep-alive",
+      "manualPatch": "",
+      "extraPatch": "",
+      "susfsPatch": ""
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
@@ -30,12 +40,14 @@
   {
     "name": "Clean Lineage 23.2",
     "kernel": {
-      "repo": "https://github.com/Youffx/android_kernel_xiaomi_mt6785",
-      "branch": "genesis",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "vanilla",
       "fetchDepth": 1
     },
     "root": {
-      "type": "none"
+      "type": "ksun",
+      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
+      "arg": "fc33995cedc5e0ebf719745c71fe15e78694260f"
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
