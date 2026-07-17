@@ -44,6 +44,20 @@ jobs:
           fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
+      - name: Cache Ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ccache-rosemary-legacy-${{ github.sha }}
+          restore-keys: |
+            ccache-rosemary-legacy-
+
+      - name: Setup Ccache
+        run: |
+          mkdir -p ~/.cache/ccache
+          echo "max_size = 2.0G" > ~/.cache/ccache/ccache.conf
+          echo "compression = true" >> ~/.cache/ccache/ccache.conf
+
       - name: Get Build Info
         id: info
         run: |
