@@ -89,7 +89,7 @@ jobs:
       - name: Generate Hash
         id: hash
         run: |
-          echo "zip_hash=$(sha256sum output/legacy-kernel-5.10.zip | cut -d' ' -f1 | head -c 8)" >> $GITHUB_OUTPUT
+          echo "zip_hash=$(sha256sum output/legacy-kernel-5.10.zip | cut -d' ' -f1 | head -c 32)" >> $GITHUB_OUTPUT
 
       - name: Upload Legacy Artifact
         uses: actions/upload-artifact@v4
@@ -174,7 +174,7 @@ jobs:
       - name: Generate Hash
         id: hash
         run: |
-          echo "zip_hash=$(sha256sum output/gki-kernel-5.10.zip | cut -d' ' -f1 | head -c 8)" >> $GITHUB_OUTPUT
+          echo "zip_hash=$(sha256sum output/gki-kernel-5.10.zip | cut -d' ' -f1 | head -c 32)" >> $GITHUB_OUTPUT
 
       - name: Upload GKI Artifact
         uses: actions/upload-artifact@v4
