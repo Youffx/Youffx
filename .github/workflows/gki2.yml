@@ -6,6 +6,10 @@ on:
 jobs:
   build-legacy:
     runs-on: ubuntu-22.04
+    outputs:
+      commit_log: ${{ steps.info.outputs.commit_log }}
+      compiler_ver: ${{ steps.info.outputs.compiler_ver }}
+      zip_hash: ${{ steps.hash.outputs.zip_hash }}
     steps:
       - name: Checkout Workflow Repo
         uses: actions/checkout@v4
@@ -40,6 +44,14 @@ jobs:
           fi
           echo "$PWD/llvm/bin" >> $GITHUB_PATH
 
+      - name: Get Build Info
+        id: info
+        run: |
+          cd kernel
+          echo "commit_log=$(git log -1 --format='%s' | head -c 50)" >> $GITHUB_OUTPUT
+          cd ..
+          echo "compiler_ver=$(clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+
       - name: Build Legacy Kernel
         run: |
           export ARCH=arm64
@@ -60,6 +72,11 @@ jobs:
           zip -r "../../output/legacy-kernel-5.10.zip" ./*
           cd ../../
 
+      - name: Generate Hash
+        id: hash
+        run: |
+          echo "zip_hash=$(sha256sum output/legacy-kernel-5.10.zip | cut -d' ' -f1 | head -c 8)" >> $GITHUB_OUTPUT
+
       - name: Upload Legacy Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -68,6 +85,8 @@ jobs:
 
   build-gki:
     runs-on: ubuntu-22.04
+    outputs:
+      zip_hash: ${{ steps.hash.outputs.zip_hash }}
     steps:
       - name: Checkout Workflow Repo
         uses: actions/checkout@v4
@@ -138,6 +157,11 @@ jobs:
           zip -r "../../output/gki-kernel-5.10.zip" ./*
           cd ../../
 
+      - name: Generate Hash
+        id: hash
+        run: |
+          echo "zip_hash=$(sha256sum output/gki-kernel-5.10.zip | cut -d' ' -f1 | head -c 8)" >> $GITHUB_OUTPUT
+
       - name: Upload GKI Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -192,4 +216,31 @@ jobs:
             *.ko
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
+      - name: Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1"
+          }
+
+          BUILD_DATE=$(TZ='Asia/Jakarta' date +"%a %b %d %H:%M:%S WIB %Y")
+
+          MESSAGE="*5.10 Kernel CI Release*
+          *Compiler:* \`${{ needs.build-legacy.outputs.compiler_ver }}\`
+          *Date:* \`$BUILD_DATE\`
+          *Build Variants:* \`Legacy, GKI\`
+          *Latest Commit:* \`${{ needs.build-legacy.outputs.commit_log }}\`
+          *Build Statistics:*
+          • *Legacy:* | *sha256:* \`${{ needs.build-legacy.outputs.zip_hash }}\`
+          • *GKI:* | *sha256:* \`${{ needs.build-gki.outputs.zip_hash }}\`
+
+          [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
+
+          tg "$MESSAGE"
