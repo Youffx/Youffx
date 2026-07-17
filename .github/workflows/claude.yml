@@ -48,7 +48,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=1 \
+      git clone --depth=7 -b legacy \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git \
         5.10
 
