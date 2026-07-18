@@ -57,7 +57,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=1 -b legacy \
+      git clone --depth=1 -b legacy-susfs \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU-Next.git \
         ksu
 
@@ -116,8 +116,8 @@ jobs:
     run: |
       echo "GIT_AUTHOR_NAME=${{ secrets.USER }}" >> $GITHUB_ENV
       echo "GIT_AUTHOR_EMAIL=${{ secrets.EMAIL }}" >> $GITHUB_ENV
-      echo "GIT_COMMITTER_NAME=GitHub" >> $GITHUB_ENV
-      echo "GIT_COMMITTER_EMAIL=noreply@github.com" >> $GITHUB_ENV
+      echo "GIT_COMMITTER_NAME=${{ secrets.USER }}" >> $GITHUB_ENV
+      echo "GIT_COMMITTER_EMAIL=${{ secrets.EMAIL }}" >> $GITHUB_ENV
         
   - name: Setup Node
     uses: actions/setup-node@v4
