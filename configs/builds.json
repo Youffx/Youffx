@@ -1,6 +1,6 @@
 [
   {
-    "name": "CI Release non KASSLR",
+    "name": "CI Release GENESIS",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "master-s",
@@ -19,7 +19,7 @@
     "susfs": false
   },
   {
-    "name": "CI Release",
+    "name": "TRASH BIN",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
       "branch": "s-backup",
@@ -46,8 +46,8 @@
     },
     "root": {
       "type": "ksun",
-      "setup": "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh",
-      "arg": "fc33995cedc5e0ebf719745c71fe15e78694260f"
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh",
+      "arg": "legacy-susfs"
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
