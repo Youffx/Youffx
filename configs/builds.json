@@ -71,5 +71,5 @@
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "rosemary_defconfig",
     "susfs": false
-  },
+  }
 ]
