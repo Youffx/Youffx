@@ -54,21 +54,22 @@
     "susfs": false
   },
   {
-    "name": "Coming-soon",
+    "name": "JAWA JAWA JAWA",
     "kernel": {
-      "repo": "",
-      "branch": "",
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "master-s",
       "fetchDepth": 1
     },
     "root": {
-      "type": "",
-      "setup": "",
-      "arg": "",
+      "type": "ksu-next",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh",
+      "arg": "legacy-susfs",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
     },
-    "defconfig": "",
+    "ksu-defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "rosemary_defconfig",
     "susfs": false
-  }
+  },
 ]
