@@ -105,18 +105,9 @@ jobs:
 
       - name: Apply Root Method (KSU)
         run: |
-          ROOT_TYPE=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.type')
-
-          if [ "$ROOT_TYPE" != "none" ]; then
-            SETUP=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.setup')
-            ARG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.root.arg')
-
-            cd kernel
-
-            curl -LSs "$SETUP" | bash -s $ARG
-
-            cd ..
-          fi
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash
+          cd ..
 
       - name: Build Kernel (KSU)
         run: |
