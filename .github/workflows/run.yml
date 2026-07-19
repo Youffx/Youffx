@@ -106,7 +106,7 @@ jobs:
       - name: Apply Root Method (KSU)
         run: |
           cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash
+          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash-s legacy-susfs
           cd ..
 
       - name: Build Kernel (KSU)
