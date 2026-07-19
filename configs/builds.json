@@ -56,14 +56,11 @@
   {
     "name": "JAWA JAWA JAWA",
     "kernel": {
-      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "master-s",
+      "repo": "https://github.com/probaero/rosemary-frile-kernel",
+      "branch": "16-rebase",
       "fetchDepth": 1
     },
     "root": {
-      "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh",
-      "arg": "legacy-susfs",
       "manualPatch": "",
       "extraPatch": "",
       "susfsPatch": ""
