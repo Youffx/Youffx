@@ -84,7 +84,7 @@ Build Statistics:
 {chr(8226)} KSU: {ksu}
 {chr(8226)} Non-KSU: {nonksu}
 
-Check Build ({build_url})"""
+[Check Build]({build_url})"""
 
 
 def main():
@@ -138,7 +138,7 @@ Build Statistics:
 {chr(8226)} KSU: 🔨 Building
 {chr(8226)} Non-KSU: 🔨 Building
 
-Check Build ({build_url})"""
+[Check Build]({build_url})"""
         resp = tg_call(args.token, 'sendMessage', chat_id=args.chat_id, text=text, parse_mode='MarkdownV2')
         if resp and resp.get('ok'):
             mid = str(resp['result']['message_id'])
@@ -176,7 +176,7 @@ Build Statistics:
 {chr(8226)} KSU: ✅ Done | {esc(args.build_time)}
 {chr(8226)} Non-KSU: ✅ Done | {esc(args.build_time2)}
 
-Check Build ({build_url})"""
+[Check Build]({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -202,7 +202,7 @@ Build Statistics:
 {chr(8226)} KSU: {fmt_job(prev.get('ksu'))}
 {chr(8226)} Non-KSU: {fmt_job(prev.get('nonksu'))}{log_snippet}
 
-Check Build ({build_url})"""
+[Check Build]({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -217,7 +217,7 @@ Build Statistics:
 {chr(8226)} KSU: {fmt_job(prev.get('ksu'))}
 {chr(8226)} Non-KSU: {fmt_job(prev.get('nonksu'))}
 
-Check Build ({build_url})"""
+[Check Build]({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -249,7 +249,7 @@ Build Statistics:
 {chr(8226)} KSU: {esc(args.build_time)} | sha256: `{esc(args.zip_hash)}`
 {chr(8226)} Non-KSU: {esc(args.build_time2)} | sha256: `{esc(args.zip_hash2)}`
 
-{label} ({build_url})"""
+[{label}]({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
