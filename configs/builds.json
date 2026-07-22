@@ -9,10 +9,10 @@
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy/kernel/setup.sh",
-      "arg": "legacy",
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
+      "arg": "main",
+      "manualPatch": null,
+      "extraPatch": null,
+      "susfsPatch": null
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
@@ -28,10 +28,10 @@
     "root": {
       "type": "ksu-next",
       "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
-      "arg": "keep-alive",
-      "manualPatch": "",
-      "extraPatch": "",
-      "susfsPatch": ""
+      "arg": "main",
+      "manualPatch": null,
+      "extraPatch": null,
+      "susfsPatch": null
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
@@ -47,7 +47,10 @@
     "root": {
       "type": "ksun",
       "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh",
-      "arg": "legacy-susfs"
+      "arg": "main",
+      "manualPatch": null,
+      "extraPatch": null,
+      "susfsPatch": null
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig",
@@ -63,7 +66,10 @@
     "root": {
       "type": "ksun",
       "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh",
-      "arg": "legacy-susfs"
+      "arg": "main",
+      "manualPatch": null,
+      "extraPatch": null,
+      "susfsPatch": null
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "rosemary_defconfig",
