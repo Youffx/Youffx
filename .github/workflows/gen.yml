@@ -397,6 +397,7 @@ jobs:
           path: .github/Flash/
 
       - name: Upload ZIP
+        if: github.event.inputs.prerelease != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: zip-ksu
@@ -745,6 +746,7 @@ jobs:
           path: .github/Flash/
 
       - name: Upload ZIP
+        if: github.event.inputs.prerelease != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: zip-nonksu
@@ -805,6 +807,7 @@ jobs:
         uses: actions/download-artifact@v4
 
       - name: Collect ZIPs
+        if: github.event.inputs.prerelease != 'true'
         run: |
           mkdir final
           find . -name "*.zip" -exec cp {} final/ \;
@@ -828,6 +831,11 @@ jobs:
 
       - name: Notification
         run: |
+          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
+            BUILD_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          else
+            BUILD_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/Release-${{ github.run_id }}"
+          fi
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status finalize \
             --token "${{ secrets.TG_TOKEN }}" \
@@ -839,4 +847,4 @@ jobs:
             --build-time2 "${{ needs.build-nonksu.outputs.build_time }}" \
             --zip-hash "${{ needs.build-ksu.outputs.zip_hash }}" \
             --zip-hash2 "${{ needs.build-nonksu.outputs.zip_hash }}" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/releases/tag/Release-${{ github.run_id }}"
+            --build-url "$BUILD_URL"
