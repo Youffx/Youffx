@@ -49,49 +49,62 @@ def make_progress_bar(percent, length=8):
     bar = '█' * filled + '░' * (length - filled)
     return f"[{bar}] {percent}%"
 
-def monitor_progress(token, chat_id, message_id, device, ksu_pid, nonksu_pid, ksu_out, nonksu_out, total_expected=3000):
+def sync_state(run_id, key, val=None):
+    url = f"https://kvdb.io/genesis_ci_build_{run_id}/{key}"
+    if val is not None:
+        data = str(val).encode('utf-8')
+        req = urllib.request.Request(url, data=data, method='POST')
+        try:
+            with urllib.request.urlopen(req, timeout=3):
+                pass
+        except Exception:
+            pass
+        return str(val)
+    else:
+        try:
+            req = urllib.request.Request(url)
+            with urllib.request.urlopen(req, timeout=3) as response:
+                return response.read().decode('utf-8').strip()
+        except Exception:
+            return "0"
+
+def monitor_single(token, chat_id, message_id, device, variant, pid, out_dir, run_id, total_expected=3000):
     start_time = time.time()
     last_state = ""
     
     while True:
-        ksu_alive = False
-        nonksu_alive = False
-        
-        if ksu_pid:
+        alive = False
+        if pid:
             try:
-                os.kill(int(ksu_pid), 0)
-                ksu_alive = True
+                os.kill(int(pid), 0)
+                alive = True
             except OSError:
-                ksu_alive = False
-
-        if nonksu_pid:
-            try:
-                os.kill(int(nonksu_pid), 0)
-                nonksu_alive = True
-            except OSError:
-                nonksu_alive = False
+                alive = False
         
-        if not ksu_alive and not nonksu_alive:
-            break
-            
-        ksu_count = 0
-        if ksu_out and os.path.exists(ksu_out):
+        count = 0
+        if out_dir and os.path.exists(out_dir):
             try:
-                res = subprocess.check_output(f"find {ksu_out} -name '*.o' | wc -l", shell=True)
-                ksu_count = int(res.decode('utf-8').strip())
+                res = subprocess.check_output(f"find {out_dir} -name '*.o' | wc -l", shell=True)
+                count = int(res.decode('utf-8').strip())
             except Exception:
-                ksu_count = 0
+                count = 0
 
-        nonksu_count = 0
-        if nonksu_out and os.path.exists(nonksu_out):
-            try:
-                res = subprocess.check_output(f"find {nonksu_out} -name '*.o' | wc -l", shell=True)
-                nonksu_count = int(res.decode('utf-8').strip())
-            except Exception:
-                nonksu_count = 0
+        pct = min(99, int((count / total_expected) * 100)) if pid and alive else (100 if count > 0 else 0)
+        
+        sync_state(run_id, f"{variant}_pct", pct)
 
-        ksu_pct = min(99, int((ksu_count / total_expected) * 100)) if ksu_pid and ksu_alive else (100 if ksu_count > 0 else 0)
-        nonksu_pct = min(99, int((nonksu_count / total_expected) * 100)) if nonksu_pid and nonksu_alive else (100 if nonksu_count > 0 else 0)
+        ksu_pct_str = sync_state(run_id, "ksu_pct")
+        nonksu_pct_str = sync_state(run_id, "nonksu_pct")
+
+        try:
+            ksu_pct = int(ksu_pct_str)
+        except ValueError:
+            ksu_pct = 0
+
+        try:
+            nonksu_pct = int(nonksu_pct_str)
+        except ValueError:
+            nonksu_pct = 0
 
         elapsed = int(time.time() - start_time)
         mins = elapsed // 60
@@ -115,6 +128,9 @@ def monitor_progress(token, chat_id, message_id, device, ksu_pid, nonksu_pid, ks
             edit_telegram(token, chat_id, message_id, msg)
             last_state = current_state
             
+        if not alive:
+            break
+            
         time.sleep(4)
 
 def main():
@@ -124,10 +140,10 @@ def main():
     parser.add_argument("--chat-id", required=True)
     parser.add_argument("--message-id", default="")
     parser.add_argument("--device", default="Genesis")
-    parser.add_argument("--ksu-pid", default="")
-    parser.add_argument("--nonksu-pid", default="")
-    parser.add_argument("--ksu-out", default="")
-    parser.add_argument("--nonksu-out", default="")
+    parser.add_argument("--variant", default="ksu")
+    parser.add_argument("--pid", default="")
+    parser.add_argument("--out", default="")
+    parser.add_argument("--run-id", default="")
     parser.add_argument("--total-obj", default="3000")
     parser.add_argument("--ksu-status", default="pending")
     parser.add_argument("--nonksu-status", default="pending")
@@ -150,15 +166,15 @@ def main():
             print(msg_id)
 
     elif args.action == "monitor":
-        monitor_progress(
+        monitor_single(
             args.token,
             args.chat_id,
             args.message_id,
             args.device,
-            args.ksu_pid,
-            args.nonksu_pid,
-            args.ksu_out,
-            args.nonksu_out,
+            args.variant,
+            args.pid,
+            args.out,
+            args.run_id,
             int(args.total_obj)
         )
 
@@ -182,4 +198,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-                
+        
