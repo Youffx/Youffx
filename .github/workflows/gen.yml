@@ -146,6 +146,20 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          V=$(make kernelversion)
+          C=$(git log -1 --format='%h %s')
+          COMP=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "commit=$C" >> $GITHUB_OUTPUT
+          echo "compiler=$COMP" >> $GITHUB_OUTPUT
+          echo "KERNEL_VER=$V" >> $GITHUB_ENV
+          echo "KERNEL_COMMIT=$C" >> $GITHUB_ENV
+          echo "KERNEL_COMPILER=$COMP" >> $GITHUB_ENV
+
       - name: Setup ccache
         run: |
           ccache -M 10G
@@ -167,6 +181,9 @@ jobs:
             --chat-id "$TG_CHATID" \
             --job KSU \
             --progress 0 \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Prepare PGO Profile
@@ -305,6 +322,9 @@ jobs:
               --job KSU \
               --progress "$PCT" \
               --prev-status "$PREV_STATUS" \
+              --kernel-ver "$KERNEL_VER" \
+              --commit "$KERNEL_COMMIT" \
+              --compiler "$KERNEL_COMPILER" \
               --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             sleep 15
           done
@@ -320,6 +340,9 @@ jobs:
             --job KSU \
             --progress "$PCT" \
             --prev-status "$PREV_STATUS" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           wait $BUILD_PID
@@ -361,6 +384,10 @@ jobs:
             --job KSU \
             --prev-status "$PREV_STATUS" \
             --build-time "${{ steps.calc.outputs.duration }}" \
+            --zip-hash "${{ steps.calc.outputs.hash }}" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Upload Flash Files
@@ -378,14 +405,6 @@ jobs:
       - name: Show ccache statistics
         run: ccache -s
 
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
-          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-
       - name: Notify Failure
         if: failure()
         run: |
@@ -399,6 +418,9 @@ jobs:
             --job KSU \
             --prev-status "$PREV_STATUS" \
             --log "$GITHUB_WORKSPACE/build-ksu.log" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Notify Cancelled
@@ -413,6 +435,9 @@ jobs:
             --chat-id "$TG_CHATID" \
             --job KSU \
             --prev-status "$PREV_STATUS" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   build-nonksu:
@@ -505,6 +530,20 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          V=$(make kernelversion)
+          C=$(git log -1 --format='%h %s')
+          COMP=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)
+          echo "version=$V" >> $GITHUB_OUTPUT
+          echo "commit=$C" >> $GITHUB_OUTPUT
+          echo "compiler=$COMP" >> $GITHUB_OUTPUT
+          echo "KERNEL_VER=$V" >> $GITHUB_ENV
+          echo "KERNEL_COMMIT=$C" >> $GITHUB_ENV
+          echo "KERNEL_COMPILER=$COMP" >> $GITHUB_ENV
+
       - name: Setup ccache
         run: |
           ccache -M 10G
@@ -526,6 +565,9 @@ jobs:
             --chat-id "$TG_CHATID" \
             --job NONKSU \
             --progress 0 \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Prepare PGO Profile
@@ -628,6 +670,9 @@ jobs:
               --job NONKSU \
               --progress "$PCT" \
               --prev-status "$PREV_STATUS" \
+              --kernel-ver "$KERNEL_VER" \
+              --commit "$KERNEL_COMMIT" \
+              --compiler "$KERNEL_COMPILER" \
               --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             sleep 15
           done
@@ -643,6 +688,9 @@ jobs:
             --job NONKSU \
             --progress "$PCT" \
             --prev-status "$PREV_STATUS" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           wait $BUILD_PID
@@ -684,6 +732,10 @@ jobs:
             --job NONKSU \
             --prev-status "$PREV_STATUS" \
             --build-time "${{ steps.calc.outputs.duration }}" \
+            --zip-hash "${{ steps.calc.outputs.hash }}" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Upload Flash Files
@@ -701,14 +753,6 @@ jobs:
       - name: Show ccache statistics
         run: ccache -s
 
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
-          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-
       - name: Notify Failure
         if: failure()
         run: |
@@ -722,6 +766,9 @@ jobs:
             --job NONKSU \
             --prev-status "$PREV_STATUS" \
             --log "$GITHUB_WORKSPACE/build-nonksu.log" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Notify Cancelled
@@ -736,6 +783,9 @@ jobs:
             --chat-id "$TG_CHATID" \
             --job NONKSU \
             --prev-status "$PREV_STATUS" \
+            --kernel-ver "$KERNEL_VER" \
+            --commit "$KERNEL_COMMIT" \
+            --compiler "$KERNEL_COMPILER" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
   
   Release:
@@ -777,28 +827,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notification
-        env:
-          TOKEN: ${{ secrets.TG_TOKEN }}
-          CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          BUILD_DATE=$(TZ='Asia/Jakarta' date +"%a %b %d %H:%M:%S WIB %Y")
-
-          cat > msg_final.txt << MSGEOF
-          ✅ *Genesis Kernel CI Release*
-          ━━━━━━━━━━━━━━━━━━━━━━━━
-          ├ *Kernel* : \`${{ needs.build-ksu.outputs.kern_ver }}\`
-          ├ *Compiler* : \`${{ needs.build-ksu.outputs.compiler_ver }}\`
-          ├ *Date* : \`${BUILD_DATE}\`
-          ├ *Commit* : \`${{ needs.build-ksu.outputs.commit_log }}\`
-          ├ *KSU* : *${{ needs.build-ksu.outputs.build_time }}* | \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          └ *Non-KSU* : *${{ needs.build-nonksu.outputs.build_time }}* | \`${{ needs.build-nonksu.outputs.zip_hash }}\`
-          ━━━━━━━━━━━━━━━━━━━━━━━━
-          📦 [RELEASE](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})
-          MSGEOF
-
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status finalize \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
-            --message-file msg_final.txt
+            --token "${{ secrets.TG_TOKEN }}" \
+            --chat-id "${{ secrets.TG_CHATID }}" \
+            --kernel-ver "${{ needs.build-ksu.outputs.kern_ver }}" \
+            --compiler "${{ needs.build-ksu.outputs.compiler_ver }}" \
+            --commit "${{ needs.build-ksu.outputs.commit_log }}" \
+            --build-time "${{ needs.build-ksu.outputs.build_time }}" \
+            --build-time2 "${{ needs.build-nonksu.outputs.build_time }}" \
+            --zip-hash "${{ needs.build-ksu.outputs.zip_hash }}" \
+            --zip-hash2 "${{ needs.build-nonksu.outputs.zip_hash }}" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/releases/tag/Release-${{ github.run_id }}"

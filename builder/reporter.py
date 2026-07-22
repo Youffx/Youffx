@@ -7,6 +7,7 @@ import sys
 import time
 import urllib.request
 import urllib.error
+from datetime import datetime, timezone
 
 
 def esc(text):
@@ -60,28 +61,49 @@ def fmt_job(pct, label=None):
     if label:
         return label
     if pct is None:
-        return "🔨 Building"
+        return "[▱▱▱▱▱▱▱▱▱▱] 0%"
     if pct >= 100:
-        return "✅ Done"
-    return f"🔨 `[{bar(pct)}]` {pct}%"
+        return "Done"
+    return f"[{bar(pct)}] {pct}%"
 
 
-def build_msg(mine, pct, prev):
+def build_msg(mine, pct, prev, version="", compiler="", commit="", date_str=None,
+              ksu_time="", ksu_hash="", nonksu_time="", nonksu_hash=""):
     other = prev or {}
+    if date_str is None:
+        date_str = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S UTC %Y")
+
     if mine == "KSU":
-        ksu = fmt_job(pct)
-        nonksu = fmt_job(other.get('nonksu'))
+        ksu_pct = pct
+        nonksu_pct = other.get('nonksu')
     else:
-        nonksu = fmt_job(pct)
-        ksu = fmt_job(other.get('ksu'))
-    all_done = "✅ Done" in ksu and "✅ Done" in nonksu
-    title = "✅ *ALL BUILDS COMPLETE*" if all_done else "🔨 *KERNEL BUILD IN PROGRESS*"
+        ksu_pct = other.get('ksu')
+        nonksu_pct = pct
+
+    ksu_done = ksu_pct is not None and ksu_pct >= 100
+    nonksu_done = nonksu_pct is not None and nonksu_pct >= 100
+    all_done = ksu_done and nonksu_done
+
+    if all_done:
+        title = "ALL BUILDS COMPLETE"
+        ksu_line = f"{ksu_time} | sha256: `{ksu_hash}`" if ksu_time else "Done"
+        nonksu_line = f"{nonksu_time} | sha256: `{nonksu_hash}`" if nonksu_time else "Done"
+    else:
+        title = "KERNEL BUILD IN PROGRESS"
+        ksu_line = fmt_job(ksu_pct)
+        nonksu_line = fmt_job(nonksu_pct)
+
     return f"""{title}
-━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    {ksu}
-└ NONKSU: {nonksu}
-━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({build_url})"""
+Kernel Version: {esc(version)}
+Compiler: {esc(compiler)}
+Date: {esc(date_str)}
+Build Variants: KSU, Non-KSU
+Latest Commit: {esc(commit)}
+Build Statistics:
+{chr(8226)} KSU: {ksu_line}
+{chr(8226)} Non-KSU: {nonksu_line}
+
+Check Build ({build_url})"""
 
 
 def main():
@@ -96,6 +118,7 @@ def main():
     p.add_argument('--log')
     p.add_argument('--build-url', default='')
     p.add_argument('--msg-id-file')
+    p.add_argument('--kernel-ver', default='')
     p.add_argument('--device', default='')
     p.add_argument('--commit', default='')
     p.add_argument('--compiler', default='')
@@ -124,12 +147,13 @@ def main():
         msg_id = open(msg_id_file).read().strip()
 
     if args.status == 'started':
-        text = """🚀 *KERNEL BUILD STARTED*
-━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    🔨 Building
-└ NONKSU: 🔨 Building
-━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({})""".format(build_url)
+        text = f"""KERNEL BUILD IN PROGRESS
+Build Variants: KSU, Non-KSU
+Build Statistics:
+{chr(8226)} KSU: [▱▱▱▱▱▱▱▱▱▱] 0%
+{chr(8226)} Non-KSU: [▱▱▱▱▱▱▱▱▱▱] 0%
+
+Check Build ({build_url})"""
         resp = tg_call(args.token, 'sendMessage', chat_id=args.chat_id, text=text, parse_mode='MarkdownV2')
         if resp and resp.get('ok'):
             mid = str(resp['result']['message_id'])
@@ -144,26 +168,33 @@ def main():
 
     if args.status == 'progress':
         pct = args.progress or estimate_progress(args.log)
-        text = build_msg(args.job, pct, prev)
+        text = build_msg(args.job, pct, prev,
+                         version=args.kernel_ver, compiler=args.compiler, commit=args.commit)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'done':
-        text = build_msg(args.job, 100, prev)
+        text = build_msg(args.job, 100, prev,
+                         version=args.kernel_ver, compiler=args.compiler, commit=args.commit,
+                         ksu_time=args.build_time if args.job == "KSU" else args.build_time2,
+                         ksu_hash=args.zip_hash if args.job == "KSU" else args.zip_hash2,
+                         nonksu_time=args.build_time2 if args.job == "KSU" else args.build_time,
+                         nonksu_hash=args.zip_hash2 if args.job == "KSU" else args.zip_hash)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'success':
-        text = """✅ *BUILD COMPLETED SUCCESSFULLY*
-━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    ✅ Done ({})
-├ NONKSU: ✅ Done ({})
-├ *Kernel* : `{}`
-├ *Compiler* : `{}`
-└ *Commit* : `{}`
-━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({})""".format(esc(args.build_time), esc(args.build_time2),
-                            esc(args.device), esc(args.compiler), esc(args.commit), build_url)
+        text = f"""ALL BUILDS COMPLETE
+Kernel Version: {esc(args.kernel_ver)}
+Compiler: {esc(args.compiler)}
+Date: {datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S UTC %Y")}
+Build Variants: KSU, Non-KSU
+Latest Commit: {esc(args.commit)}
+Build Statistics:
+{chr(8226)} KSU: {args.build_time} | sha256: `{args.zip_hash}`
+{chr(8226)} Non-KSU: {args.build_time2} | sha256: `{args.zip_hash2}`
+
+Check Build ({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -179,27 +210,27 @@ def main():
                     log_snippet = "\n" + "\n".join(f"`{esc(l[:200])}`" for l in error_lines[-3:])
             except Exception:
                 pass
-        text = """❌ *BUILD FAILED* \\- {}
-━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    {}
-└ NONKSU: {}{}
-━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({})""".format(esc(args.job),
-                            fmt_job(prev.get('ksu')),
-                            fmt_job(prev.get('nonksu')),
-                            log_snippet, build_url)
+        ksu_pct = prev.get('ksu')
+        nonksu_pct = prev.get('nonksu')
+        text = f"""BUILD FAILED - {esc(args.job)}
+Kernel Version: {esc(args.kernel_ver)}
+Compiler: {esc(args.compiler)}
+Latest Commit: {esc(args.commit)}
+Build Statistics:
+{chr(8226)} KSU: {fmt_job(ksu_pct)}
+{chr(8226)} Non-KSU: {fmt_job(nonksu_pct)}{log_snippet}
+
+Check Build ({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'aborted':
-        text = """🛑 *BUILD ABORTED*
-━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    {}
-└ NONKSU: {}
-━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({})""".format(fmt_job(prev.get('ksu')),
-                            fmt_job(prev.get('nonksu')),
-                            build_url)
+        text = f"""BUILD ABORTED
+Build Statistics:
+{chr(8226)} KSU: {fmt_job(prev.get('ksu'))}
+{chr(8226)} Non-KSU: {fmt_job(prev.get('nonksu'))}
+
+Check Build ({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -208,7 +239,8 @@ def main():
         last_text = ""
         while True:
             pct = estimate_progress(log_path)
-            text = build_msg(args.job, pct, prev)
+            text = build_msg(args.job, pct, prev,
+                             version=args.kernel_ver, compiler=args.compiler, commit=args.commit)
             if text != last_text:
                 tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                         parse_mode='MarkdownV2')
@@ -218,11 +250,17 @@ def main():
             time.sleep(10)
 
     elif args.status == 'finalize':
-        if args.message_file and os.path.exists(args.message_file):
-            with open(args.message_file, 'r') as f:
-                text = f.read()
-        else:
-            text = "✅ Build completed successfully"
+        text = f"""ALL BUILDS COMPLETE
+Kernel Version: {esc(args.kernel_ver)}
+Compiler: {esc(args.compiler)}
+Date: {datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S UTC %Y")}
+Build Variants: KSU, Non-KSU
+Latest Commit: {esc(args.commit)}
+Build Statistics:
+{chr(8226)} KSU: {args.build_time} | sha256: `{args.zip_hash}`
+{chr(8226)} Non-KSU: {args.build_time2} | sha256: `{args.zip_hash2}`
+
+Check Release ({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
