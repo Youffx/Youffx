@@ -158,6 +158,16 @@ jobs:
         run: |
           echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
 
+      - name: Start KSU
+        run: |
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status progress \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job KSU \
+            --progress 0 \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
         env:
@@ -203,7 +213,7 @@ jobs:
             cd ..
           fi
 
-      - name: Build Kernel KSU
+      - name: Configure Kernel KSU
         run: |
           set -o pipefail
 
@@ -228,7 +238,7 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-          
+
           sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
           sed -i '/CONFIG_MQ_IOSCHED_DEFAULT_KYBER/d' out/.config
 
@@ -261,7 +271,9 @@ jobs:
           grep -E "LTO|CONSERVATIVE|BLK_PM|KYBER|RANDOMIZE_BASE|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
-          # Build kernel and tee to log file
+      - name: Build Kernel KSU
+        run: |
+          cd kernel
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -277,7 +289,30 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
-            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log &
+          BUILD_PID=$!
+
+          while kill -0 $BUILD_PID 2>/dev/null; do
+            python3 $GITHUB_WORKSPACE/builder/reporter.py \
+              --status progress \
+              --token "$TG_TOKEN" \
+              --chat-id "$TG_CHATID" \
+              --job KSU \
+              --log $GITHUB_WORKSPACE/build-ksu.log \
+              --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            sleep 15
+          done
+
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status progress \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job KSU \
+            --log $GITHUB_WORKSPACE/build-ksu.log \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          wait $BUILD_PID
+          exit $?
 
       - name: Package Flashable Zip KSU
         run: |
@@ -476,7 +511,7 @@ jobs:
             $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
           fi
 
-      - name: Build Kernel NONKSU
+      - name: Configure Kernel NONKSU
         run: |
           set -o pipefail
 
@@ -530,6 +565,9 @@ jobs:
 
           make O=out olddefconfig
 
+      - name: Build Kernel NONKSU
+        run: |
+          cd kernel
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -545,7 +583,30 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
-            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log &
+          BUILD_PID=$!
+
+          while kill -0 $BUILD_PID 2>/dev/null; do
+            python3 $GITHUB_WORKSPACE/builder/reporter.py \
+              --status progress \
+              --token "$TG_TOKEN" \
+              --chat-id "$TG_CHATID" \
+              --job NONKSU \
+              --log $GITHUB_WORKSPACE/build-nonksu.log \
+              --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            sleep 15
+          done
+
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status progress \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job NONKSU \
+            --log $GITHUB_WORKSPACE/build-nonksu.log \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          wait $BUILD_PID
+          exit $?
 
       - name: Package Flashable Zip NONKSU
         run: |
