@@ -27,6 +27,10 @@ def tg_call(token, method, **kw):
                                      headers={"Content-Type": "application/x-www-form-urlencoded"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode())
+    except urllib.error.HTTPError as e:
+        body = e.read().decode(errors='replace')
+        print(f"tg error: {e.code} {body}", file=sys.stderr)
+        return None
     except Exception as e:
         print(f"tg error: {e}", file=sys.stderr)
         return None
@@ -129,11 +133,11 @@ def main():
 
     if args.status == 'started':
         date_str = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S UTC %Y")
-        text = f"""Kernel Version: —
-Compiler: —
+        text = f"""Kernel Version: -
+Compiler: -
 Date: {esc(date_str)}
 Build Variants: KSU, Non-KSU
-Latest Commit: —
+Latest Commit: -
 Build Statistics:
 {chr(8226)} KSU: 🔨 Building
 {chr(8226)} Non-KSU: 🔨 Building
