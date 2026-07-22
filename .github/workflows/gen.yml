@@ -16,12 +16,12 @@ on:
        description: 'Enable PGO Optimization'
        required: false
        type: boolean
-       default: true
+       default: false
      prerelease:
        description: 'Mark as Pre-Release'
        required: false
        type: boolean
-       default: true
+       default: false
 
 permissions:
  contents: write
@@ -31,33 +31,51 @@ env:
  CCACHE_DIR: ${{ github.workspace }}/.ccache
 
 jobs:
- start-notification:
+ init-notify:
+   name: Initialize Telegram Notification
    runs-on: ubuntu-latest
+   outputs:
+     msg_id: ${{ steps.tg_start.outputs.msg_id }}
+     device_name: ${{ steps.cfg.outputs.name }}
    steps:
-     - uses: actions/checkout@v4
-     - name: Telegram Start Report
+     - name: Checkout
+       uses: actions/checkout@v4
+
+     - name: Load Config
+       id: cfg
+       run: |
+         CONFIG=$(jq -c ".[$CONFIG_INDEX]" configs/builds.json)
+         NAME=$(echo "$CONFIG" | jq -r '.name')
+         echo "config=$CONFIG" >> $GITHUB_OUTPUT
+         echo "name=$NAME" >> $GITHUB_OUTPUT
+       env:
+         CONFIG_INDEX: ${{ github.event.inputs.config_index }}
+
+     - name: Telegram Start Notification
+       id: tg_start
        env:
          TOKEN: ${{ secrets.TG_TOKEN }}
          CHATID: ${{ secrets.TG_CHATID }}
        run: |
-         python3 .github/scripts/reporter.py \
-           --status started \
-           --device "Genesis" \
+         MSG_ID=$(python3 .github/scripts/reporter.py \
+           --action start \
+           --device "${{ steps.cfg.outputs.name }}" \
            --token "$TOKEN" \
            --chat-id "$CHATID" \
-           --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+           --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+         echo "msg_id=$MSG_ID" >> $GITHUB_OUTPUT
 
  build-ksu:
    name: Build KSU
-   needs: start-notification
+   needs: init-notify
    runs-on: ubuntu-latest
    outputs:
      kern_ver: ${{ steps.kinfo.outputs.version }}
      commit_log: ${{ steps.kinfo.outputs.commit }}
      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
-     device_name: ${{ steps.cfg.outputs.name }}
      build_time: ${{ steps.calc.outputs.duration }}
      zip_hash: ${{ steps.calc.outputs.hash }}
+     status: ${{ steps.set_status.outputs.status }}
 
    steps:
      - name: Start Timer
@@ -234,10 +252,10 @@ jobs:
          romans=("" "ı" "ıı" "ııı" "ıv" "v" "vı" "vıı" "vııı" "ıx" "x" "xı" "xıı" "xııı" "xıv" "xv" "xvı" "xvıı" "xvııı" "xıx" "xx" "xxı" "xxıı" "xxııı" "xxıv" "xxv" "xxvı" "xxvıı" "xxvııı" "xxıx" "xxx" "xxxı")
 
          LV="-GEN-${months[$MONTH_IDX]}-${romans[$DAY_IDX]}"
-         LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+         LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&]/\\&/g')
 
          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-           sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+           sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"$LV_ESCAPED\"|" out/.config
          else
            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
          fi
@@ -245,10 +263,6 @@ jobs:
          echo "LV=$LV" >> $GITHUB_ENV
 
          make O=out olddefconfig
-
-         echo "--- DEBUG ---"
-         grep -E "LTO|CONSERVATIVE|BLK_PM|KYBER|RANDOMIZE_BASE|KSU|SUSFS" out/.config
-         echo "---------------------------------"
 
          make -j$(nproc --all) O=out \
            ARCH=arm64 \
@@ -265,7 +279,23 @@ jobs:
            LLVM=1 \
            LLVM_IAS=1 \
            KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
-           Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
+           Image.gz-dtb > $GITHUB_WORKSPACE/build-ksu.log 2>&1 &
+         
+         KSU_PID=$!
+
+         python3 .github/scripts/reporter.py \
+           --action monitor \
+           --token "${{ secrets.TG_TOKEN }}" \
+           --chat-id "${{ secrets.TG_CHATID }}" \
+           --message-id "${{ needs.init-notify.outputs.msg_id }}" \
+           --device "${{ needs.init-notify.outputs.device_name }}" \
+           --variant "ksu" \
+           --pid "$KSU_PID" \
+           --out "$GITHUB_WORKSPACE/kernel/out" \
+           --run-id "${{ github.run_id }}" \
+           --total-obj "3000"
+
+         wait $KSU_PID
 
      - name: Package Flashable Zip KSU
        run: |
@@ -291,6 +321,10 @@ jobs:
          HASH=$(md5sum output/*.zip | awk '{print $1}')
          echo "hash=$HASH" >> $GITHUB_OUTPUT
 
+     - name: Set Status Output
+       id: set_status
+       run: echo "status=success" >> $GITHUB_OUTPUT
+
      - name: Upload ZIP
        uses: actions/upload-artifact@v4
        with:
@@ -310,11 +344,12 @@ jobs:
 
  build-nonksu:
    name: Build NONKSU
-   needs: start-notification
+   needs: init-notify
    runs-on: ubuntu-latest
    outputs:
      build_time: ${{ steps.calc.outputs.duration }}
      zip_hash: ${{ steps.calc.outputs.hash }}
+     status: ${{ steps.set_status.outputs.status }}
 
    steps:
      - name: Start Timer
@@ -459,10 +494,10 @@ jobs:
          romans=("" "ı" "ıı" "ııı" "ıv" "v" "vı" "vıı" "vııı" "ıx" "x" "xı" "xıı" "xııı" "xıv" "xv" "xvı" "xvıı" "xvııı" "xıx" "xx" "xxı" "xxıı" "xxııı" "xxıv" "xxv" "xxvı" "xxvıı" "xxvııı" "xxıx" "xxx" "xxxı")
 
          LV="-GEN-${months[$MONTH_IDX]}-${romans[$DAY_IDX]}"
-         LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+         LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&]/\\&/g')
 
          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-           sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+           sed -i "s|^CONFIG_LOCALVERSION=.*|CONFIG_LOCALVERSION=\"$LV_ESCAPED\"|" out/.config
          else
            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
          fi
@@ -486,7 +521,23 @@ jobs:
            LLVM=1 \
            LLVM_IAS=1 \
            KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
-           Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
+           Image.gz-dtb > $GITHUB_WORKSPACE/build-nonksu.log 2>&1 &
+
+         NONKSU_PID=$!
+
+         python3 .github/scripts/reporter.py \
+           --action monitor \
+           --token "${{ secrets.TG_TOKEN }}" \
+           --chat-id "${{ secrets.TG_CHATID }}" \
+           --message-id "${{ needs.init-notify.outputs.msg_id }}" \
+           --device "${{ needs.init-notify.outputs.device_name }}" \
+           --variant "nonksu" \
+           --pid "$NONKSU_PID" \
+           --out "$GITHUB_WORKSPACE/kernel/out" \
+           --run-id "${{ github.run_id }}" \
+           --total-obj "3000"
+
+         wait $NONKSU_PID
 
      - name: Package Flashable Zip NONKSU
        run: |
@@ -512,6 +563,10 @@ jobs:
          HASH=$(md5sum output/*.zip | awk '{print $1}')
          echo "hash=$HASH" >> $GITHUB_OUTPUT
 
+     - name: Set Status Output
+       id: set_status
+       run: echo "status=success" >> $GITHUB_OUTPUT
+
      - name: Upload ZIP
        uses: actions/upload-artifact@v4
        with:
@@ -521,64 +576,60 @@ jobs:
      - name: Show ccache statistics
        run: ccache -s
 
-     - name: Get Kernel Info
-       id: kinfo
-       run: |
-         cd kernel
-         echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
-         echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-         echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+  Release:
+    name: Release
+    needs: [init-notify, build-ksu, build-nonksu]
+    if: always()
+    runs-on: ubuntu-latest
 
- Release:
-   name: Release
-   needs: [build-ksu, build-nonksu]
-   runs-on: ubuntu-latest
 
-   steps:
-     - name: Checkout
-       uses: actions/checkout@v4
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-     - name: Download all artifacts
-       if: ${{ needs.build-ksu.result == 'success' || needs.build-nonksu.result == 'success' }}
-       uses: actions/download-artifact@v4
 
-     - name: Collect ZIPs
-       if: ${{ needs.build-ksu.result == 'success' || needs.build-nonksu.result == 'success' }}
-       run: |
-         mkdir final
-         find . -name "*.zip" -exec cp {} final/ \;
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
 
-     - name: Create Release
-       if: ${{ needs.build-ksu.result == 'success' || needs.build-nonksu.result == 'success' }}
-       uses: softprops/action-gh-release@v1
-       with:
-         tag_name: Release-${{ github.run_id }}
-         name: Genesis Kernel Release
-         prerelease: ${{ github.event.inputs.prerelease }}
-         body: |
-           ### Genesis Kernel Release
 
-           **Build Details:**
-           - Version: Genesis
+      - name: Collect ZIPs
+        run: |
+          mkdir final
+          find . -name "*.zip" -exec cp {} final/ \;
 
-         files: final/*.zip
-       env:
-         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-     - name: Notification Summary
-       env:
-         TOKEN: ${{ secrets.TG_TOKEN }}
-         CHATID: ${{ secrets.TG_CHATID }}
-       run: |
-         python3 .github/scripts/reporter.py \
-           --status finished \
-           --ksu-status "${{ needs.build-ksu.result }}" \
-           --nonksu-status "${{ needs.build-nonksu.result }}" \
-           --device "${{ needs.build-ksu.outputs.device_name }}" \
-           --kernel-ver "${{ needs.build-ksu.outputs.kern_ver }}" \
-           --compiler "${{ needs.build-ksu.outputs.compiler_ver }}" \
-           --commit "${{ needs.build-ksu.outputs.commit_log }}" \
-           --duration "${{ needs.build-ksu.outputs.build_time }}" \
-           --token "$TOKEN" \
-           --chat-id "$CHATID" \
-           --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      - name: Finish Telegram Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+        run: |
+          python3 .github/scripts/reporter.py \
+            --action finish \
+            --token "$TOKEN" \
+            --chat-id "$CHATID" \
+            --message-id "${{ needs.init-notify.outputs.msg_id }}" \
+            --device "${{ needs.init-notify.outputs.device_name }}" \
+            --ksu-status "${{ needs.build-ksu.outputs.status || 'failure' }}" \
+            --nonksu-status "${{ needs.build-nonksu.outputs.status || 'failure' }}" \
+            --duration "${{ needs.build-ksu.outputs.build_time || 'N/A' }}" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+
+      - name: Create Release
+        if: ${{ needs.build-ksu.outputs.status == 'success' && needs.build-nonksu.outputs.status == 'success' }}
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: Release-${{ github.run_id }}
+          name: Genesis Kernel Release
+          prerelease: ${{ github.event.inputs.prerelease }}
+          body: |
+            Genesis Kernel Release
+
+
+            Build Details:
+            - Version: Genesis
+
+
+          files: final/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
