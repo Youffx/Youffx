@@ -265,6 +265,12 @@ jobs:
           zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
 
+      - name: Upload Flash Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu
+          path: .github/Flash/
+
       - name: Calculate Metadata
         id: calc
         run: |
@@ -514,6 +520,12 @@ jobs:
           cd .github/Flash/
           zip -r "../../output/${ZIP_NAME}.zip" ./*
           cd ../../
+
+      - name: Upload Flash Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: nonksu
+          path: .github/Flash/
 
       - name: Calculate Metadata
         id: calc
