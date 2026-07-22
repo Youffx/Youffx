@@ -532,7 +532,6 @@ jobs:
  Release:
    name: Release
    needs: [build-ksu, build-nonksu]
-   if: always()
    runs-on: ubuntu-latest
 
    steps:
