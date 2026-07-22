@@ -54,7 +54,7 @@ jobs:
          TOKEN: ${{ secrets.TG_TOKEN }}
          CHATID: ${{ secrets.TG_CHATID }}
        run: |
-         MSG_ID=$(python3 .github/scripts/reporter.py \
+         MSG_ID=$(python3 $GITHUB_WORKSPACE/.github/scripts/reporter.py \
            --action start \
            --device "${{ steps.cfg.outputs.name }}" \
            --token "$TOKEN" \
@@ -282,7 +282,7 @@ jobs:
 
          KSU_PID=$!
 
-         python3 .github/scripts/reporter.py \
+         python3 $GITHUB_WORKSPACE/.github/scripts/reporter.py \
            --action monitor \
            --token "${{ secrets.TG_TOKEN }}" \
            --chat-id "${{ secrets.TG_CHATID }}" \
@@ -526,7 +526,7 @@ jobs:
 
          NONKSU_PID=$!
 
-         python3 .github/scripts/reporter.py \
+         python3 $GITHUB_WORKSPACE/.github/scripts/reporter.py \
            --action monitor \
            --token "${{ secrets.TG_TOKEN }}" \
            --chat-id "${{ secrets.TG_CHATID }}" \
@@ -600,7 +600,7 @@ jobs:
          TOKEN: ${{ secrets.TG_TOKEN }}
          CHATID: ${{ secrets.TG_CHATID }}
        run: |
-         python3 .github/scripts/reporter.py \
+         python3 $GITHUB_WORKSPACE/.github/scripts/reporter.py \
            --action finish \
            --token "$TOKEN" \
            --chat-id "$CHATID" \
