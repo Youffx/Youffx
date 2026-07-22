@@ -13,12 +13,12 @@ on:
        type: boolean
        default: true
      use_pgo:
-       description: 'Enable PGO Optimization'
+       description: "Enable PGO Optimization"
        required: false
        type: boolean
        default: false
      prerelease:
-       description: 'Mark as Pre-Release'
+       description: "Mark as Pre-Release"
        required: false
        type: boolean
        default: false
@@ -26,9 +26,6 @@ on:
 permissions:
  contents: write
  actions: read
-
-env:
- CCACHE_DIR: ${{ github.workspace }}/.ccache
 
 jobs:
  init-notify:
@@ -69,6 +66,8 @@ jobs:
    name: Build KSU
    needs: init-notify
    runs-on: ubuntu-latest
+   env:
+     CCACHE_DIR: ${{ github.workspace }}/.ccache
    outputs:
      kern_ver: ${{ steps.kinfo.outputs.version }}
      commit_log: ${{ steps.kinfo.outputs.commit }}
@@ -235,7 +234,7 @@ jobs:
 
          cd kernel
          make O=out $DEFCONFIG
-         
+
          sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
          sed -i '/CONFIG_MQ_IOSCHED_DEFAULT_KYBER/d' out/.config
 
@@ -280,7 +279,7 @@ jobs:
            LLVM_IAS=1 \
            KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
            Image.gz-dtb > $GITHUB_WORKSPACE/build-ksu.log 2>&1 &
-         
+
          KSU_PID=$!
 
          python3 .github/scripts/reporter.py \
@@ -346,6 +345,8 @@ jobs:
    name: Build NONKSU
    needs: init-notify
    runs-on: ubuntu-latest
+   env:
+     CCACHE_DIR: ${{ github.workspace }}/.ccache
    outputs:
      build_time: ${{ steps.calc.outputs.duration }}
      zip_hash: ${{ steps.calc.outputs.hash }}
@@ -576,60 +577,53 @@ jobs:
      - name: Show ccache statistics
        run: ccache -s
 
-  Release:
-    name: Release
-    needs: [init-notify, build-ksu, build-nonksu]
-    if: always()
-    runs-on: ubuntu-latest
+ Release:
+   name: Release
+   needs: [init-notify, build-ksu, build-nonksu]
+   if: always()
+   runs-on: ubuntu-latest
 
+   steps:
+     - name: Checkout
+       uses: actions/checkout@v4
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+     - name: Download all artifacts
+       uses: actions/download-artifact@v4
 
+     - name: Collect ZIPs
+       run: |
+         mkdir final
+         find . -name "*.zip" -exec cp {} final/ \;
 
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
+     - name: Finish Telegram Notification
+       env:
+         TOKEN: ${{ secrets.TG_TOKEN }}
+         CHATID: ${{ secrets.TG_CHATID }}
+       run: |
+         python3 .github/scripts/reporter.py \
+           --action finish \
+           --token "$TOKEN" \
+           --chat-id "$CHATID" \
+           --message-id "${{ needs.init-notify.outputs.msg_id }}" \
+           --device "${{ needs.init-notify.outputs.device_name }}" \
+           --ksu-status "${{ needs.build-ksu.outputs.status || 'failure' }}" \
+           --nonksu-status "${{ needs.build-nonksu.outputs.status || 'failure' }}" \
+           --duration "${{ needs.build-ksu.outputs.build_time || 'N/A' }}" \
+           --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
+     - name: Create Release
+       if: ${{ needs.build-ksu.outputs.status == 'success' && needs.build-nonksu.outputs.status == 'success' }}
+       uses: softprops/action-gh-release@v1
+       with:
+         tag_name: Release-${{ github.run_id }}
+         name: Genesis Kernel Release
+         prerelease: ${{ github.event.inputs.prerelease }}
+         body: |
+           Genesis Kernel Release
 
-      - name: Collect ZIPs
-        run: |
-          mkdir final
-          find . -name "*.zip" -exec cp {} final/ \;
+           Build Details:
+           - Version: Genesis
 
-
-      - name: Finish Telegram Notification
-        env:
-          TOKEN: ${{ secrets.TG_TOKEN }}
-          CHATID: ${{ secrets.TG_CHATID }}
-        run: |
-          python3 .github/scripts/reporter.py \
-            --action finish \
-            --token "$TOKEN" \
-            --chat-id "$CHATID" \
-            --message-id "${{ needs.init-notify.outputs.msg_id }}" \
-            --device "${{ needs.init-notify.outputs.device_name }}" \
-            --ksu-status "${{ needs.build-ksu.outputs.status || 'failure' }}" \
-            --nonksu-status "${{ needs.build-nonksu.outputs.status || 'failure' }}" \
-            --duration "${{ needs.build-ksu.outputs.build_time || 'N/A' }}" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-
-      - name: Create Release
-        if: ${{ needs.build-ksu.outputs.status == 'success' && needs.build-nonksu.outputs.status == 'success' }}
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: Release-${{ github.run_id }}
-          name: Genesis Kernel Release
-          prerelease: ${{ github.event.inputs.prerelease }}
-          body: |
-            Genesis Kernel Release
-
-
-            Build Details:
-            - Version: Genesis
-
-
-          files: final/*.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+         files: final/*.zip
+       env:
+         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
