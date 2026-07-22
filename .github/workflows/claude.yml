@@ -75,9 +75,9 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=1 -b cip2 \
-        https://x-access-token:${PAT_TOKEN}@github.com/xxblebleblexx/android_kernel_xiaomi_rosemary.git \
-        4.19-b
+      git clone \
+        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
+        Youffx
 
   - name: Configure Git + Import GPG
     run: |
