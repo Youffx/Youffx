@@ -40,8 +40,7 @@ def edit_telegram(token, chat_id, message_id, text):
     try:
         with urllib.request.urlopen(req) as response:
             return response.read()
-    except Exception as e:
-        print(f"Error editing Telegram message: {e}", file=sys.stderr)
+    except Exception:
         return None
 
 def make_progress_bar(percent, length=8):
@@ -69,7 +68,6 @@ def sync_state(run_id, key, val=None):
             return "0"
 
 def monitor_single(token, chat_id, message_id, device, variant, pid, out_dir, run_id, total_expected=3000):
-    start_time = time.time()
     last_state = ""
     
     while True:
@@ -84,7 +82,7 @@ def monitor_single(token, chat_id, message_id, device, variant, pid, out_dir, ru
         count = 0
         if out_dir and os.path.exists(out_dir):
             try:
-                res = subprocess.check_output(f"find {out_dir} -name '*.o' | wc -l", shell=True)
+                res = subprocess.check_output(f"find {out_dir} -name '*.o' 2>/dev/null | wc -l", shell=True)
                 count = int(res.decode('utf-8').strip())
             except Exception:
                 count = 0
@@ -95,6 +93,7 @@ def monitor_single(token, chat_id, message_id, device, variant, pid, out_dir, ru
 
         ksu_pct_str = sync_state(run_id, "ksu_pct")
         nonksu_pct_str = sync_state(run_id, "nonksu_pct")
+        saved_start = sync_state(run_id, "start_time")
 
         try:
             ksu_pct = int(ksu_pct_str)
@@ -105,6 +104,11 @@ def monitor_single(token, chat_id, message_id, device, variant, pid, out_dir, ru
             nonksu_pct = int(nonksu_pct_str)
         except ValueError:
             nonksu_pct = 0
+
+        try:
+            start_time = float(saved_start) if float(saved_start) > 0 else time.time()
+        except ValueError:
+            start_time = time.time()
 
         elapsed = int(time.time() - start_time)
         mins = elapsed // 60
@@ -152,6 +156,9 @@ def main():
     args = parser.parse_args()
 
     if args.action == "start":
+        if args.run_id:
+            sync_state(args.run_id, "start_time", int(time.time()))
+
         msg = (
             f"🚀 *BUILD STARTED*\n"
             f"━━━━━━━━━━━━━━━━━━━\n"
