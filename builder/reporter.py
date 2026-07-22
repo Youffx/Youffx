@@ -238,17 +238,18 @@ Check Build ({build_url})"""
 
     elif args.status == 'finalize':
         date_str = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S UTC %Y")
-        text = f"""ALL BUILDS COMPLETE
+        label = "Check Release" if "/releases/" in build_url else "Check Build"
+        text = f"""Genesis CI Release
 Kernel Version: {esc(args.kernel_ver)}
 Compiler: {esc(args.compiler)}
 Date: {esc(date_str)}
 Build Variants: KSU, Non-KSU
 Latest Commit: {esc(args.commit)}
 Build Statistics:
-{chr(8226)} KSU: ✅ Done | {esc(args.build_time)} | `{esc(args.zip_hash)}`
-{chr(8226)} Non-KSU: ✅ Done | {esc(args.build_time2)} | `{esc(args.zip_hash2)}`
+{chr(8226)} KSU: {esc(args.build_time)} | sha256: `{esc(args.zip_hash)}`
+{chr(8226)} Non-KSU: {esc(args.build_time2)} | sha256: `{esc(args.zip_hash2)}`
 
-Check Release ({build_url})"""
+{label} ({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
