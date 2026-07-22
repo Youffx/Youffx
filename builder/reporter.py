@@ -61,10 +61,10 @@ def fmt_job(pct, label=None):
     if label:
         return label
     if pct is None:
-        return "[▱▱▱▱▱▱▱▱▱▱] 0%"
+        return "`[▱▱▱▱▱▱▱▱▱▱]` 0%"
     if pct >= 100:
         return "Done"
-    return f"[{bar(pct)}] {pct}%"
+    return f"`[{bar(pct)}]` {pct}%"
 
 
 def build_msg(mine, pct, prev, version="", compiler="", commit="", date_str=None,
@@ -150,8 +150,8 @@ def main():
         text = f"""KERNEL BUILD IN PROGRESS
 Build Variants: KSU, Non-KSU
 Build Statistics:
-{chr(8226)} KSU: [▱▱▱▱▱▱▱▱▱▱] 0%
-{chr(8226)} Non-KSU: [▱▱▱▱▱▱▱▱▱▱] 0%
+{chr(8226)} KSU: `[▱▱▱▱▱▱▱▱▱▱]` 0%
+{chr(8226)} Non-KSU: `[▱▱▱▱▱▱▱▱▱▱]` 0%
 
 Check Build ({build_url})"""
         resp = tg_call(args.token, 'sendMessage', chat_id=args.chat_id, text=text, parse_mode='MarkdownV2')
