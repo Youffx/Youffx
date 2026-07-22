@@ -139,8 +139,8 @@ Date: {esc(date_str)}
 Build Variants: KSU, Non\\-KSU
 Latest Commit: —
 Build Statistics:
-{chr(8226)} KSU: 🔨 Building
-{chr(8226)} Non\\-KSU: 🔨 Building
+{chr(8226)} KSU: {fmt_job(0)}
+{chr(8226)} Non\\-KSU: {fmt_job(0)}
 
 [Check Build]({build_url})"""
         resp = tg_call(args.token, 'sendMessage', chat_id=args.chat_id, text=text, parse_mode='MarkdownV2')
