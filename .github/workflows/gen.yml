@@ -363,6 +363,12 @@ jobs:
             --build-time "${{ steps.calc.outputs.duration }}" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
+      - name: Upload Flash Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksu
+          path: .github/Flash/
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -680,6 +686,12 @@ jobs:
             --build-time "${{ steps.calc.outputs.duration }}" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
+      - name: Upload Flash Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: nonksu
+          path: .github/Flash/
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -748,11 +760,12 @@ jobs:
           find . -name "*.zip" -exec cp {} final/ \;
 
       - name: Create Release
+        if: github.event.inputs.prerelease != 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: Release-${{ github.run_id }}
           name: Genesis Kernel Release
-          prerelease: ${{ github.event.inputs.prerelease }}
+          prerelease: false
           body: |
             ### Genesis Kernel Release
 
