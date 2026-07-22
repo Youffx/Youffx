@@ -22,7 +22,8 @@ def tg_call(token, method, **kw):
     data = urllib.parse.urlencode(kw).encode()
     url = f"https://api.telegram.org/bot{token}/{method}"
     try:
-        req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
+        req = urllib.request.Request(url, data=data,
+                                     headers={"Content-Type": "application/x-www-form-urlencoded"})
         with urllib.request.urlopen(req, timeout=30) as resp:
             return json.loads(resp.read().decode())
     except Exception as e:
@@ -55,20 +56,19 @@ def bar(pct):
     return "▰" * f + "▱" * (10 - f)
 
 
-def build_msg(job, pct, prev_ksu, prev_nonksu, build_url):
-    ksu_line = f"├ KSU:    {prev_ksu}" if prev_ksu else "├ KSU:    ⏳ Waiting"
-    nonksu_line = f"└ NONKSU: {prev_nonksu}" if prev_nonksu else "└ NONKSU: ⏳ Waiting"
-    if job == "KSU":
-        ksu_line = f"├ KSU:    🔨 `[{bar(pct)}]` {pct}%"
-    elif job == "NONKSU":
-        nonksu_line = f"└ NONKSU: 🔨 `[{bar(pct)}]` {pct}%"
-
-    all_done = "✅ Done" in ksu_line and "✅ Done" in nonksu_line
+def build_msg(mine, pct, other_label):
+    if mine == "KSU":
+        ksu = f"🔨 `[{bar(pct)}]` {pct}%" if pct < 100 else "✅ Done"
+        nonksu = other_label
+    else:
+        ksu = other_label
+        nonksu = f"🔨 `[{bar(pct)}]` {pct}%" if pct < 100 else "✅ Done"
+    all_done = "✅ Done" in ksu and "✅ Done" in nonksu
     title = "✅ *ALL BUILDS COMPLETE*" if all_done else "🔨 *KERNEL BUILD IN PROGRESS*"
     return f"""{title}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-{ksu_line}
-{nonksu_line}
+├ KSU:    {ksu}
+└ NONKSU: {nonksu}
 ━━━━━━━━━━━━━━━━━━━━━━━━
 📊 [VIEW RUN]({build_url})"""
 
@@ -96,6 +96,7 @@ def main():
     p.add_argument('--message-file')
     args = p.parse_args()
 
+    global build_url
     ws = os.environ.get('GITHUB_WORKSPACE', '.')
     msg_id_file = args.msg_id_file or os.path.join(ws, '.build_msg_id')
     build_url = (args.build_url or
@@ -103,23 +104,21 @@ def main():
                  f"/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}")
 
     try:
-        prev = json.loads(args.prev_status) if args.prev_status else {}
+        prev = json.loads(args.prev_status)
     except Exception:
         prev = {}
-    prev_ksu = prev.get('ksu', '⏳ Waiting')
-    prev_nonksu = prev.get('nonksu', '⏳ Waiting')
 
     msg_id = args.message_id
     if not msg_id and os.path.exists(msg_id_file):
         msg_id = open(msg_id_file).read().strip()
 
     if args.status == 'started':
-        text = f"""🚀 *KERNEL BUILD STARTED*
+        text = """🚀 *KERNEL BUILD STARTED*
 ━━━━━━━━━━━━━━━━━━━━━━━━
 ├ KSU:    🔨 Building
-└ NONKSU: ⏳ Waiting
+└ NONKSU: 🔨 Building
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({build_url})"""
+📊 [VIEW RUN]({})""".format(build_url)
         resp = tg_call(args.token, 'sendMessage', chat_id=args.chat_id, text=text, parse_mode='MarkdownV2')
         if resp and resp.get('ok'):
             mid = str(resp['result']['message_id'])
@@ -132,33 +131,32 @@ def main():
         print(f"No message_id available for status={args.status}", file=sys.stderr)
         return
 
+    other_label = "🔨 Building"
+    if args.status in ('done', 'success'):
+        other_label = "✅ Done"
+
     if args.status == 'progress':
         pct = args.progress or estimate_progress(args.log)
-        text = build_msg(args.job, pct, prev_ksu, prev_nonksu, build_url)
+        text = build_msg(args.job, pct, other_label)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'done':
-        if args.job == 'KSU':
-            ksu_status = f"✅ Done ({esc(args.build_time)})" if args.build_time else "✅ Done"
-            nonksu_status = prev_nonksu
-        else:
-            ksu_status = prev_ksu
-            nonksu_status = f"✅ Done ({esc(args.build_time)})" if args.build_time else "✅ Done"
-        text = build_msg('', 100, ksu_status, nonksu_status, build_url)
+        text = build_msg(args.job, 100, other_label)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'success':
-        text = f"""✅ *BUILD COMPLETED SUCCESSFULLY*
+        text = """✅ *BUILD COMPLETED SUCCESSFULLY*
 ━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    ✅ Done ({esc(args.build_time)})
-├ NONKSU: ✅ Done ({esc(args.build_time2)})
-├ *Kernel* : `{esc(args.device)}`
-├ *Compiler* : `{esc(args.compiler)}`
-└ *Commit* : `{esc(args.commit)}`
+├ KSU:    ✅ Done ({})
+├ NONKSU: ✅ Done ({})
+├ *Kernel* : `{}`
+├ *Compiler* : `{}`
+└ *Commit* : `{}`
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({build_url})"""
+📊 [VIEW RUN]({})""".format(esc(args.build_time), esc(args.build_time2),
+                            esc(args.device), esc(args.compiler), esc(args.commit), build_url)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -168,31 +166,33 @@ def main():
             try:
                 with open(args.log, 'r', errors='ignore') as f:
                     lines = f.readlines()[-50:]
-                error_lines = []
-                for l in lines:
-                    s = l.strip()
-                    if any(k in s.lower() for k in ['error:', 'fatal:', 'fail', '***']):
-                        error_lines.append(s)
+                error_lines = [l.strip() for l in lines
+                               if any(k in l.lower() for k in ['error:', 'fatal:', 'fail', '***'])]
                 if error_lines:
                     log_snippet = "\n" + "\n".join(f"`{esc(l[:200])}`" for l in error_lines[-3:])
             except Exception:
                 pass
-        text = f"""❌ *BUILD FAILED* \\- {esc(args.job)}
+        text = """❌ *BUILD FAILED* \\- {}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    {prev_ksu}
-└ NONKSU: {prev_nonksu}{log_snippet}
+├ KSU:    {}
+└ NONKSU: {}{}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({build_url})"""
+📊 [VIEW RUN]({})""".format(esc(args.job),
+                            prev.get('ksu', '🔨 Building'),
+                            prev.get('nonksu', '🔨 Building'),
+                            log_snippet, build_url)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'aborted':
-        text = f"""🛑 *BUILD ABORTED*
+        text = """🛑 *BUILD ABORTED*
 ━━━━━━━━━━━━━━━━━━━━━━━━
-├ KSU:    {prev_ksu}
-└ NONKSU: {prev_nonksu}
+├ KSU:    {}
+└ NONKSU: {}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({build_url})"""
+📊 [VIEW RUN]({})""".format(prev.get('ksu', '⏳ Waiting'),
+                            prev.get('nonksu', '⏳ Waiting'),
+                            build_url)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -201,7 +201,7 @@ def main():
         last_text = ""
         while True:
             pct = estimate_progress(log_path)
-            text = build_msg(args.job, pct, prev_ksu, prev_nonksu, build_url)
+            text = build_msg(args.job, pct, other_label)
             if text != last_text:
                 tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                         parse_mode='MarkdownV2')

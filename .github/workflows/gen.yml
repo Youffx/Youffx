@@ -33,8 +33,28 @@ env:
   TG_CHATID: ${{ secrets.TG_CHATID }}
 
 jobs:
+  start:
+    name: Initialize
+    runs-on: ubuntu-latest
+    outputs:
+      msg_id: ${{ steps.notify.outputs.msg_id }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Notify Start
+        id: notify
+        run: |
+          MID=$(python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status started \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+          echo "msg_id=$MID" >> $GITHUB_OUTPUT
+
   build-ksu:
     name: Build KSU
+    needs: [start]
     runs-on: ubuntu-latest
     outputs:
       kern_ver: ${{ steps.kinfo.outputs.version }}
@@ -43,7 +63,6 @@ jobs:
       device_name: ${{ steps.cfg.outputs.name }}
       build_time: ${{ steps.calc.outputs.duration }}
       zip_hash: ${{ steps.calc.outputs.hash }}
-      msg_id: ${{ steps.notify_start.outputs.msg_id }}
 
     steps:
       - name: Start Timer
@@ -135,15 +154,9 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Notify Start
-        id: notify_start
+      - name: Restore Message ID
         run: |
-          MID=$(python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status started \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
-          echo "msg_id=$MID" >> $GITHUB_OUTPUT
+          echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
 
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
@@ -351,7 +364,7 @@ jobs:
 
   build-nonksu:
     name: Build NONKSU
-    needs: [build-ksu]
+    needs: [start]
     runs-on: ubuntu-latest
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
@@ -449,7 +462,7 @@ jobs:
 
       - name: Restore Message ID
         run: |
-          echo "${{ needs.build-ksu.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
+          echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
 
       - name: Start NONKSU
         run: |
@@ -631,12 +644,16 @@ jobs:
   
   Release:
     name: Release
-    needs: [build-ksu, build-nonksu]
+    needs: [start, build-ksu, build-nonksu]
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Restore Message ID
+        run: |
+          echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
