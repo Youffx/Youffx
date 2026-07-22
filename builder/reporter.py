@@ -56,13 +56,24 @@ def bar(pct):
     return "▰" * f + "▱" * (10 - f)
 
 
-def build_msg(mine, pct, other_label):
+def fmt_job(pct, label=None):
+    if label:
+        return label
+    if pct is None:
+        return "🔨 Building"
+    if pct >= 100:
+        return "✅ Done"
+    return f"🔨 `[{bar(pct)}]` {pct}%"
+
+
+def build_msg(mine, pct, prev):
+    other = prev or {}
     if mine == "KSU":
-        ksu = f"🔨 `[{bar(pct)}]` {pct}%" if pct < 100 else "✅ Done"
-        nonksu = other_label
+        ksu = fmt_job(pct)
+        nonksu = fmt_job(other.get('nonksu'))
     else:
-        ksu = other_label
-        nonksu = f"🔨 `[{bar(pct)}]` {pct}%" if pct < 100 else "✅ Done"
+        nonksu = fmt_job(pct)
+        ksu = fmt_job(other.get('ksu'))
     all_done = "✅ Done" in ksu and "✅ Done" in nonksu
     title = "✅ *ALL BUILDS COMPLETE*" if all_done else "🔨 *KERNEL BUILD IN PROGRESS*"
     return f"""{title}
@@ -131,18 +142,14 @@ def main():
         print(f"No message_id available for status={args.status}", file=sys.stderr)
         return
 
-    other_label = "🔨 Building"
-    if args.status in ('done', 'success'):
-        other_label = "✅ Done"
-
     if args.status == 'progress':
         pct = args.progress or estimate_progress(args.log)
-        text = build_msg(args.job, pct, other_label)
+        text = build_msg(args.job, pct, prev)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
     elif args.status == 'done':
-        text = build_msg(args.job, 100, other_label)
+        text = build_msg(args.job, 100, prev)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
 
@@ -178,8 +185,8 @@ def main():
 └ NONKSU: {}{}
 ━━━━━━━━━━━━━━━━━━━━━━━━
 📊 [VIEW RUN]({})""".format(esc(args.job),
-                            prev.get('ksu', '🔨 Building'),
-                            prev.get('nonksu', '🔨 Building'),
+                            fmt_job(prev.get('ksu')),
+                            fmt_job(prev.get('nonksu')),
                             log_snippet, build_url)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
@@ -190,8 +197,8 @@ def main():
 ├ KSU:    {}
 └ NONKSU: {}
 ━━━━━━━━━━━━━━━━━━━━━━━━
-📊 [VIEW RUN]({})""".format(prev.get('ksu', '⏳ Waiting'),
-                            prev.get('nonksu', '⏳ Waiting'),
+📊 [VIEW RUN]({})""".format(fmt_job(prev.get('ksu')),
+                            fmt_job(prev.get('nonksu')),
                             build_url)
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                 parse_mode='MarkdownV2')
@@ -201,7 +208,7 @@ def main():
         last_text = ""
         while True:
             pct = estimate_progress(log_path)
-            text = build_msg(args.job, pct, other_label)
+            text = build_msg(args.job, pct, prev)
             if text != last_text:
                 tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
                         parse_mode='MarkdownV2')

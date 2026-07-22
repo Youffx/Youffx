@@ -25,7 +25,7 @@ on:
 
 permissions:
   contents: write
-  actions: read
+  actions: write
 
 env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -160,6 +160,7 @@ jobs:
 
       - name: Start KSU
         run: |
+          gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "0" 2>/dev/null || true
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status progress \
             --token "$TG_TOKEN" \
@@ -293,22 +294,32 @@ jobs:
           BUILD_PID=$!
 
           while kill -0 $BUILD_PID 2>/dev/null; do
+            PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-ksu.log'))" 2>/dev/null || echo "0")
+            gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
+            OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+            PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
             python3 $GITHUB_WORKSPACE/builder/reporter.py \
               --status progress \
               --token "$TG_TOKEN" \
               --chat-id "$TG_CHATID" \
               --job KSU \
-              --log $GITHUB_WORKSPACE/build-ksu.log \
+              --progress "$PCT" \
+              --prev-status "$PREV_STATUS" \
               --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             sleep 15
           done
 
+          PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-ksu.log'))" 2>/dev/null || echo "0")
+          gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
+          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status progress \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job KSU \
-            --log $GITHUB_WORKSPACE/build-ksu.log \
+            --progress "$PCT" \
+            --prev-status "$PREV_STATUS" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           wait $BUILD_PID
@@ -340,11 +351,15 @@ jobs:
 
       - name: Mark KSU Done
         run: |
+          gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "100" 2>/dev/null || true
+          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': 100, 'nonksu': $OTHER_PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status done \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job KSU \
+            --prev-status "$PREV_STATUS" \
             --build-time "${{ steps.calc.outputs.duration }}" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
@@ -368,22 +383,30 @@ jobs:
       - name: Notify Failure
         if: failure()
         run: |
+          PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status failure \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job KSU \
+            --prev-status "$PREV_STATUS" \
             --log "$GITHUB_WORKSPACE/build-ksu.log" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Notify Cancelled
         if: cancelled()
         run: |
+          PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status aborted \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job KSU \
+            --prev-status "$PREV_STATUS" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   build-nonksu:
@@ -490,6 +513,7 @@ jobs:
 
       - name: Start NONKSU
         run: |
+          gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "0" 2>/dev/null || true
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status progress \
             --token "$TG_TOKEN" \
@@ -587,22 +611,32 @@ jobs:
           BUILD_PID=$!
 
           while kill -0 $BUILD_PID 2>/dev/null; do
+            PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-nonksu.log'))" 2>/dev/null || echo "0")
+            gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
+            OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+            PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
             python3 $GITHUB_WORKSPACE/builder/reporter.py \
               --status progress \
               --token "$TG_TOKEN" \
               --chat-id "$TG_CHATID" \
               --job NONKSU \
-              --log $GITHUB_WORKSPACE/build-nonksu.log \
+              --progress "$PCT" \
+              --prev-status "$PREV_STATUS" \
               --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
             sleep 15
           done
 
+          PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-nonksu.log'))" 2>/dev/null || echo "0")
+          gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
+          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status progress \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job NONKSU \
-            --log $GITHUB_WORKSPACE/build-nonksu.log \
+            --progress "$PCT" \
+            --prev-status "$PREV_STATUS" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
           wait $BUILD_PID
@@ -634,11 +668,15 @@ jobs:
 
       - name: Mark NONKSU Done
         run: |
+          gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "100" 2>/dev/null || true
+          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': 100}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status done \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job NONKSU \
+            --prev-status "$PREV_STATUS" \
             --build-time "${{ steps.calc.outputs.duration }}" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
@@ -662,22 +700,30 @@ jobs:
       - name: Notify Failure
         if: failure()
         run: |
+          PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status failure \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job NONKSU \
+            --prev-status "$PREV_STATUS" \
             --log "$GITHUB_WORKSPACE/build-nonksu.log" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Notify Cancelled
         if: cancelled()
         run: |
+          PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
+          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
           python3 $GITHUB_WORKSPACE/builder/reporter.py \
             --status aborted \
             --token "$TG_TOKEN" \
             --chat-id "$TG_CHATID" \
             --job NONKSU \
+            --prev-status "$PREV_STATUS" \
             --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
   
   Release:
