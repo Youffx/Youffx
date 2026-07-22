@@ -133,11 +133,11 @@ def main():
 
     if args.status == 'started':
         date_str = datetime.now(timezone.utc).strftime("%a %b %d %H:%M:%S UTC %Y")
-        text = f"""Kernel Version: -
-Compiler: -
+        text = f"""Kernel Version: —
+Compiler: —
 Date: {esc(date_str)}
 Build Variants: KSU, Non-KSU
-Latest Commit: -
+Latest Commit: —
 Build Statistics:
 {chr(8226)} KSU: 🔨 Building
 {chr(8226)} Non-KSU: 🔨 Building
@@ -177,8 +177,8 @@ Date: {esc(date_str)}
 Build Variants: KSU, Non-KSU
 Latest Commit: {esc(args.commit)}
 Build Statistics:
-{chr(8226)} KSU: ✅ Done | {esc(args.build_time)}
-{chr(8226)} Non-KSU: ✅ Done | {esc(args.build_time2)}
+{chr(8226)} KSU: ✅ Done \\| {esc(args.build_time)}
+{chr(8226)} Non-KSU: ✅ Done \\| {esc(args.build_time2)}
 
 [Check Build]({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
@@ -250,8 +250,8 @@ Date: {esc(date_str)}
 Build Variants: KSU, Non-KSU
 Latest Commit: {esc(args.commit)}
 Build Statistics:
-{chr(8226)} KSU: {esc(args.build_time)} | sha256: `{esc(args.zip_hash)}`
-{chr(8226)} Non-KSU: {esc(args.build_time2)} | sha256: `{esc(args.zip_hash2)}`
+{chr(8226)} KSU: {esc(args.build_time)} \\| sha256: `{esc(args.zip_hash)}`
+{chr(8226)} Non-KSU: {esc(args.build_time2)} \\| sha256: `{esc(args.zip_hash2)}`
 
 [{label}]({build_url})"""
         tg_call(args.token, 'editMessageText', chat_id=args.chat_id, message_id=msg_id, text=text,
