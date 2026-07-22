@@ -29,6 +29,8 @@ permissions:
 
 env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
+  TG_TOKEN: ${{ secrets.TG_TOKEN }}
+  TG_CHATID: ${{ secrets.TG_CHATID }}
 
 jobs:
   build-ksu:
@@ -41,6 +43,7 @@ jobs:
       device_name: ${{ steps.cfg.outputs.name }}
       build_time: ${{ steps.calc.outputs.duration }}
       zip_hash: ${{ steps.calc.outputs.hash }}
+      msg_id: ${{ steps.notify_start.outputs.msg_id }}
 
     steps:
       - name: Start Timer
@@ -131,6 +134,16 @@ jobs:
           ccache -o base_dir=$GITHUB_WORKSPACE
           ccache -o hash_dir=false
           ccache -z
+
+      - name: Notify Start
+        id: notify_start
+        run: |
+          MID=$(python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status started \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
+          echo "msg_id=$MID" >> $GITHUB_OUTPUT
 
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
@@ -233,6 +246,16 @@ jobs:
           grep -E "LTO|CONSERVATIVE|BLK_PM|KYBER|RANDOMIZE_BASE|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
+          # Start progress monitor in background
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status monitor \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job KSU \
+            --log "$GITHUB_WORKSPACE/build-ksu.log" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" &
+          MONITOR_PID=$!
+
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -249,6 +272,10 @@ jobs:
             LLVM_IAS=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
+          BUILD_EXIT=$?
+
+          kill $MONITOR_PID 2>/dev/null || true
+          [ "$BUILD_EXIT" != "0" ] && exit $BUILD_EXIT
 
       - name: Package Flashable Zip KSU
         run: |
@@ -274,6 +301,16 @@ jobs:
           HASH=$(md5sum output/*.zip | awk '{print $1}')
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
+      - name: Mark KSU Done
+        run: |
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status done \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job KSU \
+            --build-time "${{ steps.calc.outputs.duration }}" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -291,30 +328,30 @@ jobs:
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
           echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
-      - name: Telegram Fail Report
+      - name: Notify Failure
         if: failure()
-        env:
-          TOKEN: ${{ secrets.TG_TOKEN }}
-          CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          if [ ! -f "$GITHUB_WORKSPACE/build-ksu.log" ]; then
-            ERROR_MSG="but there ain’t no logs tho.."
-          else
-            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$GITHUB_WORKSPACE/build-ksu.log" | tail -20)
-          fi
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status failure \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job KSU \
+            --log "$GITHUB_WORKSPACE/build-ksu.log" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          TEXT=$(cat <<EOF
-          yoo build KSU flopped
-          $ERROR_MSG
-          EOF
-          )
-
-          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
-            -d chat_id="$CHATID" \
-            --data-urlencode text="$TEXT"
+      - name: Notify Cancelled
+        if: cancelled()
+        run: |
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status aborted \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job KSU \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
   build-nonksu:
     name: Build NONKSU
+    needs: [build-ksu]
     runs-on: ubuntu-latest
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
@@ -410,6 +447,20 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
+      - name: Restore Message ID
+        run: |
+          echo "${{ needs.build-ksu.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
+
+      - name: Start NONKSU
+        run: |
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status progress \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job NONKSU \
+            --progress 0 \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
         env:
@@ -475,6 +526,16 @@ jobs:
 
           make O=out olddefconfig
 
+          # Start progress monitor in background
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status monitor \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job NONKSU \
+            --log "$GITHUB_WORKSPACE/build-nonksu.log" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" &
+          MONITOR_PID=$!
+
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -491,6 +552,10 @@ jobs:
             LLVM_IAS=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
             Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
+          BUILD_EXIT=$?
+
+          kill $MONITOR_PID 2>/dev/null || true
+          [ "$BUILD_EXIT" != "0" ] && exit $BUILD_EXIT
 
       - name: Package Flashable Zip NONKSU
         run: |
@@ -516,6 +581,16 @@ jobs:
           HASH=$(md5sum output/*.zip | awk '{print $1}')
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
+      - name: Mark NONKSU Done
+        run: |
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status done \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job NONKSU \
+            --build-time "${{ steps.calc.outputs.duration }}" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -533,27 +608,26 @@ jobs:
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
           echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
-      - name: Telegram Fail Report
+      - name: Notify Failure
         if: failure()
-        env:
-          TOKEN: ${{ secrets.TG_TOKEN }}
-          CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          if [ ! -f "$GITHUB_WORKSPACE/build-nonksu.log" ]; then
-            ERROR_MSG="but there ain’t no logs tho.."
-          else
-            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$GITHUB_WORKSPACE/build-nonksu.log" | tail -20)
-          fi
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status failure \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job NONKSU \
+            --log "$GITHUB_WORKSPACE/build-nonksu.log" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
-          TEXT=$(cat <<EOF
-          yoo build NONKSU flopped
-          $ERROR_MSG
-          EOF
-          )
-
-          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
-            -d chat_id="$CHATID" \
-            --data-urlencode text="$TEXT"
+      - name: Notify Cancelled
+        if: cancelled()
+        run: |
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status aborted \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --job NONKSU \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
   
   Release:
     name: Release
@@ -561,6 +635,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
@@ -590,26 +667,24 @@ jobs:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          tg() {
-            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
-              -d chat_id="${CHATID}" \
-              -d parse_mode=Markdown \
-              -d disable_web_page_preview=true \
-              -d text="$1"
-          }
-
           BUILD_DATE=$(TZ='Asia/Jakarta' date +"%a %b %d %H:%M:%S WIB %Y")
 
-          MESSAGE="*Genesis Kernel CI Release*
-          *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
-          *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
-          *Date:* \`$BUILD_DATE\`
-          *Build Variants:* \`KSU, Non-KSU\`
-          *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
-          *Build Statistics:*
-          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          cat > msg_final.txt << MSGEOF
+          ✅ *Genesis Kernel CI Release*
+          ━━━━━━━━━━━━━━━━━━━━━━━━
+          ├ *Kernel* : \`${{ needs.build-ksu.outputs.kern_ver }}\`
+          ├ *Compiler* : \`${{ needs.build-ksu.outputs.compiler_ver }}\`
+          ├ *Date* : \`${BUILD_DATE}\`
+          ├ *Commit* : \`${{ needs.build-ksu.outputs.commit_log }}\`
+          ├ *KSU* : *${{ needs.build-ksu.outputs.build_time }}* | \`${{ needs.build-ksu.outputs.zip_hash }}\`
+          └ *Non-KSU* : *${{ needs.build-nonksu.outputs.build_time }}* | \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          ━━━━━━━━━━━━━━━━━━━━━━━━
+          📦 [RELEASE](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})
+          MSGEOF
 
-          [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
-
-          tg "$MESSAGE"
+          python3 $GITHUB_WORKSPACE/builder/reporter.py \
+            --status finalize \
+            --token "$TG_TOKEN" \
+            --chat-id "$TG_CHATID" \
+            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --message-file msg_final.txt
