@@ -25,36 +25,14 @@ on:
 
 permissions:
   contents: write
-  actions: write
+  actions: read
 
 env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
-  TG_TOKEN: ${{ secrets.TG_TOKEN }}
-  TG_CHATID: ${{ secrets.TG_CHATID }}
 
 jobs:
-  start:
-    name: Initialize
-    runs-on: ubuntu-latest
-    outputs:
-      msg_id: ${{ steps.notify.outputs.msg_id }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Notify Start
-        id: notify
-        run: |
-          MID=$(python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status started \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}")
-          echo "msg_id=$MID" >> $GITHUB_OUTPUT
-
   build-ksu:
     name: Build KSU
-    needs: [start]
     runs-on: ubuntu-latest
     outputs:
       kern_ver: ${{ steps.kinfo.outputs.version }}
@@ -146,20 +124,6 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          V=$(make kernelversion)
-          C=$(git log -1 --format='%h %s')
-          COMP=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)
-          echo "version=$V" >> $GITHUB_OUTPUT
-          echo "commit=$C" >> $GITHUB_OUTPUT
-          echo "compiler=$COMP" >> $GITHUB_OUTPUT
-          echo "KERNEL_VER=$V" >> $GITHUB_ENV
-          echo "KERNEL_COMMIT=$C" >> $GITHUB_ENV
-          echo "KERNEL_COMPILER=$COMP" >> $GITHUB_ENV
-
       - name: Setup ccache
         run: |
           ccache -M 10G
@@ -167,24 +131,6 @@ jobs:
           ccache -o base_dir=$GITHUB_WORKSPACE
           ccache -o hash_dir=false
           ccache -z
-
-      - name: Restore Message ID
-        run: |
-          echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
-
-      - name: Start KSU
-        run: |
-          gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "0" 2>/dev/null || true
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status progress \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job KSU \
-            --progress 0 \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
@@ -231,10 +177,8 @@ jobs:
             cd ..
           fi
 
-      - name: Configure Kernel KSU
+      - name: Build Kernel KSU
         run: |
-          set -o pipefail
-
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
           export ARCH=arm64
@@ -256,7 +200,7 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-
+          
           sed -i '/CONFIG_RANDOMIZE_BASE/d' out/.config
           sed -i '/CONFIG_MQ_IOSCHED_DEFAULT_KYBER/d' out/.config
 
@@ -289,9 +233,6 @@ jobs:
           grep -E "LTO|CONSERVATIVE|BLK_PM|KYBER|RANDOMIZE_BASE|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
-      - name: Build Kernel KSU
-        run: |
-          cd kernel
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -307,46 +248,7 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
-            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log &
-          BUILD_PID=$!
-
-          while kill -0 $BUILD_PID 2>/dev/null; do
-            PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-ksu.log'))" 2>/dev/null || echo "0")
-            gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
-            OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-            PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
-            python3 $GITHUB_WORKSPACE/builder/reporter.py \
-              --status progress \
-              --token "$TG_TOKEN" \
-              --chat-id "$TG_CHATID" \
-              --job KSU \
-              --progress "$PCT" \
-              --prev-status "$PREV_STATUS" \
-              --kernel-ver "$KERNEL_VER" \
-              --commit "$KERNEL_COMMIT" \
-              --compiler "$KERNEL_COMPILER" \
-              --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            sleep 15
-          done
-
-          PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-ksu.log'))" 2>/dev/null || echo "0")
-          gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
-          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status progress \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job KSU \
-            --progress "$PCT" \
-            --prev-status "$PREV_STATUS" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          wait $BUILD_PID
-          exit $?
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-ksu.log
 
       - name: Package Flashable Zip KSU
         run: |
@@ -372,32 +274,7 @@ jobs:
           HASH=$(md5sum output/*.zip | awk '{print $1}')
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
-      - name: Mark KSU Done
-        run: |
-          gh variable set PROGRESS_KSU --repo ${{ github.repository }} --body "100" 2>/dev/null || true
-          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': 100, 'nonksu': $OTHER_PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status done \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job KSU \
-            --prev-status "$PREV_STATUS" \
-            --build-time "${{ steps.calc.outputs.duration }}" \
-            --zip-hash "${{ steps.calc.outputs.hash }}" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-      - name: Upload Flash Files
-        uses: actions/upload-artifact@v4
-        with:
-          name: ksu
-          path: .github/Flash/
-
       - name: Upload ZIP
-        if: github.event.inputs.prerelease != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: zip-ksu
@@ -406,44 +283,38 @@ jobs:
       - name: Show ccache statistics
         run: ccache -s
 
-      - name: Notify Failure
-        if: failure()
+      - name: Get Kernel Info
+        id: kinfo
         run: |
-          PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status failure \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job KSU \
-            --prev-status "$PREV_STATUS" \
-            --log "$GITHUB_WORKSPACE/build-ksu.log" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
-      - name: Notify Cancelled
-        if: cancelled()
+      - name: Telegram Fail Report
+        if: failure()
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          OTHER_PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $PCT, 'nonksu': $OTHER_PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status aborted \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job KSU \
-            --prev-status "$PREV_STATUS" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ ! -f "$GITHUB_WORKSPACE/build-ksu.log" ]; then
+            ERROR_MSG="but there ain’t no logs tho.."
+          else
+            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$GITHUB_WORKSPACE/build-ksu.log" | tail -20)
+          fi
+
+          TEXT=$(cat <<EOF
+          yoo build KSU flopped
+          $ERROR_MSG
+          EOF
+          )
+
+          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
+            -d chat_id="$CHATID" \
+            --data-urlencode text="$TEXT"
 
   build-nonksu:
     name: Build NONKSU
-    needs: [start]
     runs-on: ubuntu-latest
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
@@ -531,20 +402,6 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          V=$(make kernelversion)
-          C=$(git log -1 --format='%h %s')
-          COMP=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)
-          echo "version=$V" >> $GITHUB_OUTPUT
-          echo "commit=$C" >> $GITHUB_OUTPUT
-          echo "compiler=$COMP" >> $GITHUB_OUTPUT
-          echo "KERNEL_VER=$V" >> $GITHUB_ENV
-          echo "KERNEL_COMMIT=$C" >> $GITHUB_ENV
-          echo "KERNEL_COMPILER=$COMP" >> $GITHUB_ENV
-
       - name: Setup ccache
         run: |
           ccache -M 10G
@@ -552,24 +409,6 @@ jobs:
           ccache -o base_dir=$GITHUB_WORKSPACE
           ccache -o hash_dir=false
           ccache -z
-
-      - name: Restore Message ID
-        run: |
-          echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
-
-      - name: Start NONKSU
-        run: |
-          gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "0" 2>/dev/null || true
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status progress \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job NONKSU \
-            --progress 0 \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Prepare PGO Profile
         if: ${{ github.event.inputs.use_pgo == 'true' }}
@@ -584,10 +423,8 @@ jobs:
             $PWD/llvm/bin/llvm-profdata merge -o kernel/vmlinux.profdata vmlinux.profraw
           fi
 
-      - name: Configure Kernel NONKSU
+      - name: Build Kernel NONKSU
         run: |
-          set -o pipefail
-
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
 
           export ARCH=arm64
@@ -638,9 +475,6 @@ jobs:
 
           make O=out olddefconfig
 
-      - name: Build Kernel NONKSU
-        run: |
-          cd kernel
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
@@ -656,46 +490,7 @@ jobs:
             LLVM=1 \
             LLVM_IAS=1 \
             KBUILD_LDFLAGS="--emit-relocs --trace-symbol=__bad_udelay" \
-            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log &
-          BUILD_PID=$!
-
-          while kill -0 $BUILD_PID 2>/dev/null; do
-            PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-nonksu.log'))" 2>/dev/null || echo "0")
-            gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
-            OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-            PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
-            python3 $GITHUB_WORKSPACE/builder/reporter.py \
-              --status progress \
-              --token "$TG_TOKEN" \
-              --chat-id "$TG_CHATID" \
-              --job NONKSU \
-              --progress "$PCT" \
-              --prev-status "$PREV_STATUS" \
-              --kernel-ver "$KERNEL_VER" \
-              --commit "$KERNEL_COMMIT" \
-              --compiler "$KERNEL_COMPILER" \
-              --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            sleep 15
-          done
-
-          PCT=$(python3 -c "import sys; sys.path.insert(0, '$GITHUB_WORKSPACE/builder'); from reporter import estimate_progress; print(estimate_progress('$GITHUB_WORKSPACE/build-nonksu.log'))" 2>/dev/null || echo "0")
-          gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "$PCT" 2>/dev/null || true
-          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status progress \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job NONKSU \
-            --progress "$PCT" \
-            --prev-status "$PREV_STATUS" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-          wait $BUILD_PID
-          exit $?
+            Image.gz-dtb 2>&1 | tee $GITHUB_WORKSPACE/build-nonksu.log
 
       - name: Package Flashable Zip NONKSU
         run: |
@@ -721,32 +516,7 @@ jobs:
           HASH=$(md5sum output/*.zip | awk '{print $1}')
           echo "hash=$HASH" >> $GITHUB_OUTPUT
 
-      - name: Mark NONKSU Done
-        run: |
-          gh variable set PROGRESS_NONKSU --repo ${{ github.repository }} --body "100" 2>/dev/null || true
-          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': 100}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status done \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job NONKSU \
-            --prev-status "$PREV_STATUS" \
-            --build-time "${{ steps.calc.outputs.duration }}" \
-            --zip-hash "${{ steps.calc.outputs.hash }}" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-
-      - name: Upload Flash Files
-        uses: actions/upload-artifact@v4
-        with:
-          name: nonksu
-          path: .github/Flash/
-
       - name: Upload ZIP
-        if: github.event.inputs.prerelease != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: zip-nonksu
@@ -755,70 +525,56 @@ jobs:
       - name: Show ccache statistics
         run: ccache -s
 
-      - name: Notify Failure
-        if: failure()
+      - name: Get Kernel Info
+        id: kinfo
         run: |
-          PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status failure \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job NONKSU \
-            --prev-status "$PREV_STATUS" \
-            --log "$GITHUB_WORKSPACE/build-nonksu.log" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
-      - name: Notify Cancelled
-        if: cancelled()
+      - name: Telegram Fail Report
+        if: failure()
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          PCT=$(gh variable get PROGRESS_NONKSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          OTHER_PCT=$(gh variable get PROGRESS_KSU --repo ${{ github.repository }} 2>/dev/null || echo "0")
-          PREV_STATUS=$(python3 -c "import json; print(json.dumps({'ksu': $OTHER_PCT, 'nonksu': $PCT}))")
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status aborted \
-            --token "$TG_TOKEN" \
-            --chat-id "$TG_CHATID" \
-            --job NONKSU \
-            --prev-status "$PREV_STATUS" \
-            --kernel-ver "$KERNEL_VER" \
-            --commit "$KERNEL_COMMIT" \
-            --compiler "$KERNEL_COMPILER" \
-            --build-url "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ ! -f "$GITHUB_WORKSPACE/build-nonksu.log" ]; then
+            ERROR_MSG="but there ain’t no logs tho.."
+          else
+            ERROR_MSG=$(grep -iE "error:|fatal:|make\[.*\]: \*\*\*" "$GITHUB_WORKSPACE/build-nonksu.log" | tail -20)
+          fi
+
+          TEXT=$(cat <<EOF
+          yoo build NONKSU flopped
+          $ERROR_MSG
+          EOF
+          )
+
+          curl -sX POST https://api.telegram.org/bot$TOKEN/sendMessage \
+            -d chat_id="$CHATID" \
+            --data-urlencode text="$TEXT"
   
   Release:
     name: Release
-    needs: [start, build-ksu, build-nonksu]
+    needs: [build-ksu, build-nonksu]
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Restore Message ID
-        run: |
-          echo "${{ needs.start.outputs.msg_id }}" > $GITHUB_WORKSPACE/.build_msg_id
-
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
       - name: Collect ZIPs
-        if: github.event.inputs.prerelease != 'true'
         run: |
           mkdir final
           find . -name "*.zip" -exec cp {} final/ \;
 
       - name: Create Release
-        if: github.event.inputs.prerelease != 'true'
         uses: softprops/action-gh-release@v1
         with:
           tag_name: Release-${{ github.run_id }}
           name: Genesis Kernel Release
-          prerelease: false
+          prerelease: ${{ github.event.inputs.prerelease }}
           body: |
             ### Genesis Kernel Release
 
@@ -830,21 +586,30 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notification
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
         run: |
-          if [ "${{ github.event.inputs.prerelease }}" = "true" ]; then
-            BUILD_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          else
-            BUILD_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/Release-${{ github.run_id }}"
-          fi
-          python3 $GITHUB_WORKSPACE/builder/reporter.py \
-            --status finalize \
-            --token "${{ secrets.TG_TOKEN }}" \
-            --chat-id "${{ secrets.TG_CHATID }}" \
-            --kernel-ver "${{ needs.build-ksu.outputs.kern_ver }}" \
-            --compiler "${{ needs.build-ksu.outputs.compiler_ver }}" \
-            --commit "${{ needs.build-ksu.outputs.commit_log }}" \
-            --build-time "${{ needs.build-ksu.outputs.build_time }}" \
-            --build-time2 "${{ needs.build-nonksu.outputs.build_time }}" \
-            --zip-hash "${{ needs.build-ksu.outputs.zip_hash }}" \
-            --zip-hash2 "${{ needs.build-nonksu.outputs.zip_hash }}" \
-            --build-url "$BUILD_URL"
+          tg() {
+            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              -d chat_id="${CHATID}" \
+              -d parse_mode=Markdown \
+              -d disable_web_page_preview=true \
+              -d text="$1"
+          }
+
+          BUILD_DATE=$(TZ='Asia/Jakarta' date +"%a %b %d %H:%M:%S WIB %Y")
+
+          MESSAGE="*Genesis Kernel CI Release*
+          *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
+          *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
+          *Date:* \`$BUILD_DATE\`
+          *Build Variants:* \`KSU, Non-KSU\`
+          *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
+          *Build Statistics:*
+          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
+          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+
+          [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
+
+          tg "$MESSAGE"
