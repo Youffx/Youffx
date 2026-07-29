@@ -75,7 +75,7 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone -b master \
+      git clone -b main \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/port.git \
         port
 
