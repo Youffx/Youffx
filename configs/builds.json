@@ -3,7 +3,7 @@
     "name": "CI Release GENESIS",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "master-s",
+      "branch": "23.2-genesis",
       "fetchDepth": 1
     },
     "root": {
