@@ -41,7 +41,7 @@
     "name": "Clean Lineage 23.2",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "vanilla",
+      "branch": "23.2-lineage",
       "fetchDepth": 1
     },
     "root": {
