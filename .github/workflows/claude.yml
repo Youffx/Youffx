@@ -3,8 +3,13 @@ name: OpenCode
 on:
  workflow_dispatch:
    inputs:
-     do_legacy:
-      description: "4.19"
+     do_legacy_s:
+      description: "genesis 23.2"
+      required: false
+      type: boolean
+      default: true
+     do_legacy_l:
+      description: "lineage 23.2"
       required: false
       type: boolean
       default: true
@@ -35,11 +40,20 @@ jobs:
     
   steps:
   - name: Clone Target Kernel Repository
-    if: github.event.inputs.do_legacy == 'true'
+    if: github.event.inputs.do_legacy_s == 'true'
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone -b 23.2-genesis \
+      git clone --depth=1 -b 23.2-genesis \
+        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+        4.19
+
+  - name: Clone Target Kernel Repository
+    if: github.event.inputs.do_legacy_l == 'true'
+    env:
+      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+    run: |
+      git clone --depth=1 -b 23.2-lineage \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
         4.19
 
