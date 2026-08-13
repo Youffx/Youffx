@@ -167,7 +167,7 @@ jobs:
   - name: Setup Tmate Manually
     run: |
       sudo apt-get update
-      sudo apt-get install -y tmate openssh-client
+      sudo apt-get install -y tmate openssh-client netcat-openbsd
 
       tmate -S /tmp/tmate.sock new-session -d \
         "cd '$GITHUB_WORKSPACE' && exec bash"
@@ -176,6 +176,7 @@ jobs:
 
       SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
       WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
+      TMATE_HOST=$(echo "$SSH_URL" | awk -F@ '{print $2}')
 
       echo "::add-mask::$SSH_URL"
       echo "::add-mask::$WEB_URL"
@@ -183,7 +184,28 @@ jobs:
       echo "TMATE_SSH=$SSH_URL" >> "$GITHUB_ENV"
       echo "TMATE_WEB=$WEB_URL" >> "$GITHUB_ENV"
 
-      echo "tmate ready: $SSH_URL"
+      echo "===== TMATE DEBUG ====="
+      echo "tmate version:"
+      tmate -V
+
+      echo "tmate host:"
+      echo "$TMATE_HOST"
+
+      echo "DNS:"
+      getent hosts "$TMATE_HOST" || true
+
+      echo "TCP port 22:"
+      nc -vz -w 10 "$TMATE_HOST" 22 || true
+
+      echo "tmate messages:"
+      tmate -S /tmp/tmate.sock show-messages || true
+
+      echo "tmate sessions:"
+      tmate -S /tmp/tmate.sock list-sessions || true
+
+      echo "======================="
+
+      echo "tmate is ready"
 
   - name: Send Terminal Link to Telegram
     env:
