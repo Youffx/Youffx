@@ -370,15 +370,15 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           tag_name: Release-${{ github.run_id }}
-          name: LandVe Kernel Release
+          name: Kernel Release
           body: |
-            ### LineageOS Kernel Release
+            ### Lineage Kernel Release
 
             **Build Details:**
             - Latest KernelSu-Next
             - Support EROFS
             - Support both AOSP & NON-AOSP
-            - Sync with latest LineageOS kernel source
+            - Sync with latest Lineage 23.2 kernel source
 
             **Includes:**
             - KSU Kernel
@@ -402,7 +402,7 @@ jobs:
 
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
-          MESSAGE="*LandVe Kernel CI Release*
+          MESSAGE="*Lineage CI Release*
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
