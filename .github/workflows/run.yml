@@ -1,4 +1,4 @@
-name: NON LTO
+name: Lineage CI Release
 
 on:
   workflow_dispatch:
@@ -116,6 +116,8 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
+          export KBUILD_BUILD_USER="youffx"
+          export KBUILD_BUILD_HOST="collection"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
           export CXX="ccache clang++"
@@ -145,7 +147,7 @@ jobs:
 
       - name: Package Flashable Zip (KSU)
         run: |
-          DATE=$(date +"%Y%m%d-%H%M")
+          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
           ZIP_NAME="Lineage-23.2-KSU-${DATE}"
 
@@ -275,6 +277,8 @@ jobs:
           export ARCH=arm64
           export SUBARCH=arm64
           export PATH="$PWD/clang/bin:$PATH"
+          export KBUILD_BUILD_USER="youffx"
+          export KBUILD_BUILD_HOST="collection"
           export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
           export CC="ccache clang"
           export CXX="ccache clang++"
@@ -304,7 +308,7 @@ jobs:
 
       - name: Package Flashable Zip (NONKSU)
         run: |
-          DATE=$(date +"%Y%m%d-%H%M")
+          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           CONF_NAME="${{ github.event.inputs.localversion }}"
           ZIP_NAME="Lineage-23.2-NONKSU-${DATE}"
 
