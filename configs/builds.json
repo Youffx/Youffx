@@ -19,16 +19,16 @@
     "susfs": false
   },
   {
-    "name": "TRASH BIN",
+    "name": "Lineage DEV",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "s-backup",
+      "branch": "23.2-lineageEXT",
       "fetchDepth": 1
     },
     "root": {
-      "type": "ksu-next",
-      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/keep-alive/kernel/setup.sh",
-      "arg": "keep-alive",
+      "type": "ksun",
+      "setup": "https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh",
+      "arg": "legacy-susfs",
       "manualPatch": null,
       "extraPatch": null,
       "susfsPatch": null
