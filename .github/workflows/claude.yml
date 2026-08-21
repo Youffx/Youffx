@@ -359,6 +359,7 @@ jobs:
           CF_PID_FILE="/tmp/cloudflared.pid"
 
           echo "Session monitor started. Timeout: ${TIMEOUT_HOURS}h (${TIMEOUT_SECONDS}s)"
+          echo "Method: ${{ github.event.inputs.ssh_method }}"
 
           while true; do
             sleep 30
@@ -378,11 +379,21 @@ jobs:
               TMATE_OK=true
             fi
 
-            if [ -f "$CF_PID_FILE" ] && kill -0 $(cat "$CF_PID_FILE") 2>/dev/null; then
-              CF_OK=true
+            if [ -f "$CF_PID_FILE" ]; then
+              CF_PID=$(cat "$CF_PID_FILE")
+              if kill -0 "$CF_PID" 2>/dev/null; then
+                CF_OK=true
+                echo "Cloudflared OK (PID: $CF_PID)"
+              else
+                echo "Cloudflared process dead (PID: $CF_PID)"
+              fi
+            else
+              echo "Cloudflared PID file not found: $CF_PID_FILE"
             fi
 
             METHOD="${{ github.event.inputs.ssh_method }}"
+            echo "Check: TMATE_OK=$TMATE_OK CF_OK=$CF_OK METHOD=$METHOD"
+            
             if [[ "$METHOD" == *"tmate"* ]] && [[ "$METHOD" == *"cloudflared"* ]]; then
               if ! $TMATE_OK && ! $CF_OK; then
                 echo "Both tunnels lost. Exiting."
