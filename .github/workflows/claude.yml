@@ -384,6 +384,11 @@ jobs:
           while true; do
             sleep 30
 
+            if [ -f /tmp/stop_session ]; then
+              echo "Stop requested (touch /tmp/stop_session). Ending session."
+              break
+            fi
+
             if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
               ELAPSED=$(($(date +%s) - START_TIME))
               if [ "$ELAPSED" -ge "$TIMEOUT_SECONDS" ]; then
