@@ -117,7 +117,7 @@ jobs:
         if: github.event.inputs.do_ksu == 'true'
         run: |
           cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU/4.19-legacy/kernel/setup.sh | bash -
+          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU/main/kernel/setup.sh | bash -
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)
