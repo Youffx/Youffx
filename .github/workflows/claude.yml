@@ -312,8 +312,7 @@ jobs:
             echo "::add-mask::$CF_URL"
             echo "CLOUDFLARED_URL=$CF_URL" >> "$GITHUB_ENV"
             echo "CLOUDFLARED_HOST=$CF_HOST" >> "$GITHUB_ENV"
-            echo "cloudflared tunnel ready: $CF_URL"
-            echo "SSH command: ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CF_HOST"
+            echo "cloudflared tunnel ready (details sent to Telegram)"
           else
             echo "cloudflared tunnel failed to start"
             echo "=== cloudflared log ==="
