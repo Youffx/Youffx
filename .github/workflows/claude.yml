@@ -263,13 +263,12 @@ jobs:
           sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
           sudo ssh-keygen -A
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
-          cat >> ~/.bashrc <<'EOF'
-cd "$GITHUB_WORKSPACE"
-if [ -n "$SSH_CONNECTION" ] && [ -z "$SESSION_STOP_TRAP" ]; then
-  export SESSION_STOP_TRAP=1
-  trap 'touch /tmp/stop_session' EXIT
-fi
-EOF
+          printf '%s\n' \
+            'cd "$GITHUB_WORKSPACE"' \
+            'if [ -n "$SSH_CONNECTION" ] && [ -z "$SESSION_STOP_TRAP" ]; then' \
+            '  export SESSION_STOP_TRAP=1' \
+            "  trap 'touch /tmp/stop_session' EXIT" \
+            'fi' >> ~/.bashrc
 
           # Add user's SSH public key for passwordless login
           if [ -n "$SSH_PUBLIC_KEY" ]; then
