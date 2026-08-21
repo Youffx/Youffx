@@ -51,7 +51,7 @@ on:
 jobs:
   code-session:
     runs-on: ubuntu-latest
-    timeout-minutes: ${{ fromJson(format('{0} * 60', github.event.inputs.session_timeout)) != 0 && fromJson(format('{0} * 60', github.event.inputs.session_timeout)) || 360 }}
+    timeout-minutes: 480
 
     steps:
       - name: Checkout repository
