@@ -253,14 +253,24 @@ jobs:
           sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
           sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
           sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+          sudo ssh-keygen -A
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
           sudo service ssh start
+          sleep 2
+          sudo service ssh status
 
       - name: Start cloudflared tunnel
         if: contains(github.event.inputs.ssh_method, 'cloudflared')
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
           sudo dpkg -i cloudflared-linux-amd64.deb
+
+          for i in {1..10}; do
+            if nc -z localhost 22; then
+              break
+            fi
+            sleep 1
+          done
 
           nohup cloudflared tunnel --url ssh://localhost:22 --no-autoupdate > /tmp/cloudflared.log 2>&1 &
           CLOUDFLARED_PID=$!
