@@ -245,15 +245,6 @@ jobs:
           echo "TMATE_SSH=$SSH_URL" >> "$GITHUB_ENV"
           echo "TMATE_WEB=$WEB_URL" >> "$GITHUB_ENV"
 
-          echo "===== TMATE DEBUG ====="
-          echo "tmate version: $(tmate -V)"
-          echo "tmate host: $TMATE_HOST"
-          echo "DNS: $(getent hosts "$TMATE_HOST" || echo 'failed')"
-          echo "TCP port 22: $(nc -vz -w 10 "$TMATE_HOST" 22 2>&1 || echo 'failed')"
-          echo "tmate sessions:"
-          tmate -S /tmp/tmate.sock list-sessions || true
-          echo "======================="
-
       - name: Start SSH server for cloudflared
         if: contains(github.event.inputs.ssh_method, 'cloudflared')
         run: |
