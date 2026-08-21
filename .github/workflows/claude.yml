@@ -257,12 +257,14 @@ jobs:
           sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
           sudo ssh-keygen -A
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
-          printf '%s\n' \
+          SESSION_RC=$(printf '%s\n' \
             'cd "$HOME/work/Youffx/Youffx" 2>/dev/null' \
             'if [ -n "$SSH_CONNECTION" ] && [ -z "$SESSION_STOP_TRAP" ]; then' \
             '  export SESSION_STOP_TRAP=1' \
             "  trap 'touch /tmp/stop_session' EXIT" \
-            'fi' >> ~/.bashrc
+            'fi')
+          printf '%s\n' "$SESSION_RC" >> ~/.bashrc
+          printf '%s\n' "$SESSION_RC" >> ~/.profile
 
           # Add user's SSH public key for passwordless login
           if [ -n "$SSH_PUBLIC_KEY" ]; then
