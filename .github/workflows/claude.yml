@@ -247,6 +247,8 @@ jobs:
 
       - name: Start SSH server for cloudflared
         if: contains(github.event.inputs.ssh_method, 'cloudflared')
+        env:
+          SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
         run: |
           sudo mkdir -p /var/run/sshd
           sudo sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config
@@ -255,6 +257,18 @@ jobs:
           sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
           sudo ssh-keygen -A
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
+
+          # Add user's SSH public key for passwordless login
+          if [ -n "$SSH_PUBLIC_KEY" ]; then
+            mkdir -p ~/.ssh
+            echo "$SSH_PUBLIC_KEY" >> ~/.ssh/authorized_keys
+            chmod 600 ~/.ssh/authorized_keys
+            chmod 700 ~/.ssh
+            echo "Added SSH public key to authorized_keys"
+          else
+            echo "No SSH_PUBLIC_KEY secret found - password auth required"
+          fi
+
           sudo service ssh start
           sleep 2
           sudo service ssh status
