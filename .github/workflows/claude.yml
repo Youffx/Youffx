@@ -280,7 +280,7 @@ jobs:
 
           for i in {1..120}; do
             if kill -0 $CLOUDFLARED_PID 2>/dev/null; then
-              if grep -q "trycloudflare.com" /tmp/cloudflared.log 2>/dev/null; then
+              if grep -q 'https://.*\.trycloudflare\.com' /tmp/cloudflared.log 2>/dev/null; then
                 echo "Found trycloudflare.com URL at attempt $i"
                 break
               fi
