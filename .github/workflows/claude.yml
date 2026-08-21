@@ -51,6 +51,7 @@ on:
 jobs:
   code-session:
     runs-on: ubuntu-latest
+    # ponytail: hard 8h cap; raise if session_timeout can exceed it (0 = "no limit" still stops here)
     timeout-minutes: 480
 
     steps:
@@ -153,7 +154,6 @@ jobs:
           rm -f private.key
 
           gpgconf --kill gpg-agent
-          gpg-connect-agent reloadagent /bye
 
           echo "test" | gpg --clearsign \
             --batch \
@@ -195,7 +195,6 @@ jobs:
           opencode --version
 
       - name: Configure OpenCode
-        working-directory: ${{ github.workspace }}
         run: |
           cat > opencode.json <<'EOF'
           {
@@ -211,12 +210,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             tmate \
-            openssh-client \
             openssh-server \
-            netcat-openbsd \
-            curl \
-            wget \
-            jq
+            netcat-openbsd
 
       - name: Setup SSH keepalive config
         run: |
@@ -243,7 +238,6 @@ jobs:
 
           SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
           WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
-          TMATE_HOST=$(echo "$SSH_URL" | awk -F@ '{print $2}')
 
           echo "::add-mask::$SSH_URL"
           echo "::add-mask::$WEB_URL"
@@ -302,8 +296,6 @@ jobs:
           CLOUDFLARED_PID=$!
           echo $CLOUDFLARED_PID > /tmp/cloudflared.pid
 
-          sleep 5
-
           for i in {1..120}; do
             if kill -0 $CLOUDFLARED_PID 2>/dev/null; then
               if grep -q 'https://.*\.trycloudflare\.com' /tmp/cloudflared.log 2>/dev/null; then
@@ -338,13 +330,7 @@ jobs:
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
-          TMATE_SSH: ${{ env.TMATE_SSH }}
-          TMATE_WEB: ${{ env.TMATE_WEB }}
-          CLOUDFLARED_URL: ${{ env.CLOUDFLARED_URL }}
-          CLOUDFLARED_HOST: ${{ env.CLOUDFLARED_HOST }}
         run: |
-          set +x
-
           METHOD="${{ github.event.inputs.ssh_method }}"
           MSG="*OpenCode Session Ready*
 
@@ -382,6 +368,7 @@ jobs:
           START_TIME=$(date +%s)
           TMATE_SOCK="/tmp/tmate.sock"
           CF_PID_FILE="/tmp/cloudflared.pid"
+          METHOD="${{ github.event.inputs.ssh_method }}"
 
           echo "Session monitor started. Timeout: ${TIMEOUT_HOURS}h (${TIMEOUT_SECONDS}s)"
           echo "Method: ${{ github.event.inputs.ssh_method }}"
@@ -418,8 +405,6 @@ jobs:
               fi
             fi
 
-            METHOD="${{ github.event.inputs.ssh_method }}"
-            
             if [[ "$METHOD" == *"tmate"* ]] && [[ "$METHOD" == *"cloudflared"* ]]; then
               if ! $TMATE_OK && ! $CF_OK; then
                 echo "Both tunnels lost. Exiting."
@@ -431,10 +416,6 @@ jobs:
             elif [[ "$METHOD" == *"cloudflared"* ]] && ! $CF_OK; then
               echo "Cloudflared tunnel lost. Exiting."
               break
-            fi
-
-            if $TMATE_OK; then
-              true
             fi
           done
 
