@@ -1,262 +1,381 @@
 name: OpenCode
 
 on:
- workflow_dispatch:
-   inputs:
-     do_legacy_s:
-      description: "genesis 23.2"
-      required: false
-      type: boolean
-      default: false
-     do_legacy_l:
-      description: "lineage 23.2"
-      required: false
-      type: boolean
-      default: true
-     do_legacy_lext:
-      description: "lineageEXT 23.2"
-      required: false
-      type: boolean
-      default: false
-     do_gki:
-      description: "5.10"
-      required: false
-      type: boolean
-      default: false
-     do_ksu:
-      description: "KernelSU"
-      required: false
-      type: boolean
-      default: false
-     do_ksun:
-      description: "KernelSU-Next"
-      required: false
-      type: boolean
-      default: false
-     do_bwx:
-      description: "INF App"
-      required: false
-      type: boolean
-      default: false
-     do_other:
-      description: "DEV"
-      required: false
-      type: boolean
-      default: false
+  workflow_dispatch:
+    inputs:
+      kernel_target:
+        description: "Target kernel to clone"
+        required: true
+        type: choice
+        options:
+          - "genesis-23.2 (4.19)"
+          - "lineage-23.2 (4.19)"
+          - "lineageext-23.2 (4.19)"
+          - "gki-5.10 (legacy)"
+          - "none (skip kernel clone)"
+        default: "lineage-23.2 (4.19)"
+      clone_ksu:
+        description: "Clone KernelSU variant"
+        required: false
+        type: choice
+        options:
+          - "none"
+          - "kernelsu (main)"
+          - "kernelsu-next (legacy-susfs)"
+        default: "none"
+      clone_infra:
+        description: "Clone Infra-BWX app"
+        required: false
+        type: boolean
+        default: false
+      clone_dev:
+        description: "Clone Youffx dev repo"
+        required: false
+        type: boolean
+        default: false
+      ssh_method:
+        description: "SSH tunnel method"
+        required: true
+        type: choice
+        options:
+          - "tmate (default)"
+          - "cloudflared (more stable)"
+          - "both (tmate + cloudflared)"
+        default: "cloudflared (more stable)"
+      session_timeout:
+        description: "Max session time in hours (0 = no limit)"
+        required: false
+        type: string
+        default: "6"
 
 jobs:
- code-session:
-  runs-on: ubuntu-latest
-    
-  steps:
-  - name: Clone Target Kernel Repository
-    if: github.event.inputs.do_legacy_s == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone --depth=1 -b 23.2-genesis \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-        4.19
+  code-session:
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJson(format('{0} * 60', github.event.inputs.session_timeout)) != 0 && fromJson(format('{0} * 60', github.event.inputs.session_timeout)) || 360 }}
 
-  - name: Clone Target Kernel Repository
-    if: github.event.inputs.do_legacy_l == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone --depth=1 -b 23.2-lineage \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-        4.19
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  - name: Clone Target Kernel Repository
-    if: github.event.inputs.do_legacy_lext == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone --depth=1 -b 23.2-lineageEXT \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
-        4.19
+      - name: Clone kernel (genesis 23.2)
+        if: github.event.inputs.kernel_target == 'genesis-23.2 (4.19)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone --depth=1 -b 23.2-genesis \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+            4.19
 
-  - name: Clone Target Kernel Repository
-    if: github.event.inputs.do_gki == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone --depth=7 -b legacy \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git \
-        5.10
+      - name: Clone kernel (lineage 23.2)
+        if: github.event.inputs.kernel_target == 'lineage-23.2 (4.19)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone --depth=1 -b 23.2-lineage \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+            4.19
 
-  - name: Clone KernelSU
-    if: github.event.inputs.do_ksu == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU.git \
-        ksu
+      - name: Clone kernel (lineageEXT 23.2)
+        if: github.event.inputs.kernel_target == 'lineageext-23.2 (4.19)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone --depth=1 -b 23.2-lineageEXT \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+            4.19
 
-  - name: Clone KernelSU-Next
-    if: github.event.inputs.do_ksun == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone -b legacy-susfs \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU-Next.git \
-        ksu
+      - name: Clone kernel (GKI 5.10)
+        if: github.event.inputs.kernel_target == 'gki-5.10 (legacy)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone --depth=7 -b legacy \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/android_kernel_xiaomi_mt6785_5.10.git \
+            5.10
 
-  - name: Clone INF App
-    if: github.event.inputs.do_bwx == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone --depth=1 \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Infra-BWX.git \
-        Infra-BWX
-        
-  - name: Clone DEV
-    if: github.event.inputs.do_other == 'true'
-    env:
-      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-    run: |
-      git clone -b master \
-        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
-        dev
+      - name: Clone KernelSU
+        if: github.event.inputs.clone_ksu == 'kernelsu (main)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU.git \
+            ksu
 
-  - name: Configure Git + Import GPG
-    run: |
-      git config --global user.name "${{ secrets.USER }}"
-      git config --global user.email "${{ secrets.EMAIL }}"
+      - name: Clone KernelSU-Next
+        if: github.event.inputs.clone_ksu == 'kernelsu-next (legacy-susfs)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone -b legacy-susfs \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU-Next.git \
+            ksu
 
-      mkdir -p ~/.gnupg
-      chmod 700 ~/.gnupg
+      - name: Clone Infra-BWX
+        if: github.event.inputs.clone_infra == 'true'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone --depth=1 \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Infra-BWX.git \
+            Infra-BWX
 
-      echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-      echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
-      echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
-      echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+      - name: Clone Youffx dev
+        if: github.event.inputs.clone_dev == 'true'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone -b master \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
+            dev
 
-      echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
-      gpg --batch --yes --pinentry-mode loopback \
-        --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
-        --import private.key
-      rm -f private.key
+      - name: Configure Git + Import GPG
+        run: |
+          git config --global user.name "${{ secrets.USER }}"
+          git config --global user.email "${{ secrets.EMAIL }}"
 
-      gpgconf --kill gpg-agent
-      gpg-connect-agent reloadagent /bye
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
 
-      echo "test" | gpg --clearsign \
-        --batch \
-        --pinentry-mode loopback \
-        --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
-        > /dev/null
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "default-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+          echo "max-cache-ttl 36000" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
 
-      git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
-      git config --global commit.gpgsign true
-      git config --global tag.gpgsign true
-      git config --global gpg.program gpg
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" > private.key
+          gpg --batch --yes --pinentry-mode loopback \
+            --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --import private.key
+          rm -f private.key
 
-  - name: Set Git Author Environment
-    run: |
-      echo "GIT_AUTHOR_NAME=${{ secrets.USER }}" >> $GITHUB_ENV
-      echo "GIT_AUTHOR_EMAIL=${{ secrets.EMAIL }}" >> $GITHUB_ENV
-      echo "GIT_COMMITTER_NAME=${{ secrets.USER }}" >> $GITHUB_ENV
-      echo "GIT_COMMITTER_EMAIL=${{ secrets.EMAIL }}" >> $GITHUB_ENV
-        
-  - name: Setup Node
-    uses: actions/setup-node@v4
-    with:
-      node-version: 20
+          gpgconf --kill gpg-agent
+          gpg-connect-agent reloadagent /bye
 
-  - name: Cache NPM
-    uses: actions/cache@v4
-    with:
-      path: ~/.npm
-      key: ${{ runner.os }}-npm-opencode-v1
-      restore-keys: |
-        ${{ runner.os }}-npm-
+          echo "test" | gpg --clearsign \
+            --batch \
+            --pinentry-mode loopback \
+            --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            > /dev/null
 
-  - name: Install OpenCode + Ponytail
-    run: |
-      npm i -g opencode-ai
-      npm i -g @dietrichgebert/ponytail
-      npm i -g rtk
+          git config --global user.signingkey "${{ secrets.GPG_KEY_ID }}"
+          git config --global commit.gpgsign true
+          git config --global tag.gpgsign true
+          git config --global gpg.program gpg
 
-  - name: Configure OpenCode
-    working-directory: ${{ github.workspace }}
-    run: |
-      cat > opencode.json <<'EOF'
-      {
-        "$schema": "https://opencode.ai/config.json",
-        "plugin": [
-          "@dietrichgebert/ponytail"
-        ]
-      }
-      EOF
+      - name: Set Git Author Environment
+        run: |
+          echo "GIT_AUTHOR_NAME=${{ secrets.USER }}" >> $GITHUB_ENV
+          echo "GIT_AUTHOR_EMAIL=${{ secrets.EMAIL }}" >> $GITHUB_ENV
+          echo "GIT_COMMITTER_NAME=${{ secrets.USER }}" >> $GITHUB_ENV
+          echo "GIT_COMMITTER_EMAIL=${{ secrets.EMAIL }}" >> $GITHUB_ENV
 
-  - name: Setup Tmate Manually
-    run: |
-      sudo apt-get update
-      sudo apt-get install -y tmate openssh-client netcat-openbsd
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      tmate -S /tmp/tmate.sock new-session -d \
-        "cd '$GITHUB_WORKSPACE' && exec bash"
+      - name: Cache NPM
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-opencode-v1
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
-      tmate -S /tmp/tmate.sock wait tmate-ready
+      - name: Install OpenCode + tools
+        run: |
+          npm i -g opencode-ai
+          npm i -g @dietrichgebert/ponytail
+          npm i -g rtk
 
-      SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
-      WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
-      TMATE_HOST=$(echo "$SSH_URL" | awk -F@ '{print $2}')
+      - name: Configure OpenCode
+        working-directory: ${{ github.workspace }}
+        run: |
+          cat > opencode.json <<'EOF'
+          {
+            "$schema": "https://opencode.ai/config.json",
+            "plugin": [
+              "@dietrichgebert/ponytail"
+            ]
+          }
+          EOF
 
-      echo "::add-mask::$SSH_URL"
-      echo "::add-mask::$WEB_URL"
+      - name: Install SSH tunnel dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            tmate \
+            openssh-client \
+            netcat-openbsd \
+            curl \
+            wget \
+            jq
 
-      echo "TMATE_SSH=$SSH_URL" >> "$GITHUB_ENV"
-      echo "TMATE_WEB=$WEB_URL" >> "$GITHUB_ENV"
+      - name: Setup SSH keepalive config
+        run: |
+          mkdir -p ~/.ssh
+          cat > ~/.ssh/config <<'EOF'
+          Host *
+            ServerAliveInterval 30
+            ServerAliveCountMax 10
+            TCPKeepAlive yes
+            ExitOnForwardFailure yes
+            StrictHostKeyChecking accept-new
+            UserKnownHostsFile /dev/null
+            LogLevel ERROR
+          EOF
+          chmod 600 ~/.ssh/config
 
-      echo "===== TMATE DEBUG ====="
-      echo "tmate version:"
-      tmate -V
+      - name: Start tmate session
+        if: contains(github.event.inputs.ssh_method, 'tmate')
+        run: |
+          tmate -S /tmp/tmate.sock new-session -d \
+            "cd '$GITHUB_WORKSPACE' && exec bash"
 
-      echo "tmate host:"
-      echo "$TMATE_HOST"
+          tmate -S /tmp/tmate.sock wait tmate-ready
 
-      echo "DNS:"
-      getent hosts "$TMATE_HOST" || true
+          SSH_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_ssh}')
+          WEB_URL=$(tmate -S /tmp/tmate.sock display -p '#{tmate_web}')
+          TMATE_HOST=$(echo "$SSH_URL" | awk -F@ '{print $2}')
 
-      echo "TCP port 22:"
-      nc -vz -w 10 "$TMATE_HOST" 22 || true
+          echo "::add-mask::$SSH_URL"
+          echo "::add-mask::$WEB_URL"
 
-      echo "tmate messages:"
-      tmate -S /tmp/tmate.sock show-messages || true
+          echo "TMATE_SSH=$SSH_URL" >> "$GITHUB_ENV"
+          echo "TMATE_WEB=$WEB_URL" >> "$GITHUB_ENV"
 
-      echo "tmate sessions:"
-      tmate -S /tmp/tmate.sock list-sessions || true
+          echo "===== TMATE DEBUG ====="
+          echo "tmate version: $(tmate -V)"
+          echo "tmate host: $TMATE_HOST"
+          echo "DNS: $(getent hosts "$TMATE_HOST" || echo 'failed')"
+          echo "TCP port 22: $(nc -vz -w 10 "$TMATE_HOST" 22 2>&1 || echo 'failed')"
+          echo "tmate sessions:"
+          tmate -S /tmp/tmate.sock list-sessions || true
+          echo "======================="
 
-      echo "======================="
+      - name: Start cloudflared tunnel
+        if: contains(github.event.inputs.ssh_method, 'cloudflared')
+        run: |
+          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared-linux-amd64.deb
 
-      echo "tmate is ready"
+          nohup cloudflared tunnel --url ssh://localhost:22 --no-autoupdate > /tmp/cloudflared.log 2>&1 &
+          CLOUDFLARED_PID=$!
+          echo $CLOUDFLARED_PID > /tmp/cloudflared.pid
 
-  - name: Send Terminal Link to Telegram
-    env:
-      TOKEN: ${{ secrets.TG_TOKEN }}
-      CHATID: ${{ secrets.TG_CHATID }}
-      SSH_URL: ${{ env.TMATE_SSH }}
-    run: |
-      set +x
+          for i in {1..30}; do
+            if grep -q "trycloudflare.com" /tmp/cloudflared.log 2>/dev/null; then
+              break
+            fi
+            sleep 1
+          done
 
-      MESSAGE="*OpenCode Ready*
+          CF_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared.log | head -1)
+          if [ -n "$CF_URL" ]; then
+            CF_HOST=$(echo "$CF_URL" | sed 's|https://||')
+            echo "::add-mask::$CF_URL"
+            echo "CLOUDFLARED_URL=$CF_URL" >> "$GITHUB_ENV"
+            echo "CLOUDFLARED_HOST=$CF_HOST" >> "$GITHUB_ENV"
+            echo "cloudflared tunnel ready: $CF_URL"
+            echo "SSH command: ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CF_HOST"
+          else
+            echo "cloudflared tunnel failed to start"
+            cat /tmp/cloudflared.log
+            exit 1
+          fi
 
-      • *SSH:* \`$SSH_URL\`"
+      - name: Send connection info to Telegram
+        env:
+          TOKEN: ${{ secrets.TG_TOKEN }}
+          CHATID: ${{ secrets.TG_CHATID }}
+          TMATE_SSH: ${{ env.TMATE_SSH }}
+          TMATE_WEB: ${{ env.TMATE_WEB }}
+          CLOUDFLARED_URL: ${{ env.CLOUDFLARED_URL }}
+          CLOUDFLARED_HOST: ${{ env.CLOUDFLARED_HOST }}
+        run: |
+          set +x
 
-      curl -sX POST \
-        "https://api.telegram.org/bot${TOKEN}/sendMessage" \
-        -d "chat_id=${CHATID}" \
-        -d "parse_mode=Markdown" \
-        -d "text=${MESSAGE}" \
-        > /dev/null 2>&1
+          METHOD="${{ github.event.inputs.ssh_method }}"
+          MSG="*OpenCode Session Ready*
 
-  - name: Keep Session Alive Until Exit
-    run: |
-      while tmate -S /tmp/tmate.sock has-session 2>/dev/null
-      do
-        sleep 5
-      done
+*Method:* $METHOD"
+
+          if [ -n "$TMATE_SSH" ]; then
+            MSG="$MSG
+
+*Tmate SSH:* \`$TMATE_SSH\`
+*Tmate Web:* $TMATE_WEB"
+          fi
+
+          if [ -n "$CLOUDFLARED_URL" ]; then
+            MSG="$MSG
+
+*Cloudflared:* $CLOUDFLARED_URL
+*SSH:* \`ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CLOUDFLARED_HOST\`"
+          fi
+
+          curl -sX POST \
+            "https://api.telegram.org/bot${TOKEN}/sendMessage" \
+            -d "chat_id=${CHATID}" \
+            -d "parse_mode=Markdown" \
+            -d "text=${MSG}" \
+            > /dev/null 2>&1
+
+      - name: Monitor session health
+        run: |
+          TIMEOUT_HOURS="${{ github.event.inputs.session_timeout }}"
+          TIMEOUT_SECONDS=0
+          if [ "$TIMEOUT_HOURS" != "0" ]; then
+            TIMEOUT_SECONDS=$((TIMEOUT_HOURS * 3600))
+          fi
+
+          START_TIME=$(date +%s)
+          TMATE_SOCK="/tmp/tmate.sock"
+          CF_PID_FILE="/tmp/cloudflared.pid"
+
+          echo "Session monitor started. Timeout: ${TIMEOUT_HOURS}h (${TIMEOUT_SECONDS}s)"
+
+          while true; do
+            sleep 30
+
+            if [ "$TIMEOUT_SECONDS" -gt 0 ]; then
+              ELAPSED=$(($(date +%s) - START_TIME))
+              if [ "$ELAPSED" -ge "$TIMEOUT_SECONDS" ]; then
+                echo "Session timeout reached (${TIMEOUT_HOURS}h). Exiting."
+                break
+              fi
+            fi
+
+            TMATE_OK=false
+            CF_OK=false
+
+            if [ -S "$TMATE_SOCK" ] && tmate -S "$TMATE_SOCK" has-session 2>/dev/null; then
+              TMATE_OK=true
+            fi
+
+            if [ -f "$CF_PID_FILE" ] && kill -0 $(cat "$CF_PID_FILE") 2>/dev/null; then
+              CF_OK=true
+            fi
+
+            METHOD="${{ github.event.inputs.ssh_method }}"
+            if [[ "$METHOD" == *"tmate"* ]] && [[ "$METHOD" == *"cloudflared"* ]]; then
+              if ! $TMATE_OK && ! $CF_OK; then
+                echo "Both tunnels lost. Exiting."
+                break
+              fi
+            elif [[ "$METHOD" == *"tmate"* ]] && ! $TMATE_OK; then
+              echo "Tmate session lost. Exiting."
+              break
+            elif [[ "$METHOD" == *"cloudflared"* ]] && ! $CF_OK; then
+              echo "Cloudflared tunnel lost. Exiting."
+              break
+            fi
+
+            if $TMATE_OK; then
+              tmate -S "$TMATE_SOCK" send-keys "echo '--- keepalive $(date) ---'" Enter 2>/dev/null || true
+            fi
+          done
+
+          if [ -f "$CF_PID_FILE" ]; then
+            kill $(cat "$CF_PID_FILE") 2>/dev/null || true
+          fi
