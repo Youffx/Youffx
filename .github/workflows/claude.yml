@@ -117,9 +117,9 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone -b main \
+      git clone -b master \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/Youffx.git \
-        port
+        dev
 
   - name: Configure Git + Import GPG
     run: |
