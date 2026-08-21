@@ -263,7 +263,13 @@ jobs:
           sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
           sudo ssh-keygen -A
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
-          echo "cd '$GITHUB_WORKSPACE'" >> ~/.bashrc
+          cat >> ~/.bashrc <<'EOF'
+cd "$GITHUB_WORKSPACE"
+if [ -n "$SSH_CONNECTION" ] && [ -z "$SESSION_STOP_TRAP" ]; then
+  export SESSION_STOP_TRAP=1
+  trap 'touch /tmp/stop_session' EXIT
+fi
+EOF
 
           # Add user's SSH public key for passwordless login
           if [ -n "$SSH_PUBLIC_KEY" ]; then
@@ -382,7 +388,7 @@ jobs:
           echo "Method: ${{ github.event.inputs.ssh_method }}"
 
           while true; do
-            sleep 30
+            sleep 5
 
             if [ -f /tmp/stop_session ]; then
               echo "Stop requested (touch /tmp/stop_session). Ending session."
@@ -408,16 +414,12 @@ jobs:
               CF_PID=$(cat "$CF_PID_FILE")
               if kill -0 "$CF_PID" 2>/dev/null; then
                 CF_OK=true
-                echo "Cloudflared OK (PID: $CF_PID)"
               else
                 echo "Cloudflared process dead (PID: $CF_PID)"
               fi
-            else
-              echo "Cloudflared PID file not found: $CF_PID_FILE"
             fi
 
             METHOD="${{ github.event.inputs.ssh_method }}"
-            echo "Check: TMATE_OK=$TMATE_OK CF_OK=$CF_OK METHOD=$METHOD"
             
             if [[ "$METHOD" == *"tmate"* ]] && [[ "$METHOD" == *"cloudflared"* ]]; then
               if ! $TMATE_OK && ! $CF_OK; then
