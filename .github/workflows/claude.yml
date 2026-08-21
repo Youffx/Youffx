@@ -298,20 +298,20 @@ jobs:
           METHOD="${{ github.event.inputs.ssh_method }}"
           MSG="*OpenCode Session Ready*
 
-*Method:* $METHOD"
+          *Method:* $METHOD"
 
           if [ -n "$TMATE_SSH" ]; then
             MSG="$MSG
 
-*Tmate SSH:* \`$TMATE_SSH\`
-*Tmate Web:* $TMATE_WEB"
+          *Tmate SSH:* \`$TMATE_SSH\`
+          *Tmate Web:* $TMATE_WEB"
           fi
 
           if [ -n "$CLOUDFLARED_URL" ]; then
             MSG="$MSG
 
-*Cloudflared:* $CLOUDFLARED_URL
-*SSH:* \`ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CLOUDFLARED_HOST\`"
+          *Cloudflared:* $CLOUDFLARED_URL
+          *SSH:* \`ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CLOUDFLARED_HOST\`"
           fi
 
           curl -sX POST \
