@@ -28,6 +28,11 @@ on:
       required: false
       type: boolean
       default: false
+     do_ksun:
+      description: "KernelSU-Next"
+      required: false
+      type: boolean
+      default: false
      do_bwx:
       description: "INF App"
       required: false
@@ -85,7 +90,16 @@ jobs:
     env:
       PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
     run: |
-      git clone --depth=12 -b legacy-susfs \
+      git clone \
+        https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU.git \
+        ksu
+
+  - name: Clone KernelSU-Next
+    if: github.event.inputs.do_ksun == 'true'
+    env:
+      PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+    run: |
+      git clone -b legacy-susfs \
         https://x-access-token:${PAT_TOKEN}@github.com/Youffx/KernelSU-Next.git \
         ksu
 
