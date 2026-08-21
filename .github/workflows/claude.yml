@@ -206,6 +206,7 @@ jobs:
           sudo apt-get install -y \
             tmate \
             openssh-client \
+            openssh-server \
             netcat-openbsd \
             curl \
             wget \
@@ -253,7 +254,18 @@ jobs:
           tmate -S /tmp/tmate.sock list-sessions || true
           echo "======================="
 
-      - name: Start cloudflared tunnel
+      - name: Start SSH server for cloudflared
+        if: contains(github.event.inputs.ssh_method, 'cloudflared')
+        run: |
+          sudo mkdir -p /var/run/sshd
+          sudo sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config
+          sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+          sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+          sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+          echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
+          sudo service ssh start
+
+- name: Start cloudflared tunnel
         if: contains(github.event.inputs.ssh_method, 'cloudflared')
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
@@ -372,7 +384,7 @@ jobs:
             fi
 
             if $TMATE_OK; then
-              tmate -S "$TMATE_SOCK" send-keys "echo '--- keepalive $(date) ---'" Enter 2>/dev/null || true
+              true
             fi
           done
 
