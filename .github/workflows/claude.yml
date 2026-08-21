@@ -56,6 +56,10 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            opencode.json
+          sparse-checkout-cone-mode: false
 
       - name: Clone kernel (genesis 23.2)
         if: github.event.inputs.kernel_target == 'genesis-23.2 (4.19)'
@@ -257,6 +261,7 @@ jobs:
           sudo sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
           sudo ssh-keygen -A
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
+          echo "cd '$GITHUB_WORKSPACE'" >> ~/.bashrc
 
           # Add user's SSH public key for passwordless login
           if [ -n "$SSH_PUBLIC_KEY" ]; then
@@ -276,8 +281,8 @@ jobs:
       - name: Start cloudflared tunnel
         if: contains(github.event.inputs.ssh_method, 'cloudflared')
         run: |
-          wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
-          sudo dpkg -i cloudflared-linux-amd64.deb
+          wget -q -O /tmp/cloudflared-linux-amd64.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i /tmp/cloudflared-linux-amd64.deb
 
           for i in {1..10}; do
             if nc -z localhost 22; then
