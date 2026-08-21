@@ -256,7 +256,7 @@ jobs:
           echo "runner ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/runner
           sudo service ssh start
 
-- name: Start cloudflared tunnel
+      - name: Start cloudflared tunnel
         if: contains(github.event.inputs.ssh_method, 'cloudflared')
         run: |
           wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
