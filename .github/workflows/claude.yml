@@ -191,6 +191,8 @@ jobs:
           npm i -g opencode-ai
           npm i -g @dietrichgebert/ponytail
           npm i -g rtk
+          sudo ln -sf "$(npm prefix -g)"/bin/* /usr/local/bin/
+          opencode --version
 
       - name: Configure OpenCode
         working-directory: ${{ github.workspace }}
