@@ -276,14 +276,19 @@ jobs:
           CLOUDFLARED_PID=$!
           echo $CLOUDFLARED_PID > /tmp/cloudflared.pid
 
-          sleep 3
+          sleep 5
 
-          for i in {1..60}; do
-            if grep -q "trycloudflare.com" /tmp/cloudflared.log 2>/dev/null; then
-              echo "Found trycloudflare.com URL at attempt $i"
+          for i in {1..120}; do
+            if kill -0 $CLOUDFLARED_PID 2>/dev/null; then
+              if grep -q "trycloudflare.com" /tmp/cloudflared.log 2>/dev/null; then
+                echo "Found trycloudflare.com URL at attempt $i"
+                break
+              fi
+            else
+              echo "cloudflared process died"
               break
             fi
-            echo "Waiting for tunnel... ($i/60)"
+            echo "Waiting for tunnel... ($i/120)"
             sleep 1
           done
 
@@ -300,6 +305,7 @@ jobs:
             echo "=== cloudflared log ==="
             cat /tmp/cloudflared.log
             echo "======================"
+            echo "Process running: $(kill -0 $CLOUDFLARED_PID 2>/dev/null && echo yes || echo no)"
             exit 1
           fi
 
