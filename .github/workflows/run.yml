@@ -7,6 +7,16 @@ on:
         description: "Select (0,1,2,3,4)"
         required: true
         default: "2"
+      do_ksu:
+       description: "KernelSU"
+       required: false
+       type: boolean
+       default: false
+      do_ksun:
+       description: "KernelSU-Next"
+       required: false
+       type: boolean
+       default: false
 
 permissions:
   contents: write
@@ -104,6 +114,14 @@ jobs:
           ccache -z
 
       - name: Apply Root Method (KSU)
+        if: github.event.inputs.do_ksu == 'true'
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU/main/kernel/setup.sh | bash -
+          cd ..
+
+      - name: Apply Root Method (KernelSU-Next)
+        if: github.event.inputs.do_ksun == 'true'
         run: |
           cd kernel
           curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
