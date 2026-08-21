@@ -264,7 +264,7 @@ jobs:
             "  trap 'touch /tmp/stop_session' EXIT" \
             'fi')
           printf '%s\n' "$SESSION_RC" >> ~/.bashrc
-          printf '%s\n' "$SESSION_RC" >> ~/.profile
+          printf '%s\n' "$SESSION_RC" | sudo tee /etc/profile.d/zz-session.sh > /dev/null
 
           # Add user's SSH public key for passwordless login
           if [ -n "$SSH_PUBLIC_KEY" ]; then
