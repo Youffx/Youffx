@@ -276,7 +276,7 @@ jobs:
           CLOUDFLARED_PID=$!
           echo $CLOUDFLARED_PID > /tmp/cloudflared.pid
 
-          for i in {1..30}; do
+          for i in {1..60}; do
             if grep -q "trycloudflare.com" /tmp/cloudflared.log 2>/dev/null; then
               break
             fi
@@ -293,7 +293,9 @@ jobs:
             echo "SSH command: ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CF_HOST"
           else
             echo "cloudflared tunnel failed to start"
+            echo "=== cloudflared log ==="
             cat /tmp/cloudflared.log
+            echo "======================"
             exit 1
           fi
 
