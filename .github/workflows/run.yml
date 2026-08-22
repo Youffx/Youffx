@@ -122,14 +122,7 @@ jobs:
         if: github.event.inputs.do_sukisu == 'true'
         run: |
           cd kernel
-          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -
-          # Patch MODULE_IMPORT_NS for 4.19 compatibility
-          sed -i '/MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);/d' KernelSU/kernel/core/init.c
-          sed -i '/MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");/d' KernelSU/kernel/core/init.c
-          # Add version-guarded import
-          sed -i '/MODULE_DESCRIPTION("Android KernelSU");/a #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\nMODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");\n#endif' KernelSU/kernel/core/init.c
-          # Patch copy_to_kernel_nofault for 4.19 (not available until 5.10+)
-          sed -i 's/copy_to_kernel_nofault(map, src, len)/({ char *__dst = (map); const char *__src = (src); size_t __len = (len); int __ret = 0; while (__len--) { __ret = probe_kernel_write(__dst++, __src++, 1); if (__ret) break; } __ret; })/g' KernelSU/kernel/hook/arm64/patch_memory.c
+          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s v3.2.0
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)
