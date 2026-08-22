@@ -123,6 +123,16 @@ jobs:
         run: |
           cd kernel
           curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
+          # 4.19 compat: selinux_hide is only included for >=5.10, guard its function calls
+          sed -i 's/    ksu_selinux_hide_handle_post_fs_data();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n    ksu_selinux_hide_handle_post_fs_data();\n#endif/' KernelSU/kernel/runtime/ksud.c
+          sed -i 's/            ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n            ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
+          sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
+          # 4.19 compat: USER_ARG_NULL returns pointer but ksu_sulog_capture expects value
+          sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
+          # Fix version mismatch: Manager sends version 3, kernel expects version 4
+          # Add forward declaration for migrate_profile (defined after ksu_set_app_profile)
+          sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
+          sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)
