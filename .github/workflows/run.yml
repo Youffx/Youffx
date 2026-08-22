@@ -122,8 +122,7 @@ jobs:
         if: github.event.inputs.do_sukisu == 'true'
         run: |
           cd kernel
-          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s v3.2.0
-          sed -i '/MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);/d' KernelSU/kernel/ksu.c
+          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)
