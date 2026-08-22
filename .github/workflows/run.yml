@@ -129,6 +129,8 @@ jobs:
           sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
           # 4.19 compat: USER_ARG_NULL returns pointer but ksu_sulog_capture expects value
           sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
+          # Fix version mismatch: Manager app sends version 3, kernel expects version 4
+          sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)

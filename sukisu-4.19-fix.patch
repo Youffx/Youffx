@@ -6,6 +6,7 @@
 #   1. MODULE_IMPORT_NS not defined in 4.19 (only exists in 5.10+)
 #   2. ksu_selinux_hide_handle_* functions conditionally compiled for >=5.10
 #   3. USER_ARG_NULL pointer vs struct value type mismatch
+#   4. Manager app sends profile version 3, kernel expects version 4
 
 set -eu
 
@@ -24,5 +25,8 @@ sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERS
 
 # 3. Dereference USER_ARG_NULL pointer (ksu_sulog_capture takes struct by value)
 sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
+
+# 4. Fix version mismatch: Manager sends version 3, kernel expects version 4
+sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
 
 echo "SukiSU 4.19 patches applied."
