@@ -122,7 +122,7 @@ jobs:
         if: github.event.inputs.do_sukisu == 'true'
         run: |
           cd kernel
-          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -s builtin
+          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)
