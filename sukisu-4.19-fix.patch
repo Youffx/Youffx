@@ -1,0 +1,28 @@
+#!/bin/sh
+# SukiSU 4.19 kernel compatibility patch
+# Run after: curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
+#
+# Fixes:
+#   1. MODULE_IMPORT_NS not defined in 4.19 (only exists in 5.10+)
+#   2. ksu_selinux_hide_handle_* functions conditionally compiled for >=5.10
+#   3. USER_ARG_NULL pointer vs struct value type mismatch
+
+set -eu
+
+if [ ! -d "KernelSU" ]; then
+    echo "Error: Run this from the kernel source root after SukiSU setup."
+    exit 1
+fi
+
+# 1. Remove MODULE_IMPORT_NS (not in 4.19)
+sed -i '/MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);/d' KernelSU/kernel/ksu.c
+
+# 2. Guard selinux_hide calls (implementation only included for >=5.10)
+sed -i 's/    ksu_selinux_hide_handle_post_fs_data();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n    ksu_selinux_hide_handle_post_fs_data();\n#endif/' KernelSU/kernel/runtime/ksud.c
+sed -i 's/            ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n            ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
+sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
+
+# 3. Dereference USER_ARG_NULL pointer (ksu_sulog_capture takes struct by value)
+sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
+
+echo "SukiSU 4.19 patches applied."
