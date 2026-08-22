@@ -27,6 +27,8 @@ sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERS
 sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
 
 # 4. Fix version mismatch: Manager sends version 3, kernel expects version 4
+# Add forward declaration for migrate_profile (defined after ksu_set_app_profile)
+sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
 sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
 
 echo "SukiSU 4.19 patches applied."
