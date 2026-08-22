@@ -155,6 +155,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
+          scripts/config --enable KSU
           make O=out olddefconfig
 
           make -j$(nproc --all) O=out \
