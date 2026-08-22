@@ -156,9 +156,11 @@ jobs:
 
           make O=out $DEFCONFIG
           make O=out olddefconfig
+          sed -i 's/# CONFIG_KSU is not set//' out/.config
           sed -i 's/CONFIG_KSU=m/CONFIG_KSU=y/' out/.config
-          grep -q 'CONFIG_KSU=y' out/.config || echo 'CONFIG_KSU=y' >> out/.config
+          grep -q '^CONFIG_KSU=' out/.config || echo 'CONFIG_KSU=y' >> out/.config
           make O=out olddefconfig
+          grep 'CONFIG_KSU' out/.config
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
