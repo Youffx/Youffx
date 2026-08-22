@@ -141,6 +141,7 @@ jobs:
           export CXX="ccache clang++"
           export CCACHE_COMPILERCHECK=content
           export CCACHE_MAXSIZE=10G
+          export KSU_VERSION=32525
 
           ccache -s
 
