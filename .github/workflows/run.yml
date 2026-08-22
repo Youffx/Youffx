@@ -120,6 +120,13 @@ jobs:
           curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU/main/kernel/setup.sh | bash -
           cd ..
 
+      - name: Apply KSU Manual Hooks
+        if: github.event.inputs.do_ksu == 'true'
+        run: |
+          cd kernel
+          python3 $GITHUB_WORKSPACE/patches/apply_hooks.py
+          cd ..
+
       - name: Apply Root Method (KernelSU-Next)
         if: github.event.inputs.do_ksun == 'true'
         run: |
