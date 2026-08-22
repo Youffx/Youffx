@@ -2,12 +2,13 @@
 # SukiSU 4.19 kernel compatibility patch
 # Run from kernel source root after SukiSU setup
 #
-# Fixes:
-#   1. MODULE_IMPORT_NS not defined in 4.19 (only exists in 5.10+)
-#   2. ksu_selinux_hide_handle_* functions conditionally compiled for >=5.10
-#   3. USER_ARG_NULL pointer vs struct value type mismatch
-#   4. Manager app sends profile version 3, kernel expects version 4
-#   5. Official SukiSU 4.19 kernel hooks (exec.c, stat.c, pty.c)
+# Fixes (KernelSU module):
+#   1. ksu_selinux_hide_handle_* functions conditionally compiled for >=5.10
+#   2. USER_ARG_NULL pointer vs struct value type mismatch
+#   3. Manager app sends profile version 3, kernel expects version 4
+#
+# Fixes (kernel source):
+#   4. Official SukiSU 4.19 kernel hooks (exec.c, stat.c, pty.c)
 
 set -eu
 
