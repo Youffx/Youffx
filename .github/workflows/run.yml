@@ -123,6 +123,11 @@ jobs:
         run: |
           cd kernel
           curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/main/kernel/setup.sh | bash -
+          # Patch MODULE_IMPORT_NS for 4.19 compatibility
+          sed -i '/MODULE_IMPORT_NS(VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver);/d' KernelSU/kernel/core/init.c
+          sed -i '/MODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");/d' KernelSU/kernel/core/init.c
+          # Add version-guarded import
+          sed -i '/MODULE_DESCRIPTION("Android KernelSU");/a #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\nMODULE_IMPORT_NS("VFS_internal_I_am_really_a_filesystem_and_am_NOT_a_driver");\n#endif' KernelSU/kernel/core/init.c
           cd ..
 
       - name: Apply Root Method (KernelSU-Next)
