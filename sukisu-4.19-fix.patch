@@ -1,12 +1,13 @@
 #!/bin/sh
 # SukiSU 4.19 kernel compatibility patch
-# Run after: curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
+# Run from kernel source root after SukiSU setup
 #
 # Fixes:
 #   1. MODULE_IMPORT_NS not defined in 4.19 (only exists in 5.10+)
 #   2. ksu_selinux_hide_handle_* functions conditionally compiled for >=5.10
 #   3. USER_ARG_NULL pointer vs struct value type mismatch
 #   4. Manager app sends profile version 3, kernel expects version 4
+#   5. Official SukiSU 4.19 kernel hooks (exec.c, stat.c, pty.c)
 
 set -eu
 
@@ -31,4 +32,83 @@ sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user
 sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
 sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
 
-echo "SukiSU 4.19 patches applied."
+# 5. Official SukiSU 4.19 kernel source hooks
+KMAJ=$(grep 'VERSION\|PATCHLEVEL\|SUBLEVEL' Makefile | head -3 | awk -F= '{print $2}' | tr -d ' ' | paste -sd. )
+if [ "$KMAJ" != "4.19" ]; then
+    echo "Not 4.19 ($KMAJ), skipping kernel source hooks."
+    exit 0
+fi
+
+echo "Applying official SukiSU 4.19 kernel hooks..."
+
+python3 -c "
+with open('fs/exec.c', 'r') as f:
+    content = f.read()
+
+old_extern = '#ifdef CONFIG_KSU\n__attribute__((hot))\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr,\n\t\t\t\tvoid *argv, void *envp, int *flags);\n#endif'
+new_extern = '#ifdef CONFIG_KSU\nextern bool ksu_execveat_hook __read_mostly;\nextern int ksu_handle_execveat(int *fd, struct filename **filename_ptr, void *argv,\n\t\t\tvoid *envp, int *flags);\nextern int ksu_handle_execveat_sucompat(int *fd, struct filename **filename_ptr,\n\t\t\t void *argv, void *envp, int *flags);\n#endif'
+if old_extern in content:
+    content = content.replace(old_extern, new_extern)
+    print('  exec.c: extern block updated')
+
+old_hook = '#ifdef CONFIG_KSU\n\tksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);\n#endif'
+new_hook = '#ifdef CONFIG_KSU\n\tif (unlikely(ksu_execveat_hook))\n\t\tksu_handle_execveat((int *)AT_FDCWD, &filename, &argv, &envp, 0);\n\telse\n\t\tksu_handle_execveat_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL);\n#endif'
+if old_hook in content:
+    content = content.replace(old_hook, new_hook)
+    print('  exec.c: do_execve hook updated')
+
+marker = 'static int compat_do_execve(struct filename *filename,'
+target = 'return do_execveat_common(AT_FDCWD, filename, argv, envp, 0);'
+compat_idx = content.find(marker)
+if compat_idx != -1:
+    ret_idx = content.find(target, compat_idx)
+    if ret_idx != -1 and 'ksu_handle_execveat_sucompat' not in content[compat_idx:ret_idx]:
+        hook = '\n#ifdef CONFIG_KSU\n\tif (!ksu_execveat_hook)\n\t\tksu_handle_execveat_sucompat((int *)AT_FDCWD, &filename, NULL, NULL, NULL); /* 32-bit su */\n#endif\n'
+        content = content[:ret_idx] + hook + content[ret_idx:]
+        print('  exec.c: compat_do_execve hook added')
+
+with open('fs/exec.c', 'w') as f:
+    f.write(content)
+"
+
+python3 -c "
+with open('fs/stat.c', 'r') as f:
+    content = f.read()
+
+marker = 'SYSCALL_DEFINE4(fstatat64'
+target = 'error = vfs_fstatat(dfd, filename, &stat, flag);'
+idx = content.find(marker)
+if idx != -1:
+    ret_idx = content.find(target, idx)
+    if ret_idx != -1 and 'ksu_handle_stat' not in content[idx:ret_idx]:
+        hook = '\n#ifdef CONFIG_KSU\n\tksu_handle_stat(&dfd, &filename, &flag); /* 32-bit su support */\n#endif\n'
+        content = content[:ret_idx] + hook + content[ret_idx:]
+        with open('fs/stat.c', 'w') as f:
+            f.write(content)
+        print('  stat.c: fstatat64 hook added')
+"
+
+python3 -c "
+with open('drivers/tty/pty.c', 'r') as f:
+    content = f.read()
+
+if 'ksu_handle_devpts' not in content:
+    marker = 'static struct tty_struct *pts_unix98_lookup'
+    extern_decl = '#ifdef CONFIG_KSU\nextern int ksu_handle_devpts(struct inode*);\n#endif\n\n'
+    content = content.replace(marker, extern_decl + marker)
+    print('  pty.c: devpts extern added')
+
+target = 'mutex_lock(&devpts_mutex);'
+idx = content.find('pts_unix98_lookup')
+if idx != -1:
+    mutex_idx = content.find(target, idx)
+    if mutex_idx != -1 and 'ksu_handle_devpts' not in content[mutex_idx-80:mutex_idx]:
+        hook_call = '#ifdef CONFIG_KSU\n\tksu_handle_devpts((struct inode *)file->f_path.dentry->d_inode);\n#endif\n'
+        content = content[:mutex_idx] + hook_call + content[mutex_idx:]
+        print('  pty.c: devpts hook added')
+
+with open('drivers/tty/pty.c', 'w') as f:
+    f.write(content)
+"
+
+echo "All SukiSU 4.19 patches applied."
