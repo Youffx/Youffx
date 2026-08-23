@@ -27,7 +27,7 @@ env:
 jobs:
 
 # =========================
-# BUILD SUKISU
+# BUILD KSU
 # =========================
   build-ksu:
     name: Build KSU
@@ -436,10 +436,10 @@ jobs:
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
-          *Build Variants:* \`SukiSU, Non-KSU\`
+          *Build Variants:* \`KSU, Non-KSU\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
-          • *SukiSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-sukisu.outputs.zip_hash }}\`
+          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
           • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
 
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
