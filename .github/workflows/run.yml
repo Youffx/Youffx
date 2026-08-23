@@ -140,7 +140,7 @@ jobs:
         if: github.event.inputs.ksu_target == 'ReSukiSU'
         run: |
           cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           cd ..
 
       - name: Build Kernel KSU
