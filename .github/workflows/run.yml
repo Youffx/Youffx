@@ -16,10 +16,24 @@ on:
           - "SukiSU"
           - "ReSukiSU"
         default: "ReSukiSU"
+      skip_nonksu:
+        description: "Skip Non-KSU build"
+        required: false
+        type: boolean
+        default: false
+      pre_release:
+        description: "Mark as pre-release"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -182,8 +196,14 @@ jobs:
       - name: Package Flashable Zip (KSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ github.event.inputs.localversion }}"
-          ZIP_NAME="Lineage-23.2-KSU-${DATE}"
+          KSU_TARGET="${{ github.event.inputs.ksu_target }}"
+          case "$KSU_TARGET" in
+            "KernelSU-Next") KSU_NAME="KSU" ;;
+            "ReSukiSU") KSU_NAME="ReSukiSU" ;;
+            "SukiSU") KSU_NAME="SukiSU" ;;
+            *) KSU_NAME="KSU" ;;
+          esac
+          ZIP_NAME="Lineage-23.2-${KSU_NAME}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -209,6 +229,7 @@ jobs:
         with:
           name: zip-ksu
           path: output/*.zip
+          retention-days: 7
 
       - name: Show ccache statistics
         run: ccache -s
@@ -220,7 +241,6 @@ jobs:
           echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
           echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-          
 
 # =========================
 # BUILD NONKSU
@@ -228,6 +248,7 @@ jobs:
   build-nonksu:
     name: Build NONKSU
     runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_nonksu != 'true' }}
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
       zip_hash: ${{ steps.calc.outputs.hash }}
@@ -343,7 +364,6 @@ jobs:
       - name: Package Flashable Zip (NONKSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          CONF_NAME="${{ github.event.inputs.localversion }}"
           ZIP_NAME="Lineage-23.2-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
@@ -370,6 +390,7 @@ jobs:
         with:
           name: zip-nonksu
           path: output/*.zip
+          retention-days: 7
 
       - name: Show ccache statistics
         run: ccache -s
@@ -381,7 +402,6 @@ jobs:
           echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
           echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-          
 
 # =========================
 # RELEASE
@@ -389,35 +409,60 @@ jobs:
   release:
     name: Release
     needs: [build-ksu, build-nonksu]
+    if: always() && needs.build-ksu.result == 'success'
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
 
       - name: Collect ZIPs
         run: |
-          mkdir final
-          find . -name "*.zip" -exec cp {} final/ \;
+          mkdir -p final
+          find . -name "*.zip" -path "*/zip-*/*" -exec cp {} final/ \;
+
+      - name: Verify ZIPs exist
+        run: |
+          if [ -z "$(ls -A final/*.zip 2>/dev/null)" ]; then
+            echo "No ZIP files found!"
+            exit 1
+          fi
+          echo "ZIPs to release:"
+          ls -lh final/
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: Release-${{ github.run_id }}
-          name: Kernel Release
+          name: Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
+          prerelease: ${{ github.event.inputs.pre_release == 'true' }}
           body: |
-            ### Lineage Kernel Release
+            ### Lineage Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
 
             **Build Details:**
+            - Kernel Version: `${{ needs.build-ksu.outputs.kern_ver }}`
+            - Compiler: `${{ needs.build-ksu.outputs.compiler_ver }}`
+            - Root Method: `${{ github.event.inputs.ksu_target }}`
             - Support EROFS
             - Support both AOSP & NON-AOSP
             - Sync with latest Lineage 23.2 kernel source
 
+            **Build Statistics:**
+            | Variant | Build Time | MD5 Hash |
+            |---------|------------|----------|
+            | KSU | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
+            ${{ github.event.inputs.skip_nonksu != 'true' && format('| Non-KSU | {0} | `{1}` |', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
+
+            **Latest Commit:** `${{ needs.build-ksu.outputs.commit_log }}`
           files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Notification
+        if: always()
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
@@ -431,17 +476,26 @@ jobs:
           }
 
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
+          RELEASE_URL="https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }}"
+
+          if [ "${{ needs.build-ksu.result }}" == "success" ]; then
+            STATUS="✅ Success"
+          else
+            STATUS="❌ Failed"
+          fi
 
           MESSAGE="*Lineage CI Release*
+          *Status:* $STATUS
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
-          *Build Variants:* \`KSU, Non-KSU\`
+          *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
+          *Build Variants:* \`KSU${{ github.event.inputs.skip_nonksu != 'true' && ', Non-KSU' || '' }}\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
-          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
+          ${{ github.event.inputs.skip_nonksu != 'true' && format('• *Non-KSU:* *{0}* | *md5:* \`{1}\`', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
 
-          [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
+          [Check Release]($RELEASE_URL)"
 
           tg "$MESSAGE"
