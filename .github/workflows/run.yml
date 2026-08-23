@@ -7,21 +7,15 @@ on:
         description: "Select (0,1,2,3,4)"
         required: true
         default: "2"
-      do_ksu:
-        description: "KernelSU"
-        required: false
-        type: boolean
-        default: true
-      do_ksun:
-        description: "KernelSU-Next"
-        required: false
-        type: boolean
-        default: false
-      do_sukisu:
-        description: "SukiSU"
-        required: false
-        type: boolean
-        default: false
+      ksu_target:
+        description: "select ksu to be used"
+        required: true
+        type: choice
+        options:
+          - "KernelSU-Next"
+          - "SukiSU"
+          - "ReSukiSU"
+        default: "ReSukiSU"
 
 permissions:
   contents: write
@@ -35,8 +29,8 @@ jobs:
 # =========================
 # BUILD SUKISU
 # =========================
-  build-sukisu:
-    name: Build SukiSU
+  build-ksu:
+    name: Build KSU
     runs-on: ubuntu-latest
     outputs:
       kern_ver: ${{ steps.kinfo.outputs.version }}
@@ -118,8 +112,15 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
+      - name: Apply Root Method (KernelSU-Next)
+        if: github.event.inputs.ksu_target == 'KernelSU-Next'
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
+          cd ..
+
       - name: Apply Root Method (SukiSU)
-        if: github.event.inputs.do_sukisu == 'true'
+        if: github.event.inputs.ksu_target == 'SukiSU'
         run: |
           cd kernel
           curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
@@ -135,14 +136,14 @@ jobs:
           sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
           cd ..
 
-      - name: Apply Root Method (KernelSU-Next)
-        if: github.event.inputs.do_ksun == 'true'
+      - name: Apply Root Method ReSukiSU
+        if: github.event.inputs.ksu_target == 'ReSukiSU'
         run: |
           cd kernel
           curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
           cd ..
 
-      - name: Build Kernel (SukiSU)
+      - name: Build Kernel KSU
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
@@ -303,7 +304,7 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Build Kernel (NONKSU)
+      - name: Build Kernel NONKSU
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
 
@@ -387,7 +388,7 @@ jobs:
 # =========================
   release:
     name: Release
-    needs: [build-sukisu, build-nonksu]
+    needs: [build-ksu, build-nonksu]
     runs-on: ubuntu-latest
 
     steps:
@@ -408,14 +409,10 @@ jobs:
             ### Lineage Kernel Release
 
             **Build Details:**
-            - Latest SukiSU
             - Support EROFS
             - Support both AOSP & NON-AOSP
             - Sync with latest Lineage 23.2 kernel source
 
-            **Includes:**
-            - SukiSU Kernel
-            - NON-KSU Kernel
           files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -436,13 +433,13 @@ jobs:
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
 
           MESSAGE="*Lineage CI Release*
-          *Kernel Version:* \`${{ needs.build-sukisu.outputs.kern_ver }}\`
-          *Compiler:* \`${{ needs.build-sukisu.outputs.compiler_ver }}\`
+          *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
+          *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
           *Build Variants:* \`SukiSU, Non-KSU\`
-          *Latest Commit:* \`${{ needs.build-sukisu.outputs.commit_log }}\`
+          *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
-          • *SukiSU:* *${{ needs.build-sukisu.outputs.build_time }}* | *sha256:* \`${{ needs.build-sukisu.outputs.zip_hash }}\`
+          • *SukiSU:* *${{ needs.build-ksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-sukisu.outputs.zip_hash }}\`
           • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *sha256:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
 
           [Check Release](https://github.com/${{ github.repository }}/releases/tag/Release-${{ github.run_id }})"
