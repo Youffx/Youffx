@@ -26,6 +26,11 @@ on:
         required: false
         type: boolean
         default: false
+      enable_nomount:
+        description: "Enable NoMount VFS subsystem"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -106,6 +111,13 @@ jobs:
           REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
+
+      - name: Clone NoMount
+        if: github.event.inputs.enable_nomount == 'true'
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/master/kernel/setup.sh | bash -s master
+          cd ..
 
       - name: Setup Clang 20
         run: |
