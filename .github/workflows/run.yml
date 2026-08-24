@@ -179,11 +179,6 @@ jobs:
           make O=out $DEFCONFIG
           make O=out olddefconfig
 
-          if [ "${{ github.event.inputs.ksu_target }}" = "ReSukiSU" ]; then
-            sed -i 's/# CONFIG_KSU is not set/CONFIG_KSU=y\nCONFIG_KSU_SUSFS=y/' out/.config
-            make O=out olddefconfig
-          fi
-
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CROSS_COMPILE=aarch64-linux-gnu- \
