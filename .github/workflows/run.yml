@@ -157,6 +157,13 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           cd ..
 
+      - name: Setup NoMount
+        if: github.event.inputs.ksu_target == 'ReSukiSU'
+        run: |
+          cd kernel
+          curl -LSs "https://raw.githubusercontent.com/maxsteeel/nomount/dev/kernel/setup.sh" | bash
+          cd ..
+
       - name: Build Kernel KSU
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
