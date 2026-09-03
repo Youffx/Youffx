@@ -13,6 +13,7 @@ on:
           - "lineageext-23.2 (4.19)"
           - "gki-5.10 (legacy)"
           - "none (skip kernel clone)"
+          - "miatoll"
         default: "lineage-23.2 (4.19)"
       clone_ksu:
         description: "Clone KernelSU variant"
@@ -70,6 +71,15 @@ jobs:
           git clone --depth=1 -b 23.2-genesis \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
             4.19
+
+      - name: Clone kernel (miatoll)
+        if: github.event.inputs.kernel_target == 'miatoll'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          git clone --depth=1 \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_sm6250.git \
+            kernel
 
       - name: Clone kernel (lineage 23.2)
         if: github.event.inputs.kernel_target == 'lineage-23.2 (4.19)'
