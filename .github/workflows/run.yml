@@ -3,10 +3,6 @@ name: Lineage CI Release
 on:
   workflow_dispatch:
     inputs:
-      config_index:
-        description: "Select (0,1,2,3,4)"
-        required: true
-        default: "2"
       ksu_target:
         description: "select ksu to be used"
         required: true
@@ -18,6 +14,11 @@ on:
         default: "ReSukiSU"
       skip_nonksu:
         description: "Skip Non-KSU build"
+        required: false
+        type: boolean
+        default: false
+      skip_nomsu:
+        description: "Skip KSU NoMount SUSFS build"
         required: false
         type: boolean
         default: false
@@ -73,9 +74,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
+          key: ccache-ksu-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            ccache-ksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-ksu-${{ runner.os }}-
 
       - name: Cache Clang 20
@@ -88,12 +88,10 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[$CONFIG_INDEX]" configs/builds.json)
+          CONFIG=$(jq -c ".[0]" configs/resukisu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
-        env:
-          CONFIG_INDEX: ${{ github.event.inputs.config_index }}
 
       - name: Clone Kernel
         env:
@@ -272,9 +270,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-${{ github.run_id }}
+          key: ccache-nonksu-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            ccache-nonksu-${{ runner.os }}-${{ github.event.inputs.config_index }}-
             ccache-nonksu-${{ runner.os }}-
 
       - name: Cache Clang 20
@@ -287,12 +284,10 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[$CONFIG_INDEX]" configs/builds.json)
+          CONFIG=$(jq -c ".[1]" configs/resukisu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
-        env:
-          CONFIG_INDEX: ${{ github.event.inputs.config_index }}
 
       - name: Clone Kernel
         env:
@@ -404,11 +399,213 @@ jobs:
           echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
+# BUILD KSU NOMOUNT SUSFS
+# =========================
+  build-nomsu:
+    name: Build KSU NoMount SUSFS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.inputs.skip_nomsu != 'true' }}
+    outputs:
+      build_time: ${{ steps.calc.outputs.duration }}
+      zip_hash: ${{ steps.calc.outputs.hash }}
+
+    steps:
+      - name: Start Timer
+        id: start_timer
+        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            bc bison build-essential ccache curl flex git gnupg gperf \
+            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+
+      - name: Restore ccache
+        uses: actions/cache@v4
+        with:
+          path: .ccache
+          key: ccache-nomsu-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-nomsu-${{ runner.os }}-
+
+      - name: Cache Clang 20
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: llvm
+          key: llvm-mlgo-r547379
+
+      - name: Load Config
+        id: cfg
+        run: |
+          CONFIG=$(jq -c ".[2]" configs/resukisu.json)
+          NAME=$(echo "$CONFIG" | jq -r '.name')
+          echo "config=$CONFIG" >> $GITHUB_OUTPUT
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+
+      - name: Clone Kernel
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
+          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
+          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
+          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
+
+          REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
+
+          git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
+
+      - name: Setup Clang 20
+        run: |
+          if [ ! -d "llvm/bin" ]; then
+            export LLVM_DIR="$PWD/llvm"
+            rm -rf "$LLVM_DIR"
+            mkdir -p "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" | tar xz -C "$LLVM_DIR"
+            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/mlgo-models.tar.gz" | tar xz -C "$LLVM_DIR" || true
+          fi
+          echo "$PWD/llvm/bin" >> $GITHUB_PATH
+
+      - name: Setup ccache
+        run: |
+          ccache -M 10G
+          ccache -o compression=true
+          ccache -o base_dir=$GITHUB_WORKSPACE
+          ccache -o hash_dir=false
+          ccache -z
+
+      - name: Apply Root Method (KernelSU-Next)
+        if: github.event.inputs.ksu_target == 'KernelSU-Next'
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
+          cd ..
+
+      - name: Apply Root Method (SukiSU)
+        if: github.event.inputs.ksu_target == 'SukiSU'
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
+          # 4.19 compat: selinux_hide is only included for >=5.10, guard its function calls
+          sed -i 's/    ksu_selinux_hide_handle_post_fs_data();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n    ksu_selinux_hide_handle_post_fs_data();\n#endif/' KernelSU/kernel/runtime/ksud.c
+          sed -i 's/            ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n            ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
+          sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
+          # 4.19 compat: USER_ARG_NULL returns pointer but ksu_sulog_capture expects value
+          sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
+          # Fix version mismatch: Manager sends version 3, kernel expects version 4
+          # Add forward declaration for migrate_profile (defined after ksu_set_app_profile)
+          sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
+          sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
+          cd ..
+
+      - name: Apply Root Method ReSukiSU
+        if: github.event.inputs.ksu_target == 'ReSukiSU'
+        run: |
+          cd kernel
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          cd ..
+
+      - name: Setup NoMount
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/ReSukiSU/NoMount/master/setup.sh | bash
+          cd ..
+
+      - name: Build Kernel KSU NoMount SUSFS
+        run: |
+          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
+
+          export ARCH=arm64
+          export SUBARCH=arm64
+          export PATH="$PWD/clang/bin:$PATH"
+          export KBUILD_BUILD_USER="youffx"
+          export KBUILD_BUILD_HOST="collection"
+          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
+          export CC="ccache clang"
+          export CXX="ccache clang++"
+          export CCACHE_COMPILERCHECK=content
+          export CCACHE_MAXSIZE=10G
+
+          ccache -s
+
+          cd kernel
+
+          make O=out $DEFCONFIG
+          make O=out olddefconfig
+
+          make -j$(nproc --all) O=out \
+            ARCH=arm64 \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC="ccache clang" \
+            LD=ld.lld \
+            AR=llvm-ar \
+            NM=llvm-nm \
+            OBJCOPY=llvm-objcopy \
+            OBJDUMP=llvm-objdump \
+            STRIP=llvm-strip \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            Image.gz-dtb
+
+      - name: Package Flashable Zip (NoMount SUSFS)
+        run: |
+          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
+          KSU_TARGET="${{ github.event.inputs.ksu_target }}"
+          case "$KSU_TARGET" in
+            "KernelSU-Next") KSU_NAME="KSU" ;;
+            "ReSukiSU") KSU_NAME="ReSukiSU" ;;
+            "SukiSU") KSU_NAME="SukiSU" ;;
+            *) KSU_NAME="KSU" ;;
+          esac
+          ZIP_NAME="Lineage-23.2-${KSU_NAME}-NoMount-SUSFS-${DATE}"
+
+          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
+          mkdir -p output
+          cp "$IMAGE" .github/Flash/kernels/
+
+          cd .github/Flash/
+          zip -r "../../output/${ZIP_NAME}.zip" ./*
+          cd ../../
+
+      - name: Calculate Metadata
+        id: calc
+        run: |
+          END=$(date +%s)
+          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          MIN=$((DIFF / 60))
+          SEC=$((DIFF % 60))
+          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
+          HASH=$(md5sum output/*.zip | awk '{print $1}')
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+
+      - name: Upload ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: zip-nomsu
+          path: output/*.zip
+          retention-days: 7
+
+      - name: Show ccache statistics
+        run: ccache -s
+
+      - name: Get Kernel Info
+        id: kinfo
+        run: |
+          cd kernel
+          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
+          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+
+# =========================
 # RELEASE
 # =========================
   release:
     name: Release
-    needs: [build-ksu, build-nonksu]
+    needs: [build-ksu, build-nonksu, build-nomsu]
     if: always() && needs.build-ksu.result == 'success'
     runs-on: ubuntu-latest
 
@@ -455,6 +652,7 @@ jobs:
             |---------|------------|----------|
             | KSU | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
             ${{ github.event.inputs.skip_nonksu != 'true' && format('| Non-KSU | {0} | `{1}` |', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
+            ${{ github.event.inputs.skip_nomsu != 'true' && format('| KSU NoMount SUSFS | {0} | `{1}` |', needs.build-nomsu.outputs.build_time, needs.build-nomsu.outputs.zip_hash) || '' }}
 
             **Latest Commit:** `${{ needs.build-ksu.outputs.commit_log }}`
           files: final/*.zip
@@ -490,11 +688,12 @@ jobs:
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
           *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
-          *Build Variants:* \`KSU${{ github.event.inputs.skip_nonksu != 'true' && ', Non-KSU' || '' }}\`
+          *Build Variants:* \`KSU${{ github.event.inputs.skip_nonksu != 'true' && ', Non-KSU' || '' }}${{ github.event.inputs.skip_nomsu != 'true' && ', KSU NoMount SUSFS' || '' }}\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
           • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
           ${{ github.event.inputs.skip_nonksu != 'true' && format('• *Non-KSU:* *{0}* | *md5:* \`{1}\`', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
+          ${{ github.event.inputs.skip_nomsu != 'true' && format('• *KSU NoMount SUSFS:* *{0}* | *md5:* \`{1}\`', needs.build-nomsu.outputs.build_time, needs.build-nomsu.outputs.zip_hash) || '' }}
 
           [Check Release]($RELEASE_URL)"
 
