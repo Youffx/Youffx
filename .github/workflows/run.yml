@@ -17,11 +17,6 @@ on:
         required: false
         type: boolean
         default: false
-      skip_nomsu:
-        description: "Skip KSU NoMount SUSFS build"
-        required: false
-        type: boolean
-        default: false
       pre_release:
         description: "Mark as pre-release"
         required: false
@@ -404,7 +399,6 @@ jobs:
   build-nomsu:
     name: Build KSU NoMount SUSFS
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.skip_nomsu != 'true' }}
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
       zip_hash: ${{ steps.calc.outputs.hash }}
@@ -507,12 +501,6 @@ jobs:
         run: |
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
-          cd ..
-
-      - name: Setup NoMount
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/ReSukiSU/NoMount/master/setup.sh | bash
           cd ..
 
       - name: Build Kernel KSU NoMount SUSFS
