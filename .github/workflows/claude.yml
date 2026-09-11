@@ -10,7 +10,7 @@ on:
         options:
           - "genesis-23.2 (4.19)"
           - "lineage-23.2 (4.19)"
-          - "lineageext-23.2 (4.19)"
+          - "lineage-ns-23.2 (4.19)"
           - "gki-5.10 (legacy)"
           - "none (skip kernel clone)"
           - "miatoll"
@@ -90,12 +90,12 @@ jobs:
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
             4.19
 
-      - name: Clone kernel (lineageEXT 23.2)
-        if: github.event.inputs.kernel_target == 'lineageext-23.2 (4.19)'
+      - name: Clone kernel (lineage NS 23.2)
+        if: github.event.inputs.kernel_target == 'lineage-ns-23.2 (4.19)'
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
-          git clone --depth=1 -b 23.2-lineageEXT \
+          git clone --depth=1 -b 23.2-lineage-ns \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
             4.19
 
