@@ -682,7 +682,7 @@ jobs:
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
           *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
-          *Build Variants:* \`KSU${{ github.event.inputs.skip_nonksu != 'true' && ', Non-KSU' || '' }}${{ github.event.inputs.skip_nomsu != 'true' && ', KSU NoMount SUSFS' || '' }}\`
+          *Build Variants:* \`KSU${{ github.event.inputs.skip_nonksu != 'true' && ', Non-KSU' || '' }}${{ github.event.inputs.skip_nomount != 'true' && ', KSU NoMount' || '' }}\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
           • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
