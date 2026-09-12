@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       kernel_target:
-        description: "Target kernel to clone"
+        description: "Kernel"
         required: true
         type: choice
         options:
@@ -13,11 +13,11 @@ on:
           - "lineage-ns-23.2 (4.19)"
           - "custom (rosemary)"
           - "gki-5.10 (legacy)"
-          - "none (skip kernel clone)"
+          - "none (skip)"
           - "miatoll"
         default: "lineage-23.2 (4.19)"
       clone_ksu:
-        description: "Clone KernelSU variant"
+        description: "KernelSU"
         required: false
         type: choice
         options:
@@ -26,22 +26,22 @@ on:
           - "kernelsu-next (legacy-susfs)"
         default: "none"
       clone_infra:
-        description: "Clone Infra-BWX app"
+        description: "Clone Infra-BWX"
         required: false
         type: boolean
         default: false
       clone_dev:
-        description: "Clone Youffx dev repo"
+        description: "Clone dev repo"
         required: false
         type: boolean
         default: false
       kernel_branch:
-        description: "Branch name (required for custom target, ignored otherwise)"
+        description: "Branch (custom only)"
         required: false
         type: string
         default: ""
       session_timeout:
-        description: "Max session time in hours (0 = no limit)"
+        description: "Timeout in hours (0 = no limit)"
         required: false
         type: string
         default: "6"
