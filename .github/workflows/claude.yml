@@ -16,6 +16,11 @@ on:
           - "none (skip)"
           - "miatoll"
         default: "lineage-23.2 (4.19)"
+      kernel_branch:
+        description: "Branch (custom only)"
+        required: false
+        type: string
+        default: ""
       clone_ksu:
         description: "KernelSU"
         required: false
@@ -35,11 +40,6 @@ on:
         required: false
         type: boolean
         default: false
-      kernel_branch:
-        description: "Branch (custom only)"
-        required: false
-        type: string
-        default: ""
       session_timeout:
         description: "Timeout in hours (0 = no limit)"
         required: false
