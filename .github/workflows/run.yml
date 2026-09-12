@@ -394,10 +394,10 @@ jobs:
           echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
-# BUILD KSU NOMOUNT SUSFS
+# BUILD KSU NOMOUNT
 # =========================
-  build-nomsu:
-    name: Build KSU NoMount SUSFS
+  build-nomount:
+    name: Build KSU NoMount
     runs-on: ubuntu-latest
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
@@ -422,9 +422,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .ccache
-          key: ccache-nomsu-${{ runner.os }}-${{ github.run_id }}
+          key: ccache-nomount-${{ runner.os }}-${{ github.run_id }}
           restore-keys: |
-            ccache-nomsu-${{ runner.os }}-
+            ccache-nomount-${{ runner.os }}-
 
       - name: Cache Clang 20
         id: cache-llvm
@@ -436,7 +436,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[2]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[0]" configs/resukisu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -452,6 +452,12 @@ jobs:
           REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
+
+      - name: Clone NoMount
+        run: |
+          cd kernel
+          curl -LSs https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/master/kernel/setup.sh | bash -s master
+          cd ..
 
       - name: Setup Clang 20
         run: |
@@ -503,7 +509,7 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           cd ..
 
-      - name: Build Kernel KSU NoMount SUSFS
+      - name: Build Kernel KSU NoMount
         run: |
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
@@ -539,7 +545,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             Image.gz-dtb
 
-      - name: Package Flashable Zip (NoMount SUSFS)
+      - name: Package Flashable Zip (NoMount)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_TARGET="${{ github.event.inputs.ksu_target }}"
@@ -549,7 +555,7 @@ jobs:
             "SukiSU") KSU_NAME="SukiSU" ;;
             *) KSU_NAME="KSU" ;;
           esac
-          ZIP_NAME="Lineage-23.2-${KSU_NAME}-NoMount-SUSFS-${DATE}"
+          ZIP_NAME="Lineage-23.2-${KSU_NAME}-NoMount-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -573,7 +579,7 @@ jobs:
       - name: Upload ZIP
         uses: actions/upload-artifact@v4
         with:
-          name: zip-nomsu
+          name: zip-nomount
           path: output/*.zip
           retention-days: 7
 
@@ -593,7 +599,7 @@ jobs:
 # =========================
   release:
     name: Release
-    needs: [build-ksu, build-nonksu, build-nomsu]
+    needs: [build-ksu, build-nonksu, build-nomount]
     if: always() && needs.build-ksu.result == 'success'
     runs-on: ubuntu-latest
 
@@ -640,7 +646,7 @@ jobs:
             |---------|------------|----------|
             | KSU | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
             ${{ github.event.inputs.skip_nonksu != 'true' && format('| Non-KSU | {0} | `{1}` |', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
-            ${{ github.event.inputs.skip_nomsu != 'true' && format('| KSU NoMount SUSFS | {0} | `{1}` |', needs.build-nomsu.outputs.build_time, needs.build-nomsu.outputs.zip_hash) || '' }}
+            ${{ github.event.inputs.skip_nomount != 'true' && format('| KSU NoMount | {0} | `{1}` |', needs.build-nomount.outputs.build_time, needs.build-nomount.outputs.zip_hash) || '' }}
 
             **Latest Commit:** `${{ needs.build-ksu.outputs.commit_log }}`
           files: final/*.zip
@@ -681,7 +687,7 @@ jobs:
           *Build Statistics:*
           • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
           ${{ github.event.inputs.skip_nonksu != 'true' && format('• *Non-KSU:* *{0}* | *md5:* \`{1}\`', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
-          ${{ github.event.inputs.skip_nomsu != 'true' && format('• *KSU NoMount SUSFS:* *{0}* | *md5:* \`{1}\`', needs.build-nomsu.outputs.build_time, needs.build-nomsu.outputs.zip_hash) || '' }}
+          ${{ github.event.inputs.skip_nomount != 'true' && format('• *KSU NoMount:* *{0}* | *md5:* \`{1}\`', needs.build-nomount.outputs.build_time, needs.build-nomount.outputs.zip_hash) || '' }}
 
           [Check Release]($RELEASE_URL)"
 
