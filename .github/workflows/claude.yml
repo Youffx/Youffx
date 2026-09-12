@@ -11,6 +11,7 @@ on:
           - "genesis-23.2 (4.19)"
           - "lineage-23.2 (4.19)"
           - "lineage-ns-23.2 (4.19)"
+          - "custom (rosemary)"
           - "gki-5.10 (legacy)"
           - "none (skip kernel clone)"
           - "miatoll"
@@ -35,7 +36,7 @@ on:
         type: boolean
         default: false
       kernel_branch:
-        description: "Custom branch for rosemary kernels (leave empty for defaults)"
+        description: "Branch name (required for custom target, ignored otherwise)"
         required: false
         type: string
         default: ""
@@ -63,9 +64,7 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
-          BRANCH="${{ github.event.inputs.kernel_branch }}"
-          [ -z "$BRANCH" ] && BRANCH="23.2-genesis"
-          git clone --depth=1 -b "$BRANCH" \
+          git clone --depth=1 -b 23.2-genesis \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
             4.19
 
@@ -83,9 +82,7 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
-          BRANCH="${{ github.event.inputs.kernel_branch }}"
-          [ -z "$BRANCH" ] && BRANCH="23.2-lineage"
-          git clone --depth=1 -b "$BRANCH" \
+          git clone --depth=1 -b 23.2-lineage \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
             4.19
 
@@ -94,8 +91,20 @@ jobs:
         env:
           PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
         run: |
+          git clone --depth=1 -b 23.2-lineage-ns \
+            https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
+            4.19
+
+      - name: Clone kernel (custom branch)
+        if: github.event.inputs.kernel_target == 'custom (rosemary)'
+        env:
+          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
+        run: |
           BRANCH="${{ github.event.inputs.kernel_branch }}"
-          [ -z "$BRANCH" ] && BRANCH="23.2-lineage-ns"
+          if [ -z "$BRANCH" ]; then
+            echo "Error: kernel_branch input is required when using custom target"
+            exit 1
+          fi
           git clone --depth=1 -b "$BRANCH" \
             https://x-access-token:${PAT_TOKEN}@github.com/Youffx/kernel_xiaomi_rosemary.git \
             4.19
