@@ -527,9 +527,15 @@ jobs:
           ccache -s
 
           cd kernel
-
           make O=out $DEFCONFIG
+
+          echo "CONFIG_NOMOUNT=y" >> out/.config
+
           make O=out olddefconfig
+          
+          echo "--- DEBUG ---"
+          grep -E "NOMOUNT|KSU|SUSFS" out/.config
+          echo "---------------------------------"
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
