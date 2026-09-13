@@ -58,6 +58,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure Swap
+        run: |
+          sudo swapoff /swapfile
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-performance.conf
+          sudo sysctl --system
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
@@ -254,6 +264,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Configure Swap
+        run: |
+          sudo swapoff /swapfile
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-performance.conf
+          sudo sysctl --system
+
       - name: Install Dependencies
         run: |
           sudo apt-get update -y
@@ -410,6 +430,16 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Configure Swap
+        run: |
+          sudo swapoff /swapfile
+          sudo fallocate -l 8G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-performance.conf
+          sudo sysctl --system
 
       - name: Install Dependencies
         run: |
