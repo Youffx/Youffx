@@ -195,6 +195,8 @@ jobs:
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
             Image.gz-dtb
 
       - name: Package Flashable Zip (KSU)
@@ -371,6 +373,8 @@ jobs:
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
             Image.gz-dtb
 
       - name: Package Flashable Zip (NONKSU)
@@ -582,6 +586,8 @@ jobs:
             OBJDUMP=llvm-objdump \
             STRIP=llvm-strip \
             CLANG_TRIPLE=aarch64-linux-gnu- \
+            LLVM=1 \
+            LLVM_IAS=1 \
             Image.gz-dtb
 
       - name: Package Flashable Zip (NoMount)
