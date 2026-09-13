@@ -161,7 +161,10 @@ jobs:
           cd ..
 
       - name: Build Kernel KSU
+        id: build_timer
         run: |
+          BUILD_START=$(date +%s)
+
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
           export ARCH=arm64
@@ -199,6 +202,9 @@ jobs:
             LLVM_IAS=1 \
             Image.gz-dtb
 
+          BUILD_END=$(date +%s)
+          echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
+
       - name: Package Flashable Zip (KSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
@@ -222,8 +228,7 @@ jobs:
       - name: Calculate Metadata
         id: calc
         run: |
-          END=$(date +%s)
-          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          DIFF=${{ steps.build_timer.outputs.duration }}
           MIN=$((DIFF / 60))
           SEC=$((DIFF % 60))
           echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
@@ -339,7 +344,10 @@ jobs:
           ccache -z
 
       - name: Build Kernel NONKSU
+        id: build_timer
         run: |
+          BUILD_START=$(date +%s)
+
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."nonksu-defconfig"')
 
           export ARCH=arm64
@@ -377,6 +385,9 @@ jobs:
             LLVM_IAS=1 \
             Image.gz-dtb
 
+          BUILD_END=$(date +%s)
+          echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
+
       - name: Package Flashable Zip (NONKSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
@@ -393,8 +404,7 @@ jobs:
       - name: Calculate Metadata
         id: calc
         run: |
-          END=$(date +%s)
-          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          DIFF=${{ steps.build_timer.outputs.duration }}
           MIN=$((DIFF / 60))
           SEC=$((DIFF % 60))
           echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
@@ -546,7 +556,10 @@ jobs:
           cd ..
 
       - name: Build Kernel KSU NoMount
+        id: build_timer
         run: |
+          BUILD_START=$(date +%s)
+
           DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
 
           export ARCH=arm64
@@ -590,6 +603,9 @@ jobs:
             LLVM_IAS=1 \
             Image.gz-dtb
 
+          BUILD_END=$(date +%s)
+          echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
+
       - name: Package Flashable Zip (NoMount)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
@@ -613,8 +629,7 @@ jobs:
       - name: Calculate Metadata
         id: calc
         run: |
-          END=$(date +%s)
-          DIFF=$((END - ${{ steps.start_timer.outputs.start }}))
+          DIFF=${{ steps.build_timer.outputs.duration }}
           MIN=$((DIFF / 60))
           SEC=$((DIFF % 60))
           echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
