@@ -15,7 +15,7 @@ on:
           - "gki-5.10 (legacy)"
           - "none (skip)"
           - "miatoll"
-        default: "lineage-23.2 (4.19)"
+        default: "none (skip)"
       kernel_branch:
         description: "Branch (custom only)"
         required: false
@@ -45,6 +45,14 @@ on:
         required: false
         type: string
         default: "6"
+      ai_agent:
+        description: "AI Coding Agent"
+        required: true
+        type: choice
+        options:
+          - "opencode"
+          - "claude-code"
+        default: "claude-code"
 
 jobs:
   code-session:
@@ -207,6 +215,7 @@ jobs:
             ${{ runner.os }}-npm-
 
       - name: Install OpenCode + tools
+        if: github.event.inputs.ai_agent == 'opencode'
         run: |
           npm i -g opencode-ai
           npm i -g @dietrichgebert/ponytail
@@ -214,7 +223,15 @@ jobs:
           sudo ln -sf "$(npm prefix -g)"/bin/* /usr/local/bin/
           opencode --version
 
+      - name: Install Claude Code
+        if: github.event.inputs.ai_agent == 'claude-code'
+        run: |
+          npm install -g @anthropic-ai/claude-code
+          sudo ln -sf "$(npm prefix -g)"/bin/* /usr/local/bin/
+          claude --version
+
       - name: Configure OpenCode
+        if: github.event.inputs.ai_agent == 'opencode'
         run: |
           cat > opencode.json <<'EOF'
           {
@@ -224,6 +241,36 @@ jobs:
             ]
           }
           EOF
+
+      - name: Configure Claude Code
+        if: github.event.inputs.ai_agent == 'claude-code'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPEN_AI }}
+        run: |
+          mkdir -p ~/.claude
+          rm -f ~/.claude/.credentials.json
+          printf '%s\n' \
+            '{' \
+            '  "env": {' \
+            '    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",' \
+            "    \"ANTHROPIC_AUTH_TOKEN\": \"${OPENROUTER_API_KEY}\"," \
+            '    "ANTHROPIC_API_KEY": "",' \
+            '    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "openrouter/free",' \
+            '    "ANTHROPIC_DEFAULT_SONNET_MODEL": "openrouter/free",' \
+            '    "ANTHROPIC_DEFAULT_OPUS_MODEL": "openrouter/free",' \
+            '    "ANTHROPIC_DEFAULT_FABLE_MODEL": "openrouter/free"' \
+            '  }' \
+            '}' > ~/.claude/settings.local.json
+
+          sudo printf '%s\n' \
+            'export ANTHROPIC_BASE_URL="https://openrouter.ai/api"' \
+            "export ANTHROPIC_AUTH_TOKEN=\"${OPENROUTER_API_KEY}\"" \
+            'export ANTHROPIC_API_KEY=""' \
+            'export ANTHROPIC_DEFAULT_HAIKU_MODEL="openrouter/free"' \
+            'export ANTHROPIC_DEFAULT_SONNET_MODEL="openrouter/free"' \
+            'export ANTHROPIC_DEFAULT_OPUS_MODEL="openrouter/free"' \
+            'export ANTHROPIC_DEFAULT_FABLE_MODEL="openrouter/free"' \
+            | sudo tee /etc/profile.d/claude-code.sh > /dev/null
 
       - name: Install SSH tunnel dependencies
         run: |
@@ -250,6 +297,8 @@ jobs:
       - name: Start SSH server
         env:
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPEN_AI }}
+          AI_AGENT: ${{ github.event.inputs.ai_agent }}
         run: |
           sudo mkdir -p /var/run/sshd
           sudo sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config
@@ -262,6 +311,16 @@ jobs:
           SESSION_RC='cd "$HOME/work/Youffx/Youffx" 2>/dev/null'
           echo "$SESSION_RC" >> ~/.bashrc
           echo "$SESSION_RC" | sudo tee /etc/profile.d/zz-session.sh > /dev/null
+
+          if [ "$AI_AGENT" = "claude-code" ]; then
+            echo "export ANTHROPIC_BASE_URL=\"https://openrouter.ai/api\"" >> ~/.bashrc
+            echo "export ANTHROPIC_AUTH_TOKEN=\"${OPENROUTER_API_KEY}\"" >> ~/.bashrc
+            echo 'export ANTHROPIC_API_KEY=""' >> ~/.bashrc
+            echo 'export ANTHROPIC_DEFAULT_HAIKU_MODEL="openrouter/free"' >> ~/.bashrc
+            echo 'export ANTHROPIC_DEFAULT_SONNET_MODEL="openrouter/free"' >> ~/.bashrc
+            echo 'export ANTHROPIC_DEFAULT_OPUS_MODEL="openrouter/free"' >> ~/.bashrc
+            echo 'export ANTHROPIC_DEFAULT_FABLE_MODEL="openrouter/free"' >> ~/.bashrc
+          fi
 
           if [ -n "$SSH_PUBLIC_KEY" ]; then
             mkdir -p ~/.ssh
