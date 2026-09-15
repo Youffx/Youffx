@@ -53,6 +53,14 @@ on:
           - "opencode"
           - "claude-code"
         default: "claude-code"
+      ai_provider:
+        description: "AI Provider (claude-code only)"
+        required: true
+        type: choice
+        options:
+          - "openrouter"
+          - "nvidia-nim"
+        default: "openrouter"
 
 jobs:
   code-session:
@@ -246,30 +254,43 @@ jobs:
         if: github.event.inputs.ai_agent == 'claude-code'
         env:
           OPENROUTER_API_KEY: ${{ secrets.OPEN_AI }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
+          AI_PROVIDER: ${{ github.event.inputs.ai_provider }}
         run: |
           mkdir -p ~/.claude
           rm -f ~/.claude/.credentials.json
+
+          if [ "$AI_PROVIDER" = "nvidia-nim" ]; then
+            BASE_URL="https://integrate.api.nvidia.com/v1"
+            AUTH_TOKEN="${NVIDIA_API_KEY}"
+            MODEL="nvidia/nemotron-3-ultra-550b-a55b:free"
+          else
+            BASE_URL="https://openrouter.ai/api"
+            AUTH_TOKEN="${OPENROUTER_API_KEY}"
+            MODEL="openrouter/free"
+          fi
+
           printf '%s\n' \
             '{' \
             '  "env": {' \
-            '    "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",' \
-            "    \"ANTHROPIC_AUTH_TOKEN\": \"${OPENROUTER_API_KEY}\"," \
+            "    \"ANTHROPIC_BASE_URL\": \"${BASE_URL}\"," \
+            "    \"ANTHROPIC_AUTH_TOKEN\": \"${AUTH_TOKEN}\"," \
             '    "ANTHROPIC_API_KEY": "",' \
-            '    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "openrouter/free",' \
-            '    "ANTHROPIC_DEFAULT_SONNET_MODEL": "openrouter/free",' \
-            '    "ANTHROPIC_DEFAULT_OPUS_MODEL": "openrouter/free",' \
-            '    "ANTHROPIC_DEFAULT_FABLE_MODEL": "openrouter/free"' \
+            "    \"ANTHROPIC_DEFAULT_HAIKU_MODEL\": \"${MODEL}\"," \
+            "    \"ANTHROPIC_DEFAULT_SONNET_MODEL\": \"${MODEL}\"," \
+            "    \"ANTHROPIC_DEFAULT_OPUS_MODEL\": \"${MODEL}\"," \
+            "    \"ANTHROPIC_DEFAULT_FABLE_MODEL\": \"${MODEL}\"" \
             '  }' \
             '}' > ~/.claude/settings.local.json
 
           sudo printf '%s\n' \
-            'export ANTHROPIC_BASE_URL="https://openrouter.ai/api"' \
-            "export ANTHROPIC_AUTH_TOKEN=\"${OPENROUTER_API_KEY}\"" \
+            "export ANTHROPIC_BASE_URL=\"${BASE_URL}\"" \
+            "export ANTHROPIC_AUTH_TOKEN=\"${AUTH_TOKEN}\"" \
             'export ANTHROPIC_API_KEY=""' \
-            'export ANTHROPIC_DEFAULT_HAIKU_MODEL="openrouter/free"' \
-            'export ANTHROPIC_DEFAULT_SONNET_MODEL="openrouter/free"' \
-            'export ANTHROPIC_DEFAULT_OPUS_MODEL="openrouter/free"' \
-            'export ANTHROPIC_DEFAULT_FABLE_MODEL="openrouter/free"' \
+            "export ANTHROPIC_DEFAULT_HAIKU_MODEL=\"${MODEL}\"" \
+            "export ANTHROPIC_DEFAULT_SONNET_MODEL=\"${MODEL}\"" \
+            "export ANTHROPIC_DEFAULT_OPUS_MODEL=\"${MODEL}\"" \
+            "export ANTHROPIC_DEFAULT_FABLE_MODEL=\"${MODEL}\"" \
             | sudo tee /etc/profile.d/claude-code.sh > /dev/null
 
       - name: Install SSH tunnel dependencies
@@ -298,7 +319,9 @@ jobs:
         env:
           SSH_PUBLIC_KEY: ${{ secrets.SSH_PUBLIC_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPEN_AI }}
+          NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           AI_AGENT: ${{ github.event.inputs.ai_agent }}
+          AI_PROVIDER: ${{ github.event.inputs.ai_provider }}
         run: |
           sudo mkdir -p /var/run/sshd
           sudo sed -i 's/#Port 22/Port 22/' /etc/ssh/sshd_config
@@ -313,13 +336,22 @@ jobs:
           echo "$SESSION_RC" | sudo tee /etc/profile.d/zz-session.sh > /dev/null
 
           if [ "$AI_AGENT" = "claude-code" ]; then
-            echo "export ANTHROPIC_BASE_URL=\"https://openrouter.ai/api\"" >> ~/.bashrc
-            echo "export ANTHROPIC_AUTH_TOKEN=\"${OPENROUTER_API_KEY}\"" >> ~/.bashrc
+            if [ "$AI_PROVIDER" = "nvidia-nim" ]; then
+              BASE_URL="https://integrate.api.nvidia.com/v1"
+              AUTH_TOKEN="${NVIDIA_API_KEY}"
+              MODEL="nvidia/nemotron-3-ultra-550b-a55b:free"
+            else
+              BASE_URL="https://openrouter.ai/api"
+              AUTH_TOKEN="${OPENROUTER_API_KEY}"
+              MODEL="openrouter/free"
+            fi
+            echo "export ANTHROPIC_BASE_URL=\"${BASE_URL}\"" >> ~/.bashrc
+            echo "export ANTHROPIC_AUTH_TOKEN=\"${AUTH_TOKEN}\"" >> ~/.bashrc
             echo 'export ANTHROPIC_API_KEY=""' >> ~/.bashrc
-            echo 'export ANTHROPIC_DEFAULT_HAIKU_MODEL="openrouter/free"' >> ~/.bashrc
-            echo 'export ANTHROPIC_DEFAULT_SONNET_MODEL="openrouter/free"' >> ~/.bashrc
-            echo 'export ANTHROPIC_DEFAULT_OPUS_MODEL="openrouter/free"' >> ~/.bashrc
-            echo 'export ANTHROPIC_DEFAULT_FABLE_MODEL="openrouter/free"' >> ~/.bashrc
+            echo "export ANTHROPIC_DEFAULT_HAIKU_MODEL=\"${MODEL}\"" >> ~/.bashrc
+            echo "export ANTHROPIC_DEFAULT_SONNET_MODEL=\"${MODEL}\"" >> ~/.bashrc
+            echo "export ANTHROPIC_DEFAULT_OPUS_MODEL=\"${MODEL}\"" >> ~/.bashrc
+            echo "export ANTHROPIC_DEFAULT_FABLE_MODEL=\"${MODEL}\"" >> ~/.bashrc
           fi
 
           if [ -n "$SSH_PUBLIC_KEY" ]; then
