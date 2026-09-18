@@ -13,7 +13,7 @@ do.cleanuponabort=1
 device.name1=rosemary
 device.name2=secret
 device.name3=maltose
-supported.versions=12-16
+supported.versions=12-17
 '; } # end properties
 
 ## AnyKernel file attributes
