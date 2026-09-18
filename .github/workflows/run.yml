@@ -12,11 +12,6 @@ on:
           - "SukiSU"
           - "ReSukiSU"
         default: "ReSukiSU"
-      skip_nonksu:
-        description: "Skip Non-KSU build"
-        required: false
-        type: boolean
-        default: false
       pre_release:
         description: "Mark as pre-release"
         required: false
@@ -302,9 +297,8 @@ jobs:
     name: Build NONKSU
     needs: detect-missing-cache
     if: >-
-      github.event.inputs.skip_nonksu != 'true' &&
-      (needs.detect-missing-cache.outputs.all_found == 'true' ||
-       needs.detect-missing-cache.outputs.nonksu == 'missing')
+      needs.detect-missing-cache.outputs.all_found == 'true' ||
+      needs.detect-missing-cache.outputs.nonksu == 'missing'
     runs-on: ubuntu-latest
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
@@ -979,8 +973,8 @@ jobs:
             | Variant | Build Time | MD5 Hash |
             |---------|------------|----------|
             | KSU | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
-            ${{ github.event.inputs.skip_nonksu != 'true' && format('| Non-KSU | {0} | `{1}` |', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
-            ${{ github.event.inputs.skip_nomount != 'true' && format('| KSU NoMount | {0} | `{1}` |', needs.build-nomount.outputs.build_time, needs.build-nomount.outputs.zip_hash) || '' }}
+            | Non-KSU | ${{ needs.build-nonksu.outputs.build_time }} | `${{ needs.build-nonksu.outputs.zip_hash }}` |
+            | KSU NoMount | ${{ needs.build-nomount.outputs.build_time }} | `${{ needs.build-nomount.outputs.zip_hash }}` |
             | KSU SUSFS | ${{ needs.build-ksu-susfs.outputs.build_time }} | `${{ needs.build-ksu-susfs.outputs.zip_hash }}` |
 
             **Latest Commit:** `${{ needs.build-ksu.outputs.commit_log }}`
@@ -1017,12 +1011,12 @@ jobs:
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
           *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
-          *Build Variants:* \`KSU${{ github.event.inputs.skip_nonksu != 'true' && ', Non-KSU' || '' }}${{ github.event.inputs.skip_nomount != 'true' && ', KSU NoMount' || '' }}\`
+          *Build Variants:* \`KSU, Non-KSU, KSU NoMount, KSU SUSFS\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
           • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          ${{ github.event.inputs.skip_nonksu != 'true' && format('• *Non-KSU:* *{0}* | *md5:* \`{1}\`', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
-          ${{ github.event.inputs.skip_nomount != 'true' && format('• *KSU NoMount:* *{0}* | *md5:* \`{1}\`', needs.build-nomount.outputs.build_time, needs.build-nomount.outputs.zip_hash) || '' }}
+          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *md5:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          • *KSU NoMount:* *${{ needs.build-nomount.outputs.build_time }}* | *md5:* \`${{ needs.build-nomount.outputs.zip_hash }}\`
           • *KSU SUSFS:* *${{ needs.build-ksu-susfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu-susfs.outputs.zip_hash }}\`
 
           [Check Release]($RELEASE_URL)"
@@ -1047,4 +1041,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ACTION_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/run.yml/dispatches \
-            -d '{"ref":"master","inputs":{"ksu_target":"${{ github.event.inputs.ksu_target }}","skip_nonksu":"${{ github.event.inputs.skip_nonksu }}","pre_release":"${{ github.event.inputs.pre_release }}"}}'
+            -d '{"ref":"master","inputs":{"ksu_target":"${{ github.event.inputs.ksu_target }}","pre_release":"${{ github.event.inputs.pre_release }}"}}'
