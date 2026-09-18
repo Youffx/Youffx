@@ -924,6 +924,7 @@ jobs:
             | KSU | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
             ${{ github.event.inputs.skip_nonksu != 'true' && format('| Non-KSU | {0} | `{1}` |', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
             ${{ github.event.inputs.skip_nomount != 'true' && format('| KSU NoMount | {0} | `{1}` |', needs.build-nomount.outputs.build_time, needs.build-nomount.outputs.zip_hash) || '' }}
+            | KSU SUSFS | ${{ needs.build-ksu-susfs.outputs.build_time }} | `${{ needs.build-ksu-susfs.outputs.zip_hash }}` |
 
             **Latest Commit:** `${{ needs.build-ksu.outputs.commit_log }}`
           files: final/*.zip
@@ -965,6 +966,7 @@ jobs:
           • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
           ${{ github.event.inputs.skip_nonksu != 'true' && format('• *Non-KSU:* *{0}* | *md5:* \`{1}\`', needs.build-nonksu.outputs.build_time, needs.build-nonksu.outputs.zip_hash) || '' }}
           ${{ github.event.inputs.skip_nomount != 'true' && format('• *KSU NoMount:* *{0}* | *md5:* \`{1}\`', needs.build-nomount.outputs.build_time, needs.build-nomount.outputs.zip_hash) || '' }}
+          • *KSU SUSFS:* *${{ needs.build-ksu-susfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu-susfs.outputs.zip_hash }}\`
 
           [Check Release]($RELEASE_URL)"
 
