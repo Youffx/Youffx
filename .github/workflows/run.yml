@@ -1030,7 +1030,7 @@ jobs:
     name: Retrigger Workflow
     needs: [detect-missing-cache, build-ksu, build-nonksu, build-nomount, build-ksu-susfs]
     if: >-
-      always() &&
+      !cancelled() && !failure() &&
       needs.detect-missing-cache.outputs.all_found == 'false'
     runs-on: ubuntu-latest
     steps:
