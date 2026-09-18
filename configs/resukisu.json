@@ -20,10 +20,10 @@
     "nonksu-defconfig": "dev_defconfig"
   },
   {
-    "name": "KSU NoMount SUSFS",
+    "name": "KSU SUSFS",
     "kernel": {
       "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
-      "branch": "23.2-lineage-ns",
+      "branch": "23.2-lineage-susfs",
       "fetchDepth": 1
     },
     "ksu-defconfig": "rosemary_defconfig",
