@@ -302,10 +302,9 @@ jobs:
     name: Build NONKSU
     needs: detect-missing-cache
     if: >-
-      (needs.detect-missing-cache.outputs.all_found == 'true' &&
-       github.event.inputs.skip_nonksu != 'true') ||
-      (needs.detect-missing-cache.outputs.nonksu == 'missing' &&
-       github.event.inputs.skip_nonksu != 'true')
+      github.event.inputs.skip_nonksu != 'true' &&
+      (needs.detect-missing-cache.outputs.all_found == 'true' ||
+       needs.detect-missing-cache.outputs.nonksu == 'missing')
     runs-on: ubuntu-latest
     outputs:
       build_time: ${{ steps.calc.outputs.duration }}
