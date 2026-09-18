@@ -307,7 +307,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[1]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[0]" configs/resukisu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -711,7 +711,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[2]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[1]" configs/resukisu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
