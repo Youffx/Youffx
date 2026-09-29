@@ -8,8 +8,6 @@ on:
         required: true
         type: choice
         options:
-          - "KernelSU-Next"
-          - "SukiSU"
           - "ReSukiSU"
         default: "ReSukiSU"
       pre_release:
@@ -166,32 +164,7 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method (KernelSU-Next)
-        if: github.event.inputs.ksu_target == 'KernelSU-Next'
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
-          cd ..
-
-      - name: Apply Root Method (SukiSU)
-        if: github.event.inputs.ksu_target == 'SukiSU'
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
-          # 4.19 compat: selinux_hide is only included for >=5.10, guard its function calls
-          sed -i 's/    ksu_selinux_hide_handle_post_fs_data();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n    ksu_selinux_hide_handle_post_fs_data();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          sed -i 's/            ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n            ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          # 4.19 compat: USER_ARG_NULL returns pointer but ksu_sulog_capture expects value
-          sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
-          # Fix version mismatch: Manager sends version 3, kernel expects version 4
-          # Add forward declaration for migrate_profile (defined after ksu_set_app_profile)
-          sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
-          sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
-          cd ..
-
       - name: Apply Root Method ReSukiSU
-        if: github.event.inputs.ksu_target == 'ReSukiSU'
         run: |
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
@@ -245,13 +218,7 @@ jobs:
       - name: Package Flashable Zip (KSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_TARGET="${{ github.event.inputs.ksu_target }}"
-          case "$KSU_TARGET" in
-            "KernelSU-Next") KSU_NAME="KSU" ;;
-            "ReSukiSU") KSU_NAME="ReSukiSU" ;;
-            "SukiSU") KSU_NAME="SukiSU" ;;
-            *) KSU_NAME="KSU" ;;
-          esac
+          KSU_NAME="ReSukiSU"
           ZIP_NAME="Lineage-23.2-${KSU_NAME}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
@@ -568,32 +535,7 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method (KernelSU-Next)
-        if: github.event.inputs.ksu_target == 'KernelSU-Next'
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
-          cd ..
-
-      - name: Apply Root Method (SukiSU)
-        if: github.event.inputs.ksu_target == 'SukiSU'
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
-          # 4.19 compat: selinux_hide is only included for >=5.10, guard its function calls
-          sed -i 's/    ksu_selinux_hide_handle_post_fs_data();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n    ksu_selinux_hide_handle_post_fs_data();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          sed -i 's/            ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n            ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          # 4.19 compat: USER_ARG_NULL returns pointer but ksu_sulog_capture expects value
-          sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
-          # Fix version mismatch: Manager sends version 3, kernel expects version 4
-          # Add forward declaration for migrate_profile (defined after ksu_set_app_profile)
-          sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
-          sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
-          cd ..
-
       - name: Apply Root Method ReSukiSU
-        if: github.event.inputs.ksu_target == 'ReSukiSU'
         run: |
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
@@ -653,13 +595,7 @@ jobs:
       - name: Package Flashable Zip (NoMount)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_TARGET="${{ github.event.inputs.ksu_target }}"
-          case "$KSU_TARGET" in
-            "KernelSU-Next") KSU_NAME="KSU" ;;
-            "ReSukiSU") KSU_NAME="ReSukiSU" ;;
-            "SukiSU") KSU_NAME="SukiSU" ;;
-            *) KSU_NAME="KSU" ;;
-          esac
+          KSU_NAME="ReSukiSU"
           ZIP_NAME="Lineage-23.2-${KSU_NAME}-NoMount-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
@@ -795,32 +731,7 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method (KernelSU-Next)
-        if: github.event.inputs.ksu_target == 'KernelSU-Next'
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
-          cd ..
-
-      - name: Apply Root Method (SukiSU)
-        if: github.event.inputs.ksu_target == 'SukiSU'
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/SukiSU-Ultra/SukiSU-Ultra/builtin/kernel/setup.sh | bash -s builtin
-          # 4.19 compat: selinux_hide is only included for >=5.10, guard its function calls
-          sed -i 's/    ksu_selinux_hide_handle_post_fs_data();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n    ksu_selinux_hide_handle_post_fs_data();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          sed -i 's/            ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n            ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          sed -i 's/                ksu_selinux_hide_handle_second_stage();/#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)\n                ksu_selinux_hide_handle_second_stage();\n#endif/' KernelSU/kernel/runtime/ksud.c
-          # 4.19 compat: USER_ARG_NULL returns pointer but ksu_sulog_capture expects value
-          sed -i 's/#define USER_ARG_NULL user_arg_null_ptr()/#define USER_ARG_NULL (*user_arg_null_ptr())/' KernelSU/kernel/sulog/event.c
-          # Fix version mismatch: Manager sends version 3, kernel expects version 4
-          # Add forward declaration for migrate_profile (defined after ksu_set_app_profile)
-          sed -i 's/int ksu_set_app_profile(struct app_profile \*profile)/static void migrate_profile(u32 version, struct app_profile *profile);\nint ksu_set_app_profile(struct app_profile *profile)/' KernelSU/kernel/policy/allowlist.c
-          sed -i '/if (!profile_valid(profile)) {/i\    if (profile->version < KSU_APP_PROFILE_VER) {\n        migrate_profile(profile->version, profile);\n    }' KernelSU/kernel/policy/allowlist.c
-          cd ..
-
       - name: Apply Root Method ReSukiSU
-        if: github.event.inputs.ksu_target == 'ReSukiSU'
         run: |
           cd kernel
           curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
@@ -874,13 +785,7 @@ jobs:
       - name: Package Flashable Zip (KSU SUSFS)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_TARGET="${{ github.event.inputs.ksu_target }}"
-          case "$KSU_TARGET" in
-            "KernelSU-Next") KSU_NAME="KSU" ;;
-            "ReSukiSU") KSU_NAME="ReSukiSU" ;;
-            "SukiSU") KSU_NAME="SukiSU" ;;
-            *) KSU_NAME="KSU" ;;
-          esac
+          KSU_NAME="ReSukiSU"
           ZIP_NAME="Lineage-23.2-${KSU_NAME}-SUSFS-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
