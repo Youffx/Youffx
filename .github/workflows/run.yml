@@ -203,7 +203,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
+          scripts/config --file out/.config --set-str LOCALVERSION "-Dominance"
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           make O=out olddefconfig
           make O=out kernelrelease
@@ -386,7 +386,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
+          scripts/config --file out/.config --set-str LOCALVERSION "-Dominance"
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           make O=out olddefconfig
           make O=out kernelrelease
@@ -583,14 +583,14 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-          echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
+          scripts/config --file out/.config --set-str LOCALVERSION "-Dominance"
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           echo "CONFIG_NOMOUNT=y" >> out/.config
           make O=out olddefconfig
           make O=out kernelrelease
           
           echo "--- DEBUG ---"
-          grep -E "NOMOUNT|KSU|SUSFS" out/.config
+          grep -E "NOMOUNT|KSU|LOCALVERSION" out/.config
           echo "---------------------------------"
 
           make -j$(nproc --all) O=out \
@@ -785,7 +785,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
+          scripts/config --file out/.config --set-str LOCALVERSION "-Dominance"
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           make O=out olddefconfig
           make O=out kernelrelease
