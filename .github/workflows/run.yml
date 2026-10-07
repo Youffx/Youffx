@@ -1595,8 +1595,8 @@ jobs:
             **Build Statistics:**
             | Variant | Build Time | MD5 Hash |
             |---------|------------|----------|
-            | resukisu | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
             | non root | ${{ needs.build-nonksu.outputs.build_time }} | `${{ needs.build-nonksu.outputs.zip_hash }}` |
+            | resukisu | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
             | resukisu nomount | ${{ needs.build-nomount.outputs.build_time }} | `${{ needs.build-nomount.outputs.zip_hash }}` |
             | resukisu susfs | ${{ needs.build-ksu-susfs.outputs.build_time }} | `${{ needs.build-ksu-susfs.outputs.zip_hash }}` |
             | KSUN | ${{ needs.build-ksun.outputs.build_time }} | `${{ needs.build-ksun.outputs.zip_hash }}` |
@@ -1640,8 +1640,8 @@ jobs:
           *Build Variants:* \`KSU, Non KSU, KSU NoMount, KSU SUSFS, KSUN, KSUN NoMount, KSUN SUSFS\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
-          • *resukisu:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
           • *non root:* *${{ needs.build-nonksu.outputs.build_time }}* | *md5:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          • *resukisu:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
           • *resukisu nomount:* *${{ needs.build-nomount.outputs.build_time }}* | *md5:* \`${{ needs.build-nomount.outputs.zip_hash }}\`
           • *resukisu susfs:* *${{ needs.build-ksu-susfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu-susfs.outputs.zip_hash }}\`
           • *KSUN:* *${{ needs.build-ksun.outputs.build_time }}* | *md5:* \`${{ needs.build-ksun.outputs.zip_hash }}\`
