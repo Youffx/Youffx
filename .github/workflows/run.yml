@@ -1614,9 +1614,9 @@ jobs:
             | resukisu | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
             | resukisu nomount | ${{ needs.build-nomount.outputs.build_time }} | `${{ needs.build-nomount.outputs.zip_hash }}` |
             | resukisu susfs | ${{ needs.build-ksu-susfs.outputs.build_time }} | `${{ needs.build-ksu-susfs.outputs.zip_hash }}` |
-            | KSUN | ${{ needs.build-ksun.outputs.build_time }} | `${{ needs.build-ksun.outputs.zip_hash }}` |
-            | KSUN NoMount | ${{ needs.build-ksunnomount.outputs.build_time }} | `${{ needs.build-ksunnomount.outputs.zip_hash }}` |
-            | KSUN SUSFS | ${{ needs.build-ksunsusfs.outputs.build_time }} | `${{ needs.build-ksunsusfs.outputs.zip_hash }}` |
+            | ksu-next | ${{ needs.build-ksun.outputs.build_time }} | `${{ needs.build-ksun.outputs.zip_hash }}` |
+            | ksu-next NoMount | ${{ needs.build-ksunnomount.outputs.build_time }} | `${{ needs.build-ksunnomount.outputs.zip_hash }}` |
+            | ksu-next SUSFS | ${{ needs.build-ksunsusfs.outputs.build_time }} | `${{ needs.build-ksunsusfs.outputs.zip_hash }}` |
 
             **Latest Commit:** `${{ steps.kcommit.outputs.latest }}`
           files: final/*.zip
