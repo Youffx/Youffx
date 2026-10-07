@@ -3,20 +3,13 @@ name: Lineage CI Release
 on:
   workflow_dispatch:
     inputs:
-      ksu_target:
-        description: "select ksu to be used"
-        required: true
-        type: choice
-        options:
-          - "ReSukiSU"
-        default: "ReSukiSU"
       pre_release:
         description: "Mark as pre-release"
         required: false
         type: boolean
         default: false
       resukisu_ref:
-        description: "ReSukiSU commit or branch (empty = upstream default)"
+        description: "Custom root ref (optional)"
         required: false
         type: string
         default: ""
@@ -1587,7 +1580,6 @@ jobs:
             **Build Details:**
             - Kernel Version: `${{ needs.build-ksu.outputs.kern_ver }}`
             - Compiler: `${{ needs.build-ksu.outputs.compiler_ver }}`
-            - Root Method: `${{ github.event.inputs.ksu_target }}`
             - Support EROFS
             - Support both AOSP & NON-AOSP
             - Sync with latest Lineage 23.2 kernel source
@@ -1636,7 +1628,6 @@ jobs:
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
-          *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
           *Build Variants:* \`KSU, Non KSU, KSU NoMount, KSU SUSFS, KSUN, KSUN NoMount, KSUN SUSFS\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
@@ -1670,4 +1661,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ACTION_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/run.yml/dispatches \
-            -d '{"ref":"master","inputs":{"ksu_target":"${{ github.event.inputs.ksu_target }}","pre_release":"${{ github.event.inputs.pre_release }}","resukisu_ref":"${{ github.event.inputs.resukisu_ref }}"}}'
+            -d '{"ref":"master","inputs":{"pre_release":"${{ github.event.inputs.pre_release }}","resukisu_ref":"${{ github.event.inputs.resukisu_ref }}"}}'
