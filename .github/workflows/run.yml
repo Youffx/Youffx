@@ -231,7 +231,11 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            LOCALVERSION="-Dominance" \
             Image.gz-dtb
+
+          echo "--- FINAL KERNELRELEASE ---"
+          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -423,7 +427,11 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            LOCALVERSION="-Dominance" \
             Image.gz-dtb
+
+          echo "--- FINAL KERNELRELEASE ---"
+          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -635,7 +643,11 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            LOCALVERSION="-Dominance" \
             Image.gz-dtb
+
+          echo "--- FINAL KERNELRELEASE ---"
+          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -841,7 +853,11 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
+            LOCALVERSION="-Dominance" \
             Image.gz-dtb
+
+          echo "--- FINAL KERNELRELEASE ---"
+          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
