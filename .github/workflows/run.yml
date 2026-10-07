@@ -1049,6 +1049,8 @@ jobs:
           fi
           sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
           echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
+          sed -i '/CONFIG_KSU_SUSFS/d' out/.config
+          echo "CONFIG_KSU_SUSFS=n" >> out/.config
           make O=out olddefconfig
           echo "--- LOCALVERSION DEBUG ---"
           grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
