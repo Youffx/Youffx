@@ -18,5 +18,15 @@
     },
     "ksu-defconfig": "rosemary_defconfig",
     "nonksu-defconfig": "dev_defconfig"
+  },
+  {
+    "name": "KSUN",
+    "kernel": {
+      "repo": "https://github.com/Youffx/kernel_xiaomi_rosemary",
+      "branch": "23.2-lineage-ksun",
+      "fetchDepth": 1
+    },
+    "ksu-defconfig": "rosemary_defconfig",
+    "nonksu-defconfig": "dev_defconfig"
   }
 ]
