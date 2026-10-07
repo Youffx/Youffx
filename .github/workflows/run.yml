@@ -173,9 +173,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -206,6 +206,7 @@ jobs:
           echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           make O=out olddefconfig
+          make O=out kernelrelease
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -388,6 +389,7 @@ jobs:
           echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           make O=out olddefconfig
+          make O=out kernelrelease
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -552,9 +554,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -585,6 +587,7 @@ jobs:
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           echo "CONFIG_NOMOUNT=y" >> out/.config
           make O=out olddefconfig
+          make O=out kernelrelease
           
           echo "--- DEBUG ---"
           grep -E "NOMOUNT|KSU|SUSFS" out/.config
@@ -752,9 +755,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -785,6 +788,7 @@ jobs:
           echo "CONFIG_LOCALVERSION="-Dominance"" >> out/.config
           echo "CONFIG_LOCALVERSION_AUTO=n" >> out/.config
           make O=out olddefconfig
+          make O=out kernelrelease
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
