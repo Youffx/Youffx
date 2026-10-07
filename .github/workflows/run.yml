@@ -203,10 +203,21 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
-          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
+          LV="-Dominance"
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+          else
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+          fi
+          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
+          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
           make O=out olddefconfig
+          echo "--- LOCALVERSION DEBUG ---"
+          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
           make O=out kernelrelease
+          echo "--- KERNELRELEASE ---"
+          cat out/include/config/kernel.release
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -386,10 +397,21 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
-          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
+          LV="-Dominance"
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+          else
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+          fi
+          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
+          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
           make O=out olddefconfig
+          echo "--- LOCALVERSION DEBUG ---"
+          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
           make O=out kernelrelease
+          echo "--- KERNELRELEASE ---"
+          cat out/include/config/kernel.release
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -583,11 +605,23 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
-          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
-          scripts/config --file out/.config --enable CONFIG_NOMOUNT
+          LV="-Dominance"
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+          else
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+          fi
+          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
+          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
+          sed -i '/CONFIG_NOMOUNT/d' out/.config
+          echo "CONFIG_NOMOUNT=y" >> out/.config
           make O=out olddefconfig
+          echo "--- LOCALVERSION DEBUG ---"
+          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
           make O=out kernelrelease
+          echo "--- KERNELRELEASE ---"
+          cat out/include/config/kernel.release
           
           echo "--- DEBUG ---"
           grep -E "NOMOUNT|KSU|LOCALVERSION" out/.config
@@ -785,10 +819,21 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
-          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
+          LV="-Dominance"
+          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
+          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
+            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
+          else
+            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
+          fi
+          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
+          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
           make O=out olddefconfig
+          echo "--- LOCALVERSION DEBUG ---"
+          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
           make O=out kernelrelease
+          echo "--- KERNELRELEASE ---"
+          cat out/include/config/kernel.release
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
