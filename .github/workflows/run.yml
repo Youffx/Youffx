@@ -215,7 +215,7 @@ jobs:
           make O=out olddefconfig
           echo "--- LOCALVERSION DEBUG ---"
           grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out kernelrelease || true
+          make O=out LOCALVERSION="-Dominance" kernelrelease || true
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -411,7 +411,7 @@ jobs:
           make O=out olddefconfig
           echo "--- LOCALVERSION DEBUG ---"
           grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out kernelrelease || true
+          make O=out LOCALVERSION="-Dominance" kernelrelease || true
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -623,7 +623,7 @@ jobs:
           make O=out olddefconfig
           echo "--- LOCALVERSION DEBUG ---"
           grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out kernelrelease || true
+          make O=out LOCALVERSION="-Dominance" kernelrelease || true
           
           echo "--- DEBUG ---"
           grep -E "NOMOUNT|KSU|LOCALVERSION" out/.config
@@ -837,7 +837,7 @@ jobs:
           make O=out olddefconfig
           echo "--- LOCALVERSION DEBUG ---"
           grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out kernelrelease || true
+          make O=out LOCALVERSION="-Dominance" kernelrelease || true
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
