@@ -173,9 +173,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -203,7 +203,10 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
+          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
+          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
           make O=out olddefconfig
+          make O=out kernelrelease
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -383,7 +386,10 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
+          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
+          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
           make O=out olddefconfig
+          make O=out kernelrelease
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -548,9 +554,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -577,13 +583,14 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-
-          echo "CONFIG_NOMOUNT=y" >> out/.config
-
+          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
+          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
+          scripts/config --file out/.config --enable CONFIG_NOMOUNT
           make O=out olddefconfig
+          make O=out kernelrelease
           
           echo "--- DEBUG ---"
-          grep -E "NOMOUNT|KSU|SUSFS" out/.config
+          grep -E "NOMOUNT|KSU|LOCALVERSION" out/.config
           echo "---------------------------------"
 
           make -j$(nproc --all) O=out \
@@ -748,9 +755,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -778,7 +785,10 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
+          scripts/config --file out/.config --set-str CONFIG_LOCALVERSION "-Dominance"
+          scripts/config --file out/.config --disable CONFIG_LOCALVERSION_AUTO
           make O=out olddefconfig
+          make O=out kernelrelease
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -881,7 +891,7 @@ jobs:
           name: Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
           prerelease: ${{ github.event.inputs.pre_release == 'true' }}
           body: |
-            ### Lineage Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
+            ### Dominance Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
 
             **Build Details:**
             - Kernel Version: `${{ needs.build-ksu.outputs.kern_ver }}`
@@ -927,17 +937,17 @@ jobs:
             STATUS="❌ Failed"
           fi
 
-          MESSAGE="*Lineage CI Release*
+          MESSAGE="*Dominance CI Release*
           *Status:* $STATUS
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
           *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
-          *Build Variants:* \`KSU, Non-KSU, KSU NoMount, KSU SUSFS\`
+          *Build Variants:* \`KSU, Non KSU, KSU NoMount, KSU SUSFS\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
           • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *md5:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          • *Non KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *md5:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
           • *KSU NoMount:* *${{ needs.build-nomount.outputs.build_time }}* | *md5:* \`${{ needs.build-nomount.outputs.zip_hash }}\`
           • *KSU SUSFS:* *${{ needs.build-ksu-susfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu-susfs.outputs.zip_hash }}\`
 
