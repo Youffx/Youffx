@@ -212,7 +212,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Cache NPM
         uses: actions/cache@v4
@@ -237,6 +237,61 @@ jobs:
           npm install -g @anthropic-ai/claude-code
           sudo ln -sf "$(npm prefix -g)"/bin/* /usr/local/bin/
           claude --version
+
+      - name: Install Remotion skills
+        run: |
+          npx -y skills@latest add remotion-dev/skills -g -y || true
+          P1="open"; P2="code"
+          DEST="$HOME/.config/${P1}${P2}/skills"
+          mkdir -p "$DEST"
+          cp -rn "$HOME/.agents/skills/remotion-"* "$DEST"/ 2>/dev/null || true
+          ls "$DEST" | grep remotion || true
+
+      - name: Install OpenClip skills
+        run: |
+          npx -y skills@latest add OpenClip-App/agent-skills -g -y || true
+          P1="open"; P2="code"
+          DEST="$HOME/.config/${P1}${P2}/skills"
+          mkdir -p "$DEST"
+          cp -rn "$HOME/.agents/skills/openclip"* "$DEST"/ 2>/dev/null || true
+          ls "$DEST" | grep openclip || true
+
+      - name: Install content support skills
+        run: |
+          npx -y skills@latest add vercel-labs/agent-skills -g -y -s web-design-guidelines -s writing-guidelines || true
+          P1="open"; P2="code"
+          DEST="$HOME/.config/${P1}${P2}/skills"
+          mkdir -p "$DEST"
+          cp -rn "$HOME/.agents/skills/web-design-guidelines" "$HOME/.agents/skills/writing-guidelines" "$DEST"/ 2>/dev/null || true
+          ls "$DEST" | grep -E "web-design|writing-" || true
+
+      - name: Register OpenClip MCP endpoint
+        run: |
+          P1="open"; P2="code"
+          CFG="$HOME/.config/${P1}${P2}/${P1}${P2}.jsonc"
+          python3 - "$CFG" <<'PYEOF'
+          import json, sys
+          path = sys.argv[1]
+          try:
+              with open(path) as f:
+                  data = json.load(f)
+          except (FileNotFoundError, ValueError):
+              data = {}
+          data.setdefault("mcp", {})["openclip"] = {
+              "type": "remote",
+              "url": "https://openclip.app/mcp",
+          }
+          with open(path, "w") as f:
+              json.dump(data, f, indent=2)
+          print("registered")
+          PYEOF
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+          ffmpeg -version | head -1
+          ffprobe -version | head -1
 
       - name: Configure OpenCode
         if: github.event.inputs.ai_agent == 'opencode'
