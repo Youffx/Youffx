@@ -3,13 +3,20 @@ name: Lineage CI Release
 on:
   workflow_dispatch:
     inputs:
+      ksu_target:
+        description: "select ksu to be used"
+        required: true
+        type: choice
+        options:
+          - "ReSukiSU"
+        default: "ReSukiSU"
       pre_release:
         description: "Mark as pre-release"
         required: false
         type: boolean
         default: false
       resukisu_ref:
-        description: "Custom root ref (optional)"
+        description: "ReSukiSU commit or branch (empty = upstream default)"
         required: false
         type: string
         default: ""
@@ -38,9 +45,6 @@ jobs:
       nonksu: ${{ steps.check.outputs.nonksu }}
       nomount: ${{ steps.check.outputs.nomount }}
       ksu-susfs: ${{ steps.check.outputs.ksu-susfs }}
-      ksun: ${{ steps.check.outputs.ksun }}
-      ksunnomount: ${{ steps.check.outputs.ksunnomount }}
-      ksunsusfs: ${{ steps.check.outputs.ksunsusfs }}
       all_found: ${{ steps.check.outputs.all_found }}
     steps:
       - name: Check cache existence
@@ -58,17 +62,11 @@ jobs:
           NONKSU=$(check_cache ccache-nonksu)
           NOMOUNT=$(check_cache ccache-nomount)
           KSU_SUSFS=$(check_cache ccache-ksu-susfs)
-          KSUN=$(check_cache ccache-ksun)
-          KSUNNOMOUNT=$(check_cache ccache-ksunnomount)
-          KSUNSUSFS=$(check_cache ccache-ksunsusfs)
           echo "ksu=$KSU" >> $GITHUB_OUTPUT
           echo "nonksu=$NONKSU" >> $GITHUB_OUTPUT
           echo "nomount=$NOMOUNT" >> $GITHUB_OUTPUT
           echo "ksu-susfs=$KSU_SUSFS" >> $GITHUB_OUTPUT
-          echo "ksun=$KSUN" >> $GITHUB_OUTPUT
-          echo "ksunnomount=$KSUNNOMOUNT" >> $GITHUB_OUTPUT
-          echo "ksunsusfs=$KSUNSUSFS" >> $GITHUB_OUTPUT
-          if [ "$KSU" = "found" ] && [ "$NONKSU" = "found" ] && [ "$NOMOUNT" = "found" ] && [ "$KSU_SUSFS" = "found" ] && [ "$KSUN" = "found" ] && [ "$KSUNNOMOUNT" = "found" ] && [ "$KSUNSUSFS" = "found" ]; then
+          if [ "$KSU" = "found" ] && [ "$NONKSU" = "found" ] && [ "$NOMOUNT" = "found" ] && [ "$KSU_SUSFS" = "found" ]; then
             echo "all_found=true" >> $GITHUB_OUTPUT
           else
             echo "all_found=false" >> $GITHUB_OUTPUT
@@ -175,9 +173,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -205,19 +203,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
           make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -233,11 +219,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
             Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -246,7 +228,7 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_NAME="ReSukiSU"
-          ZIP_NAME="Dominance-${KSU_NAME}-${DATE}"
+          ZIP_NAME="Lineage-23.2-${KSU_NAME}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -401,19 +383,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
           make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -429,11 +399,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
             Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -441,7 +407,7 @@ jobs:
       - name: Package Flashable Zip (NONKSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          ZIP_NAME="Dominance-NONKSU-${DATE}"
+          ZIP_NAME="Lineage-23.2-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -582,9 +548,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -611,24 +577,13 @@ jobs:
 
           cd kernel
           make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
-          sed -i '/CONFIG_NOMOUNT/d' out/.config
+
           echo "CONFIG_NOMOUNT=y" >> out/.config
+
           make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
           
           echo "--- DEBUG ---"
-          grep -E "NOMOUNT|KSU|LOCALVERSION" out/.config
+          grep -E "NOMOUNT|KSU|SUSFS" out/.config
           echo "---------------------------------"
 
           make -j$(nproc --all) O=out \
@@ -645,11 +600,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
             Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -658,7 +609,7 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_NAME="ReSukiSU"
-          ZIP_NAME="Dominance-${KSU_NAME}-NoMount-${DATE}"
+          ZIP_NAME="Lineage-23.2-${KSU_NAME}-NoMount-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -797,9 +748,9 @@ jobs:
         run: |
           cd kernel
           if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
           fi
           cd ..
 
@@ -827,19 +778,7 @@ jobs:
           cd kernel
 
           make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
           make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
 
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
@@ -855,11 +794,7 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             LLVM=1 \
             LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
             Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
 
           BUILD_END=$(date +%s)
           echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
@@ -868,7 +803,7 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_NAME="ReSukiSU"
-          ZIP_NAME="Dominance-${KSU_NAME}-SUSFS-${DATE}"
+          ZIP_NAME="Lineage-23.2-${KSU_NAME}-SUSFS-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -907,640 +842,11 @@ jobs:
           echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
-# BUILD KSUN
-# =========================
-  build-ksun:
-    name: Build KSUN
-    needs: detect-missing-cache
-    if: >-
-      needs.detect-missing-cache.outputs.all_found == 'true' ||
-      needs.detect-missing-cache.outputs.ksun == 'missing'
-    runs-on: ubuntu-latest
-    outputs:
-      kern_ver: ${{ steps.kinfo.outputs.version }}
-      commit_log: ${{ steps.kinfo.outputs.commit }}
-      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
-      device_name: ${{ steps.cfg.outputs.name }}
-      build_time: ${{ steps.calc.outputs.duration }}
-      zip_hash: ${{ steps.calc.outputs.hash }}
-
-    steps:
-      - name: Start Timer
-        id: start_timer
-        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Configure Swap
-        run: |
-          sudo swapoff /swapfile
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-performance.conf
-          sudo sysctl --system
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
-
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: .ccache
-          key: ccache-ksun-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            ccache-ksun-${{ runner.os }}-
-
-      - name: Cache Clang 20
-        id: cache-llvm
-        uses: actions/cache@v5
-        with:
-          path: llvm
-          key: llvm-mlgo-r547379
-
-      - name: Load Config
-        id: cfg
-        run: |
-          CONFIG=$(jq -c ".[2]" configs/resukisu.json)
-          NAME=$(echo "$CONFIG" | jq -r '.name')
-          echo "config=$CONFIG" >> $GITHUB_OUTPUT
-          echo "name=$NAME" >> $GITHUB_OUTPUT
-
-      - name: Clone Kernel
-        env:
-          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-        run: |
-          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
-          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
-          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
-
-          REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
-
-          git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
-
-      - name: Setup Clang 20
-        run: |
-          if [ ! -d "llvm/bin" ]; then
-            export LLVM_DIR="$PWD/llvm"
-            rm -rf "$LLVM_DIR"
-            mkdir -p "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" | tar xz -C "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/mlgo-models.tar.gz" | tar xz -C "$LLVM_DIR" || true
-          fi
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
-
-      - name: Setup ccache
-        run: |
-          ccache -M 10G
-          ccache -o compression=true
-          ccache -o base_dir=$GITHUB_WORKSPACE
-          ccache -o hash_dir=false
-          ccache -z
-
-      - name: Apply Root Method KSUN
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
-          cd ..
-
-      - name: Build Kernel KSUN
-        id: build_timer
-        run: |
-          BUILD_START=$(date +%s)
-
-          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export PATH="$PWD/llvm/bin:$PATH"
-          export KBUILD_BUILD_USER="youffx"
-          export KBUILD_BUILD_HOST="collection"
-          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CC="ccache clang"
-          export CXX="ccache clang++"
-          export CCACHE_COMPILERCHECK=content
-          export CCACHE_MAXSIZE=10G
-          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-ml-regalloc=release"
-
-          ccache -s
-
-          cd kernel
-
-          make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
-          sed -i '/CONFIG_KSU_SUSFS/d' out/.config
-          echo "CONFIG_KSU_SUSFS=n" >> out/.config
-          make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
-
-          make -j$(nproc --all) O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
-            Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
-
-          BUILD_END=$(date +%s)
-          echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
-
-      - name: Package Flashable Zip (KSUN)
-        run: |
-          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_NAME="KsuNext"
-          ZIP_NAME="Dominance-${KSU_NAME}-${DATE}"
-
-          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
-          mkdir -p output
-          cp "$IMAGE" .github/Flash/kernels/
-
-          cd .github/Flash/
-          zip -r "../../output/${ZIP_NAME}.zip" ./*
-          cd ../../
-
-      - name: Calculate Metadata
-        id: calc
-        run: |
-          DIFF=${{ steps.build_timer.outputs.duration }}
-          MIN=$((DIFF / 60))
-          SEC=$((DIFF % 60))
-          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
-          HASH=$(md5sum output/*.zip | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Upload ZIP
-        uses: actions/upload-artifact@v5
-        with:
-          name: zip-ksun
-          path: output/*.zip
-          retention-days: 7
-
-      - name: Show ccache statistics
-        run: ccache -s
-
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
-          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-
-# =========================
-# BUILD KSUN NOMOUNT
-# =========================
-  build-ksunnomount:
-    name: Build KSUN NoMount
-    needs: detect-missing-cache
-    if: >-
-      needs.detect-missing-cache.outputs.all_found == 'true' ||
-      needs.detect-missing-cache.outputs.ksunnomount == 'missing'
-    runs-on: ubuntu-latest
-    outputs:
-      build_time: ${{ steps.calc.outputs.duration }}
-      zip_hash: ${{ steps.calc.outputs.hash }}
-
-    steps:
-      - name: Start Timer
-        id: start_timer
-        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Configure Swap
-        run: |
-          sudo swapoff /swapfile
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-performance.conf
-          sudo sysctl --system
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
-
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: .ccache
-          key: ccache-ksunnomount-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            ccache-ksunnomount-${{ runner.os }}-
-
-      - name: Cache Clang 20
-        id: cache-llvm
-        uses: actions/cache@v5
-        with:
-          path: llvm
-          key: llvm-mlgo-r547379
-
-      - name: Load Config
-        id: cfg
-        run: |
-          CONFIG=$(jq -c ".[2]" configs/resukisu.json)
-          NAME=$(echo "$CONFIG" | jq -r '.name')
-          echo "config=$CONFIG" >> $GITHUB_OUTPUT
-          echo "name=$NAME" >> $GITHUB_OUTPUT
-
-      - name: Clone Kernel
-        env:
-          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-        run: |
-          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
-          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
-          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
-
-          REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
-
-          git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
-
-      - name: Clone NoMount
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/maxsteeel/nomount/refs/heads/master/kernel/setup.sh | bash -s master
-          cd ..
-
-      - name: Setup Clang 20
-        run: |
-          if [ ! -d "llvm/bin" ]; then
-            export LLVM_DIR="$PWD/llvm"
-            rm -rf "$LLVM_DIR"
-            mkdir -p "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" | tar xz -C "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/mlgo-models.tar.gz" | tar xz -C "$LLVM_DIR" || true
-          fi
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
-
-      - name: Setup ccache
-        run: |
-          ccache -M 10G
-          ccache -o compression=true
-          ccache -o base_dir=$GITHUB_WORKSPACE
-          ccache -o hash_dir=false
-          ccache -z
-
-      - name: Apply Root Method KSUN
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
-          cd ..
-
-      - name: Build Kernel KSUN NoMount
-        id: build_timer
-        run: |
-          BUILD_START=$(date +%s)
-
-          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export PATH="$PWD/llvm/bin:$PATH"
-          export KBUILD_BUILD_USER="youffx"
-          export KBUILD_BUILD_HOST="collection"
-          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CC="ccache clang"
-          export CXX="ccache clang++"
-          export CCACHE_COMPILERCHECK=content
-          export CCACHE_MAXSIZE=10G
-          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-ml-regalloc=release"
-
-          ccache -s
-
-          cd kernel
-          make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
-          sed -i '/CONFIG_NOMOUNT/d' out/.config
-          echo "CONFIG_NOMOUNT=y" >> out/.config
-          make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
-
-          echo "--- DEBUG ---"
-          grep -E "NOMOUNT|KSU|LOCALVERSION" out/.config
-          echo "---------------------------------"
-
-          make -j$(nproc --all) O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
-            Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
-
-          BUILD_END=$(date +%s)
-          echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
-
-      - name: Package Flashable Zip (NoMount)
-        run: |
-          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_NAME="KsuNext"
-          ZIP_NAME="Dominance-${KSU_NAME}-NoMount-${DATE}"
-
-          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
-          mkdir -p output
-          cp "$IMAGE" .github/Flash/kernels/
-
-          cd .github/Flash/
-          zip -r "../../output/${ZIP_NAME}.zip" ./*
-          cd ../../
-
-      - name: Calculate Metadata
-        id: calc
-        run: |
-          DIFF=${{ steps.build_timer.outputs.duration }}
-          MIN=$((DIFF / 60))
-          SEC=$((DIFF % 60))
-          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
-          HASH=$(md5sum output/*.zip | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Upload ZIP
-        uses: actions/upload-artifact@v5
-        with:
-          name: zip-ksunnomount
-          path: output/*.zip
-          retention-days: 7
-
-      - name: Show ccache statistics
-        run: ccache -s
-
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
-          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-
-# =========================
-# BUILD KSUN SUSFS
-# =========================
-  build-ksunsusfs:
-    name: Build KSUN SUSFS
-    needs: detect-missing-cache
-    if: >-
-      needs.detect-missing-cache.outputs.all_found == 'true' ||
-      needs.detect-missing-cache.outputs.ksunsusfs == 'missing'
-    runs-on: ubuntu-latest
-    outputs:
-      kern_ver: ${{ steps.kinfo.outputs.version }}
-      commit_log: ${{ steps.kinfo.outputs.commit }}
-      compiler_ver: ${{ steps.kinfo.outputs.compiler }}
-      device_name: ${{ steps.cfg.outputs.name }}
-      build_time: ${{ steps.calc.outputs.duration }}
-      zip_hash: ${{ steps.calc.outputs.hash }}
-
-    steps:
-      - name: Start Timer
-        id: start_timer
-        run: echo "start=$(date +%s)" >> $GITHUB_OUTPUT
-
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Configure Swap
-        run: |
-          sudo swapoff /swapfile
-          sudo fallocate -l 8G /swapfile
-          sudo chmod 600 /swapfile
-          sudo mkswap /swapfile
-          sudo swapon /swapfile
-          echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-performance.conf
-          sudo sysctl --system
-
-      - name: Install Dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
-
-      - name: Restore ccache
-        uses: actions/cache@v5
-        with:
-          path: .ccache
-          key: ccache-ksunsusfs-${{ runner.os }}-${{ github.run_id }}
-          restore-keys: |
-            ccache-ksunsusfs-${{ runner.os }}-
-
-      - name: Cache Clang 20
-        id: cache-llvm
-        uses: actions/cache@v5
-        with:
-          path: llvm
-          key: llvm-mlgo-r547379
-
-      - name: Load Config
-        id: cfg
-        run: |
-          CONFIG=$(jq -c ".[2]" configs/resukisu.json)
-          NAME=$(echo "$CONFIG" | jq -r '.name')
-          echo "config=$CONFIG" >> $GITHUB_OUTPUT
-          echo "name=$NAME" >> $GITHUB_OUTPUT
-
-      - name: Clone Kernel
-        env:
-          PAT_TOKEN: ${{ secrets.REPO_A_PAT }}
-        run: |
-          REPO=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.repo')
-          BRANCH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.branch')
-          DEPTH=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '.kernel.fetchDepth')
-
-          REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
-
-          git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
-
-      - name: Setup Clang 20
-        run: |
-          if [ ! -d "llvm/bin" ]; then
-            export LLVM_DIR="$PWD/llvm"
-            rm -rf "$LLVM_DIR"
-            mkdir -p "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/clang-r547379.tar.gz" | tar xz -C "$LLVM_DIR"
-            wget -qO- "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/main/mlgo-models.tar.gz" | tar xz -C "$LLVM_DIR" || true
-          fi
-          echo "$PWD/llvm/bin" >> $GITHUB_PATH
-
-      - name: Setup ccache
-        run: |
-          ccache -M 10G
-          ccache -o compression=true
-          ccache -o base_dir=$GITHUB_WORKSPACE
-          ccache -o hash_dir=false
-          ccache -z
-
-      - name: Apply Root Method KSUN
-        run: |
-          cd kernel
-          curl -LSs https://raw.githubusercontent.com/Youffx/KernelSU-Next/legacy-susfs/kernel/setup.sh | bash -s legacy-susfs
-          cd ..
-
-      - name: Build Kernel KSUN SUSFS
-        id: build_timer
-        run: |
-          BUILD_START=$(date +%s)
-
-          DEFCONFIG=$(echo '${{ steps.cfg.outputs.config }}' | jq -r '."ksu-defconfig"')
-
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export PATH="$PWD/llvm/bin:$PATH"
-          export KBUILD_BUILD_USER="youffx"
-          export KBUILD_BUILD_HOST="collection"
-          export CCACHE_DIR="$GITHUB_WORKSPACE/.ccache"
-          export CC="ccache clang"
-          export CXX="ccache clang++"
-          export CCACHE_COMPILERCHECK=content
-          export CCACHE_MAXSIZE=10G
-          export KBUILD_CFLAGS="-mllvm -enable-ml-inliner=release -mllvm -enable-ml-regalloc=release"
-
-          ccache -s
-
-          cd kernel
-
-          make O=out $DEFCONFIG
-          LV="-Dominance"
-          LV_ESCAPED=$(printf '%s\n' "$LV" | sed 's/[&#]/\\&/g')
-          if grep -q "^CONFIG_LOCALVERSION=" out/.config; then
-            sed -i "s#^CONFIG_LOCALVERSION=.*#CONFIG_LOCALVERSION=\"$LV_ESCAPED\"#" out/.config
-          else
-            echo "CONFIG_LOCALVERSION=\"$LV\"" >> out/.config
-          fi
-          sed -i '/CONFIG_LOCALVERSION_AUTO/d' out/.config
-          echo "# CONFIG_LOCALVERSION_AUTO is not set" >> out/.config
-          sed -i '/CONFIG_KSU_SUSFS/d' out/.config
-          echo "CONFIG_KSU_SUSFS=y" >> out/.config
-          make O=out olddefconfig
-          echo "--- LOCALVERSION DEBUG ---"
-          grep -E "^CONFIG_LOCALVERSION=|LOCALVERSION_AUTO" out/.config || true
-          make O=out LOCALVERSION="-Dominance" kernelrelease || true
-
-          make -j$(nproc --all) O=out \
-            ARCH=arm64 \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC="ccache clang" \
-            LD=ld.lld \
-            AR=llvm-ar \
-            NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            OBJDUMP=llvm-objdump \
-            STRIP=llvm-strip \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            LLVM=1 \
-            LLVM_IAS=1 \
-            LOCALVERSION="-Dominance" \
-            Image.gz-dtb
-
-          echo "--- FINAL KERNELRELEASE ---"
-          cat out/include/config/kernel.release || true
-
-          BUILD_END=$(date +%s)
-          echo "duration=$((BUILD_END - BUILD_START))" >> $GITHUB_OUTPUT
-
-      - name: Package Flashable Zip (KSUN SUSFS)
-        run: |
-          DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_NAME="KsuNext"
-          ZIP_NAME="Dominance-${KSU_NAME}-SUSFS-${DATE}"
-
-          IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
-          mkdir -p output
-          cp "$IMAGE" .github/Flash/kernels/
-
-          cd .github/Flash/
-          zip -r "../../output/${ZIP_NAME}.zip" ./*
-          cd ../../
-
-      - name: Calculate Metadata
-        id: calc
-        run: |
-          DIFF=${{ steps.build_timer.outputs.duration }}
-          MIN=$((DIFF / 60))
-          SEC=$((DIFF % 60))
-          echo "duration=${MIN}m ${SEC}s" >> $GITHUB_OUTPUT
-          HASH=$(md5sum output/*.zip | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-
-      - name: Upload ZIP
-        uses: actions/upload-artifact@v5
-        with:
-          name: zip-ksunsusfs
-          path: output/*.zip
-          retention-days: 7
-
-      - name: Show ccache statistics
-        run: ccache -s
-
-      - name: Get Kernel Info
-        id: kinfo
-        run: |
-          cd kernel
-          echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
-          echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
-
-# =========================
 # RELEASE
 # =========================
   release:
     name: Release
-    needs: [detect-missing-cache, build-ksu, build-nonksu, build-nomount, build-ksu-susfs, build-ksun, build-ksunnomount, build-ksunsusfs]
+    needs: [detect-missing-cache, build-ksu, build-nonksu, build-nomount, build-ksu-susfs]
     if: >-
       always() &&
       needs.detect-missing-cache.outputs.all_found == 'true' &&
@@ -1568,29 +874,6 @@ jobs:
           echo "ZIPs to release:"
           ls -lh final/
 
-      - name: Get Latest Kernel Commit
-        id: kcommit
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          LATEST_DATE=""
-          LATEST_INFO=""
-          for i in 0 1 2; do
-            ENTRY=$(jq -c ".[$i]" configs/resukisu.json)
-            REPO_URL=$(echo "$ENTRY" | jq -r '.kernel.repo')
-            BRANCH=$(echo "$ENTRY" | jq -r '.kernel.branch')
-            SLUG=$(echo "$REPO_URL" | sed 's|https://github.com/||; s|\.git$||')
-            INFO=$(curl -s -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$SLUG/branches/$BRANCH")
-            SHA=$(echo "$INFO" | jq -r '.commit.sha[0:7]')
-            DATE=$(echo "$INFO" | jq -r '.commit.commit.author.date')
-            MSG=$(echo "$INFO" | jq -r '.commit.commit.message' | head -n 1)
-            if [ -z "$LATEST_DATE" ] || [[ "$DATE" > "$LATEST_DATE" ]]; then
-              LATEST_DATE="$DATE"
-              LATEST_INFO="$SHA $MSG ($BRANCH)"
-            fi
-          done
-          echo "latest=$LATEST_INFO" >> $GITHUB_OUTPUT
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -1598,11 +881,12 @@ jobs:
           name: Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
           prerelease: ${{ github.event.inputs.pre_release == 'true' }}
           body: |
-            ### Dominance Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
+            ### Lineage Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
 
             **Build Details:**
             - Kernel Version: `${{ needs.build-ksu.outputs.kern_ver }}`
             - Compiler: `${{ needs.build-ksu.outputs.compiler_ver }}`
+            - Root Method: `${{ github.event.inputs.ksu_target }}`
             - Support EROFS
             - Support both AOSP & NON-AOSP
             - Sync with latest Lineage 23.2 kernel source
@@ -1610,15 +894,12 @@ jobs:
             **Build Statistics:**
             | Variant | Build Time | MD5 Hash |
             |---------|------------|----------|
-            | non root | ${{ needs.build-nonksu.outputs.build_time }} | `${{ needs.build-nonksu.outputs.zip_hash }}` |
-            | resukisu | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
-            | resukisu nomount | ${{ needs.build-nomount.outputs.build_time }} | `${{ needs.build-nomount.outputs.zip_hash }}` |
-            | resukisu susfs | ${{ needs.build-ksu-susfs.outputs.build_time }} | `${{ needs.build-ksu-susfs.outputs.zip_hash }}` |
-            | ksu-next | ${{ needs.build-ksun.outputs.build_time }} | `${{ needs.build-ksun.outputs.zip_hash }}` |
-            | ksu-next NoMount | ${{ needs.build-ksunnomount.outputs.build_time }} | `${{ needs.build-ksunnomount.outputs.zip_hash }}` |
-            | ksu-next SUSFS | ${{ needs.build-ksunsusfs.outputs.build_time }} | `${{ needs.build-ksunsusfs.outputs.zip_hash }}` |
+            | KSU | ${{ needs.build-ksu.outputs.build_time }} | `${{ needs.build-ksu.outputs.zip_hash }}` |
+            | Non-KSU | ${{ needs.build-nonksu.outputs.build_time }} | `${{ needs.build-nonksu.outputs.zip_hash }}` |
+            | KSU NoMount | ${{ needs.build-nomount.outputs.build_time }} | `${{ needs.build-nomount.outputs.zip_hash }}` |
+            | KSU SUSFS | ${{ needs.build-ksu-susfs.outputs.build_time }} | `${{ needs.build-ksu-susfs.outputs.zip_hash }}` |
 
-            **Latest Commit:** `${{ steps.kcommit.outputs.latest }}`
+            **Latest Commit:** `${{ needs.build-ksu.outputs.commit_log }}`
           files: final/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1646,21 +927,19 @@ jobs:
             STATUS="❌ Failed"
           fi
 
-          MESSAGE="*Dominance CI Release*
+          MESSAGE="*Lineage CI Release*
           *Status:* $STATUS
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
-          *Build Variants:* \`KSU, Non KSU, KSU NoMount, KSU SUSFS, KSUN, KSUN NoMount, KSUN SUSFS\`
-          *Latest Commit:* \`${{ steps.kcommit.outputs.latest }}\`
+          *Root Method:* \`${{ github.event.inputs.ksu_target }}\`
+          *Build Variants:* \`KSU, Non-KSU, KSU NoMount, KSU SUSFS\`
+          *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
-          • *non root:* *${{ needs.build-nonksu.outputs.build_time }}* | *md5:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
-          • *resukisu:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
-          • *resukisu nomount:* *${{ needs.build-nomount.outputs.build_time }}* | *md5:* \`${{ needs.build-nomount.outputs.zip_hash }}\`
-          • *resukisu susfs:* *${{ needs.build-ksu-susfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu-susfs.outputs.zip_hash }}\`
-          • *KSUN:* *${{ needs.build-ksun.outputs.build_time }}* | *md5:* \`${{ needs.build-ksun.outputs.zip_hash }}\`
-          • *KSUN NoMount:* *${{ needs.build-ksunnomount.outputs.build_time }}* | *md5:* \`${{ needs.build-ksunnomount.outputs.zip_hash }}\`
-          • *KSUN SUSFS:* *${{ needs.build-ksunsusfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksunsusfs.outputs.zip_hash }}\`
+          • *KSU:* *${{ needs.build-ksu.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu.outputs.zip_hash }}\`
+          • *Non-KSU:* *${{ needs.build-nonksu.outputs.build_time }}* | *md5:* \`${{ needs.build-nonksu.outputs.zip_hash }}\`
+          • *KSU NoMount:* *${{ needs.build-nomount.outputs.build_time }}* | *md5:* \`${{ needs.build-nomount.outputs.zip_hash }}\`
+          • *KSU SUSFS:* *${{ needs.build-ksu-susfs.outputs.build_time }}* | *md5:* \`${{ needs.build-ksu-susfs.outputs.zip_hash }}\`
 
           [Check Release]($RELEASE_URL)"
 
@@ -1671,7 +950,7 @@ jobs:
 # =========================
   retrigger:
     name: Retrigger Workflow
-    needs: [detect-missing-cache, build-ksu, build-nonksu, build-nomount, build-ksu-susfs, build-ksun, build-ksunnomount, build-ksunsusfs]
+    needs: [detect-missing-cache, build-ksu, build-nonksu, build-nomount, build-ksu-susfs]
     if: >-
       !cancelled() && !failure() &&
       needs.detect-missing-cache.outputs.all_found == 'false'
@@ -1684,4 +963,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ACTION_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/run.yml/dispatches \
-            -d '{"ref":"master","inputs":{"pre_release":"${{ github.event.inputs.pre_release }}","resukisu_ref":"${{ github.event.inputs.resukisu_ref }}"}}'
+            -d '{"ref":"master","inputs":{"ksu_target":"${{ github.event.inputs.ksu_target }}","pre_release":"${{ github.event.inputs.pre_release }}","resukisu_ref":"${{ github.event.inputs.resukisu_ref }}"}}'
