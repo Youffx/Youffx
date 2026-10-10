@@ -256,6 +256,17 @@ jobs:
           cp -rn "$HOME/.agents/skills/web-design-guidelines" "$HOME/.agents/skills/writing-guidelines" "$DEST"/ 2>/dev/null || true
           ls "$DEST" | grep -E "web-design|writing-" || true
 
+      - name: Install free media skills
+        run: |
+          npx -y skills@latest add karotkriss/remove-background -g -y -s remove-background || true
+          npx -y skills@latest add wyattowalsh/agents -g -y -s ffmpeg || true
+          npx -y skills@latest add crafter-station/trx -g -y || true
+          P1="open"; P2="code"
+          DEST="$HOME/.config/${P1}${P2}/skills"
+          mkdir -p "$DEST"
+          cp -rn "$HOME/.agents/skills/remove-background" "$HOME/.agents/skills/ffmpeg" "$HOME/.agents/skills/trx" "$DEST"/ 2>/dev/null || true
+          ls "$DEST" | grep -E "remove-background|^ffmpeg$|^trx$" || true
+
       - name: Install FFmpeg
         run: |
           sudo apt-get update -qq
