@@ -228,7 +228,7 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_NAME="ReSukiSU"
-          ZIP_NAME="Lineage-23.2-${KSU_NAME}-${DATE}"
+          ZIP_NAME="Dominance-${KSU_NAME}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -407,7 +407,7 @@ jobs:
       - name: Package Flashable Zip (NONKSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          ZIP_NAME="Lineage-23.2-NONKSU-${DATE}"
+          ZIP_NAME="Dominance-NONKSU-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -609,7 +609,7 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_NAME="ReSukiSU"
-          ZIP_NAME="Lineage-23.2-${KSU_NAME}-NoMount-${DATE}"
+          ZIP_NAME="Dominance-${KSU_NAME}-NoMount-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
@@ -803,7 +803,7 @@ jobs:
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
           KSU_NAME="ReSukiSU"
-          ZIP_NAME="Lineage-23.2-${KSU_NAME}-SUSFS-${DATE}"
+          ZIP_NAME="Dominance-${KSU_NAME}-SUSFS-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
           mkdir -p output
