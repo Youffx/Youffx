@@ -881,7 +881,7 @@ jobs:
           name: Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
           prerelease: ${{ github.event.inputs.pre_release == 'true' }}
           body: |
-            ### Lineage Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
+            ### Dominance Kernel Release${{ github.event.inputs.pre_release == 'true' && ' (Pre-Release)' || '' }}
 
             **Build Details:**
             - Kernel Version: `${{ needs.build-ksu.outputs.kern_ver }}`
@@ -889,7 +889,7 @@ jobs:
             - Root Method: `${{ github.event.inputs.ksu_target }}`
             - Support EROFS
             - Support both AOSP & NON-AOSP
-            - Sync with latest Lineage 23.2 kernel source
+            - Sync with latest Dominance kernel source
 
             **Build Statistics:**
             | Variant | Build Time | MD5 Hash |
@@ -927,7 +927,7 @@ jobs:
             STATUS="❌ Failed"
           fi
 
-          MESSAGE="*Lineage CI Release*
+          MESSAGE="*Dominance CI Release*
           *Status:* $STATUS
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
