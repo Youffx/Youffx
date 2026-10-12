@@ -8,15 +8,15 @@ on:
         required: true
         type: choice
         options:
-          - "ReSukiSU"
-        default: "ReSukiSU"
+          - "BakaSU"
+        default: "BakaSU"
       pre_release:
         description: "Mark as pre-release"
         required: false
         type: boolean
         default: false
-      resukisu_ref:
-        description: "ReSukiSU commit or branch (empty = upstream default)"
+      bakasu_ref:
+        description: "BakaSU commit or branch (empty = upstream default)"
         required: false
         type: string
         default: ""
@@ -133,7 +133,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[0]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[0]" configs/bakasu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -169,13 +169,13 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method ReSukiSU
+      - name: Apply Root Method BakaSU
         run: |
           cd kernel
-          if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          if [ -z "${{ github.event.inputs.bakasu_ref }}" ]; then
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.bakasu_ref }}"
           fi
           cd ..
 
@@ -227,7 +227,7 @@ jobs:
       - name: Package Flashable Zip (KSU)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_NAME="ReSukiSU"
+          KSU_NAME="BakaSU"
           ZIP_NAME="Dominance-${KSU_NAME}-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
@@ -323,7 +323,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[0]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[0]" configs/bakasu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -502,7 +502,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[0]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[0]" configs/bakasu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -544,13 +544,13 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method ReSukiSU
+      - name: Apply Root Method BakaSU
         run: |
           cd kernel
-          if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          if [ -z "${{ github.event.inputs.bakasu_ref }}" ]; then
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.bakasu_ref }}"
           fi
           cd ..
 
@@ -608,7 +608,7 @@ jobs:
       - name: Package Flashable Zip (NoMount)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_NAME="ReSukiSU"
+          KSU_NAME="BakaSU"
           ZIP_NAME="Dominance-${KSU_NAME}-NoMount-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
@@ -708,7 +708,7 @@ jobs:
       - name: Load Config
         id: cfg
         run: |
-          CONFIG=$(jq -c ".[1]" configs/resukisu.json)
+          CONFIG=$(jq -c ".[1]" configs/bakasu.json)
           NAME=$(echo "$CONFIG" | jq -r '.name')
           echo "config=$CONFIG" >> $GITHUB_OUTPUT
           echo "name=$NAME" >> $GITHUB_OUTPUT
@@ -744,13 +744,13 @@ jobs:
           ccache -o hash_dir=false
           ccache -z
 
-      - name: Apply Root Method ReSukiSU
+      - name: Apply Root Method BakaSU
         run: |
           cd kernel
-          if [ -z "${{ github.event.inputs.resukisu_ref }}" ]; then
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          if [ -z "${{ github.event.inputs.bakasu_ref }}" ]; then
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash
           else
-            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.resukisu_ref }}"
+            curl -LSs "https://raw.githubusercontent.com/Baka-SU/BakaSU/main/kernel/setup.sh" | bash -s "${{ github.event.inputs.bakasu_ref }}"
           fi
           cd ..
 
@@ -802,7 +802,7 @@ jobs:
       - name: Package Flashable Zip (KSU SUSFS)
         run: |
           DATE=$(TZ='Asia/Jakarta' date +"%Y%m%d-%H%M")
-          KSU_NAME="ReSukiSU"
+          KSU_NAME="BakaSU"
           ZIP_NAME="Dominance-${KSU_NAME}-SUSFS-${DATE}"
 
           IMAGE="kernel/out/arch/arm64/boot/Image.gz-dtb"
@@ -963,4 +963,4 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.ACTION_TOKEN }}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             https://api.github.com/repos/${{ github.repository }}/actions/workflows/run.yml/dispatches \
-            -d '{"ref":"master","inputs":{"ksu_target":"${{ github.event.inputs.ksu_target }}","pre_release":"${{ github.event.inputs.pre_release }}","resukisu_ref":"${{ github.event.inputs.resukisu_ref }}"}}'
+            -d '{"ref":"master","inputs":{"ksu_target":"${{ github.event.inputs.ksu_target }}","pre_release":"${{ github.event.inputs.pre_release }}","bakasu_ref":"${{ github.event.inputs.bakasu_ref }}"}}'
