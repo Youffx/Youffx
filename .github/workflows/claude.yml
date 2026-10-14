@@ -438,27 +438,146 @@ jobs:
           if [ -n "$CF_URL" ]; then
             CF_HOST=$(echo "$CF_URL" | sed 's|https://||')
             echo "::add-mask::$CF_URL"
+            echo "::add-mask::$CF_HOST"
             echo "CLOUDFLARED_URL=$CF_URL" >> "$GITHUB_ENV"
             echo "CLOUDFLARED_HOST=$CF_HOST" >> "$GITHUB_ENV"
-            echo "cloudflared tunnel ready"
+            echo "cloudflared tunnel ready (URL hidden, sent to Telegram only)"
           else
             echo "cloudflared tunnel failed to start"
-            echo "=== cloudflared log ==="
+            echo "=== cloudflared log (URLs masked) ==="
+            grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared.log 2>/dev/null | head -5 | while read -r u; do echo "::add-mask::$u"; done || true
             cat /tmp/cloudflared.log
             echo "======================"
             echo "Process running: $(kill -0 $CLOUDFLARED_PID 2>/dev/null && echo yes || echo no)"
             exit 1
           fi
 
+      - name: Install web terminal (ttyd)
+        run: |
+          # Lightweight web terminal, runs as current non-root user (runner).
+          # Verified on Ubuntu 24.04 (noble): apt provides ttyd 1.7.4, no Node/Docker needed.
+          # Wetty is intentionally NOT used (needs Node + npm, heavier).
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ttyd
+          ttyd --version
+          echo "ttyd installed. Running user: $(whoami) (uid $(id -u))"
+
+      - name: Start secure web terminal + web tunnel
+        run: |
+          set -euo pipefail
+          # ---- 1. Generate strong random credential (never echo it) ----
+          WEB_USER="runner"
+          # 32 alphanum chars from openssl, no symbols to keep Basic-Auth URL-safe
+          WEB_PASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 32)
+          if [ ${#WEB_PASS} -lt 24 ]; then
+            echo "Password generation failed" >&2
+            exit 1
+          fi
+          echo "::add-mask::$WEB_PASS"
+          printf '%s:%s' "$WEB_USER" "$WEB_PASS" > "$HOME/.ttyd-web-auth"
+          chmod 600 "$HOME/.ttyd-web-auth"
+          {
+            echo "TTYD_USER=$WEB_USER"
+            echo "TTYD_PASS=$WEB_PASS"
+          } >> "$GITHUB_ENV"
+          echo "Credential saved to ~/.ttyd-web-auth (600). Retrieve over SSH with: cat ~/.ttyd-web-auth"
+
+          # ---- 2. Start ttyd bound to localhost only, as current user ----
+          WORKDIR="$HOME/work/Youffx/Youffx"
+          [ -d "$WORKDIR" ] || WORKDIR="$HOME"
+          # -i 127.0.0.1: never expose directly. -W: allow input (else read-only).
+          # Do NOT pass -O (origin check) so Cloudflare hostname can proxy websockets.
+          # Run login bash so PATH, nvm, sdk, git config match normal SSH session.
+          pkill -f "ttyd.*127.0.0.1:7681" 2>/dev/null || true
+          nohup /usr/bin/ttyd -i 127.0.0.1 -p 7681 -W -c "$WEB_USER:$WEB_PASS" \
+            -t titleFixed='Youffx runner web terminal' \
+            -w "$WORKDIR" /bin/bash -l > /tmp/ttyd.log 2>&1 &
+          echo $! > /tmp/ttyd.pid
+          sleep 2
+          if ! kill -0 "$(cat /tmp/ttyd.pid)" 2>/dev/null; then
+            echo "ttyd failed to start. Log:"
+            cat /tmp/ttyd.log
+            exit 1
+          fi
+
+          # ---- 3. Verify localhost-only listener + local HTTP ----
+          echo "=== listeners ==="
+          ss -tlnp | grep 7681 || (echo "ttyd not listening" && cat /tmp/ttyd.log && exit 1)
+          if ss -tln | grep -q '0.0.0.0:7681\|:::7681'; then
+            echo "ERROR: ttyd bound to public interface, refusing" >&2
+            exit 1
+          fi
+          # -u with credential from file (password never appears in ps of this echo)
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -u "$WEB_USER:$WEB_PASS" http://127.0.0.1:7681/ || true)
+          echo "Local HTTP code: $HTTP_CODE"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Local ttyd HTTP check failed"
+            cat /tmp/ttyd.log
+            exit 1
+          fi
+          echo "ttyd verified on 127.0.0.1:7681 only"
+
+          # ---- 4. Separate Quick Tunnel for HTTP (do NOT touch SSH tunnel) ----
+          # Existing tunnel is: cloudflared tunnel --url ssh://localhost:22 (SSH-only,
+          # hostname clinical-runner-*.trycloudflare.com cannot serve HTTP).
+          # Restarting/reusing it would kill SSH, so start a SECOND tunnel.
+          # Quick Tunnel limitation: random trycloudflare.com URL, dies with workflow.
+          rm -f /tmp/cloudflared-web.log /tmp/cloudflared-web.pid
+          nohup cloudflared tunnel --url http://localhost:7681 --no-autoupdate > /tmp/cloudflared-web.log 2>&1 &
+          WEB_PID=$!
+          echo $WEB_PID > /tmp/cloudflared-web.pid
+          for i in $(seq 1 120); do
+            if kill -0 $WEB_PID 2>/dev/null; then
+              if grep -q 'https://.*\.trycloudflare\.com' /tmp/cloudflared-web.log 2>/dev/null; then
+                echo "Web tunnel URL found at attempt $i"
+                break
+              fi
+            else
+              echo "cloudflared-web died"
+              grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log 2>/dev/null | head -5 | while read -r u; do echo "::add-mask::$u"; done || true
+              cat /tmp/cloudflared-web.log
+              exit 1
+            fi
+            sleep 1
+          done
+          WEB_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log | head -1)
+          if [ -z "$WEB_URL" ]; then
+            echo "Web tunnel failed to start"
+            grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log 2>/dev/null | head -5 | while read -r u; do echo "::add-mask::$u"; done || true
+            cat /tmp/cloudflared-web.log
+            exit 1
+          fi
+          WEB_HOST=$(echo "$WEB_URL" | sed 's|https://||')
+          echo "::add-mask::$WEB_URL"
+          echo "::add-mask::$WEB_HOST"
+          {
+            echo "WEB_URL=$WEB_URL"
+            echo "WEB_HOST=$WEB_HOST"
+          } >> "$GITHUB_ENV"
+          echo "$WEB_URL" > /tmp/web-url.txt
+          echo "Web tunnel ready (URLs hidden, SSH tunnel untouched, details via Telegram only)"
+
       - name: Send connection info to Telegram
         env:
           TOKEN: ${{ secrets.TG_TOKEN }}
           CHATID: ${{ secrets.TG_CHATID }}
         run: |
+          # Mask semua connect link + password agar tidak muncul di public workflow logs.
+          # Link hanya dikirim via Telegram DM (CHATID). Jangan echo variabel ini.
+          echo "::add-mask::$CLOUDFLARED_URL"
+          echo "::add-mask::$CLOUDFLARED_HOST"
+          echo "::add-mask::$WEB_URL"
+          echo "::add-mask::$WEB_HOST"
+          echo "::add-mask::$TTYD_PASS"
           MSG="*Session Ready*
 
           *Cloudflared:* $CLOUDFLARED_URL
-          *SSH:* \`ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CLOUDFLARED_HOST\`"
+          *SSH:* \`ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CLOUDFLARED_HOST\`
+
+          *Web terminal (Windows Chrome/Edge):* $WEB_URL
+          *Web user:* \`$TTYD_USER\`
+          *Web pass:* \`$TTYD_PASS\`
+          Buka URL di atas, login Basic-Auth dengan user/pass itu. Jangan share link ini."
 
           curl -sX POST \
             "https://api.telegram.org/bot${TOKEN}/sendMessage" \
@@ -480,11 +599,15 @@ jobs:
 
           START_TIME=$(date +%s)
           CF_PID_FILE="/tmp/cloudflared.pid"
+          WEB_PID_FILE="/tmp/cloudflared-web.pid"
+          TTYD_PID_FILE="/tmp/ttyd.pid"
           MAX_RESTARTS=3
           RESTART_COUNT=0
+          WEB_RESTART_COUNT=0
           WARNING_SENT=false
           GRACE_SECONDS=60
           CF_DEAD_SINCE=0
+          WEB_DEAD_SINCE=0
 
           send_tg() {
             curl -sX POST \
@@ -516,7 +639,8 @@ jobs:
                   if [ -n "$CF_URL" ]; then
                     CF_HOST=$(echo "$CF_URL" | sed 's|https://||')
                     echo "::add-mask::$CF_URL"
-                    echo "Cloudflared restarted. URL: $CF_URL"
+                    echo "::add-mask::$CF_HOST"
+                    echo "Cloudflared restarted (new URL hidden, sent to Telegram)."
                     send_tg "*Tunnel restarted*
                     *New URL:* $CF_URL
                     *SSH:* \`ssh -o ProxyCommand=\"cloudflared access ssh --hostname %h\" runner@$CF_HOST\`"
@@ -533,6 +657,60 @@ jobs:
 
             echo "Failed to restart cloudflared"
             return 1
+          }
+
+          restart_web_tunnel() {
+            echo "Restarting cloudflared-web (attempt $((WEB_RESTART_COUNT+1))/$MAX_RESTARTS)..."
+            if [ -f "$WEB_PID_FILE" ]; then
+              kill $(cat "$WEB_PID_FILE") 2>/dev/null || true
+              rm -f "$WEB_PID_FILE"
+            fi
+            rm -f /tmp/cloudflared-web.log
+            nohup cloudflared tunnel --url http://localhost:7681 --no-autoupdate > /tmp/cloudflared-web.log 2>&1 &
+            WEB_PID=$!
+            echo $WEB_PID > "$WEB_PID_FILE"
+            for i in {1..60}; do
+              if kill -0 $WEB_PID 2>/dev/null; then
+                if grep -q 'https://.*\.trycloudflare\.com' /tmp/cloudflared-web.log 2>&1; then
+                  WEB_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log | head -1)
+                  if [ -n "$WEB_URL" ]; then
+                    WEB_HOST=$(echo "$WEB_URL" | sed 's|https://||')
+                    echo "::add-mask::$WEB_URL"
+                    echo "::add-mask::$WEB_HOST"
+                    echo "$WEB_URL" > /tmp/web-url.txt
+                    echo "Web tunnel restarted (new URL hidden, sent to Telegram)."
+                    send_tg "*Web tunnel restarted*
+                    *New web URL:* $WEB_URL"
+                    WEB_RESTART_COUNT=$((WEB_RESTART_COUNT + 1))
+                    return 0
+                  fi
+                fi
+              else
+                echo "cloudflared-web died during restart"
+                break
+              fi
+              sleep 1
+            done
+            echo "Failed to restart web tunnel"
+            return 1
+          }
+
+          restart_ttyd() {
+            echo "Restarting ttyd..."
+            CRED_FILE="$HOME/.ttyd-web-auth"
+            if [ ! -f "$CRED_FILE" ]; then
+              echo "ttyd credential file missing, cannot restart"
+              return 1
+            fi
+            CRED=$(cat "$CRED_FILE")
+            WORKDIR="$HOME/work/Youffx/Youffx"
+            [ -d "$WORKDIR" ] || WORKDIR="$HOME"
+            nohup /usr/bin/ttyd -i 127.0.0.1 -p 7681 -W -c "$CRED" \
+              -t titleFixed='Youffx runner web terminal' \
+              -w "$WORKDIR" /bin/bash -l > /tmp/ttyd.log 2>&1 &
+            echo $! > "$TTYD_PID_FILE"
+            sleep 2
+            kill -0 "$(cat "$TTYD_PID_FILE")" 2>/dev/null
           }
 
           echo "Session monitor started. Timeout: ${TIMEOUT_HOURS}h (${TIMEOUT_SECONDS}s)"
@@ -605,8 +783,59 @@ jobs:
             else
               CF_DEAD_SINCE=0
             fi
+
+            # ---- Web terminal health (ttyd must stay on 127.0.0.1:7681) ----
+            if [ -f "$TTYD_PID_FILE" ]; then
+              if ! kill -0 "$(cat "$TTYD_PID_FILE")" 2>/dev/null; then
+                echo "ttyd dead, restarting..."
+                if ! restart_ttyd; then
+                  echo "ttyd restart failed"
+                fi
+              fi
+            else
+              echo "ttyd pid file missing, restarting..."
+              restart_ttyd || true
+            fi
+
+            # ---- Web tunnel health (separate from SSH tunnel) ----
+            WEB_OK=true
+            if [ -f "$WEB_PID_FILE" ]; then
+              if ! kill -0 "$(cat "$WEB_PID_FILE")" 2>/dev/null; then
+                WEB_OK=false
+              fi
+            else
+              WEB_OK=false
+            fi
+            if [ "$WEB_OK" = false ]; then
+              NOW=$(date +%s)
+              if [ "$WEB_DEAD_SINCE" -eq 0 ]; then
+                WEB_DEAD_SINCE=$NOW
+                echo "Web tunnel dead. Grace period: ${GRACE_SECONDS}s"
+              else
+                DEAD_FOR=$((NOW - WEB_DEAD_SINCE))
+                if [ "$DEAD_FOR" -ge "$GRACE_SECONDS" ]; then
+                  if [ "$WEB_RESTART_COUNT" -lt "$MAX_RESTARTS" ]; then
+                    WEB_DEAD_SINCE=0
+                    restart_web_tunnel || true
+                  else
+                    echo "Web tunnel permanently lost (SSH tunnel still alive)."
+                    send_tg "*Web terminal offline.* SSH masih jalan. Restart workflow untuk web baru."
+                    WEB_DEAD_SINCE=0
+                    WEB_RESTART_COUNT=0
+                  fi
+                fi
+              fi
+            else
+              WEB_DEAD_SINCE=0
+            fi
           done
 
           if [ -f "$CF_PID_FILE" ]; then
             kill $(cat "$CF_PID_FILE") 2>/dev/null || true
+          fi
+          if [ -f "$WEB_PID_FILE" ]; then
+            kill $(cat "$WEB_PID_FILE") 2>/dev/null || true
+          fi
+          if [ -f "$TTYD_PID_FILE" ]; then
+            kill $(cat "$TTYD_PID_FILE") 2>/dev/null || true
           fi
