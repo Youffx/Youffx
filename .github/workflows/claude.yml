@@ -464,12 +464,13 @@ jobs:
 
       - name: Start secure web terminal + web tunnel
         run: |
-          set -euo pipefail
+          set -eu
           # ---- 1. Generate strong random credential (never echo it) ----
           WEB_USER="runner"
-          # 32 alphanum chars from openssl, no symbols to keep Basic-Auth URL-safe
-          WEB_PASS=$(openssl rand -base64 24 | tr -dc 'A-Za-z0-9' | head -c 32)
-          if [ ${#WEB_PASS} -lt 24 ]; then
+          # 32 alphanum chars via python secrets (no pipefail/SIGPIPE issues,
+          # openssl base64 filtering often yields <32 chars and failed the run).
+          WEB_PASS=$(python3 -c "import secrets,string; print(''.join(secrets.choice(string.ascii_letters+string.digits) for _ in range(32)))")
+          if [ "${#WEB_PASS}" -lt 24 ]; then
             echo "Password generation failed" >&2
             exit 1
           fi
@@ -540,8 +541,8 @@ jobs:
             fi
             sleep 1
           done
-          WEB_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log | head -1)
-          if [ -z "$WEB_URL" ]; then
+          WEB_URL=$(grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log 2>/dev/null | head -1 || true)
+          if [ -z "${WEB_URL:-}" ]; then
             echo "Web tunnel failed to start"
             grep -o 'https://[a-zA-Z0-9-]*\.trycloudflare\.com' /tmp/cloudflared-web.log 2>/dev/null | head -5 | while read -r u; do echo "::add-mask::$u"; done || true
             cat /tmp/cloudflared-web.log
