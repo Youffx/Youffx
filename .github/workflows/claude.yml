@@ -461,6 +461,19 @@ jobs:
           sudo apt-get install -y -qq ttyd
           ttyd --version
           echo "ttyd installed. Running user: $(whoami) (uid $(id -u))"
+          # The apt package ships a default service that binds 7681 on all
+          # interfaces. Stop/disable it: our instance must be localhost-only
+          # with auth, owned by this run. Otherwise bind fails with EADDRINUSE.
+          sudo systemctl stop ttyd.service 2>/dev/null || true
+          sudo systemctl disable ttyd.service 2>/dev/null || true
+          pkill -f '[t]tyd' 2>/dev/null || true
+          sleep 1
+          if ss -tln | grep -q ':7681'; then
+            echo "WARNING: port 7681 still held after stop:"
+            ss -tlnp | grep 7681 || true
+          else
+            echo "port 7681 free"
+          fi
 
       - name: Start secure web terminal + web tunnel
         run: |
@@ -489,8 +502,19 @@ jobs:
           # -i 127.0.0.1: never expose directly. -W: allow input (else read-only).
           # Do NOT pass -O (origin check) so Cloudflare hostname can proxy websockets.
           # Run login bash so PATH, nvm, sdk, git config match normal SSH session.
-          pkill -f "ttyd.*127.0.0.1:7681" 2>/dev/null || true
-          nohup /usr/bin/ttyd -i 127.0.0.1 -p 7681 -W -c "$WEB_USER:$WEB_PASS" \
+          # Free the port first: the packaged default service may hold 7681.
+          sudo systemctl stop ttyd.service 2>/dev/null || true
+          pkill -f '[t]tyd' 2>/dev/null || true
+          sleep 1
+          # Pick first free port in range (prefer 7681, fall back if held).
+          WEB_PORT=7681
+          for p in 7681 7682 7683 7684 7685; do
+            if ! ss -tln | grep -q ":$p "; then WEB_PORT=$p; break; fi
+          done
+          echo "Using local port $WEB_PORT"
+          echo "WEB_PORT=$WEB_PORT" >> "$GITHUB_ENV"
+          echo "$WEB_PORT" > /tmp/ttyd-port.txt
+          nohup /usr/bin/ttyd -i 127.0.0.1 -p "$WEB_PORT" -W -c "$WEB_USER:$WEB_PASS" \
             -t titleFixed='Youffx runner web terminal' \
             -w "$WORKDIR" /bin/bash -l > /tmp/ttyd.log 2>&1 &
           echo $! > /tmp/ttyd.pid
@@ -502,21 +526,21 @@ jobs:
           fi
 
           # ---- 3. Verify localhost-only listener + local HTTP ----
-          echo "=== listeners ==="
-          ss -tlnp | grep 7681 || (echo "ttyd not listening" && cat /tmp/ttyd.log && exit 1)
-          if ss -tln | grep -q '0.0.0.0:7681\|:::7681'; then
+          echo "=== listeners (port $WEB_PORT) ==="
+          ss -tlnp | grep "$WEB_PORT" || (echo "ttyd not listening" && cat /tmp/ttyd.log && exit 1)
+          if ss -tln | grep -q "0.0.0.0:$WEB_PORT\|:::$WEB_PORT"; then
             echo "ERROR: ttyd bound to public interface, refusing" >&2
             exit 1
           fi
           # -u with credential from file (password never appears in ps of this echo)
-          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -u "$WEB_USER:$WEB_PASS" http://127.0.0.1:7681/ || true)
+          HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -u "$WEB_USER:$WEB_PASS" "http://127.0.0.1:$WEB_PORT/" || true)
           echo "Local HTTP code: $HTTP_CODE"
           if [ "$HTTP_CODE" != "200" ]; then
             echo "Local ttyd HTTP check failed"
             cat /tmp/ttyd.log
             exit 1
           fi
-          echo "ttyd verified on 127.0.0.1:7681 only"
+          echo "ttyd verified on 127.0.0.1:$WEB_PORT only"
 
           # ---- 4. Separate Quick Tunnel for HTTP (do NOT touch SSH tunnel) ----
           # Existing tunnel is: cloudflared tunnel --url ssh://localhost:22 (SSH-only,
@@ -524,7 +548,7 @@ jobs:
           # Restarting/reusing it would kill SSH, so start a SECOND tunnel.
           # Quick Tunnel limitation: random trycloudflare.com URL, dies with workflow.
           rm -f /tmp/cloudflared-web.log /tmp/cloudflared-web.pid
-          nohup cloudflared tunnel --url http://localhost:7681 --no-autoupdate > /tmp/cloudflared-web.log 2>&1 &
+          nohup cloudflared tunnel --url "http://localhost:$WEB_PORT" --no-autoupdate > /tmp/cloudflared-web.log 2>&1 &
           WEB_PID=$!
           echo $WEB_PID > /tmp/cloudflared-web.pid
           for i in $(seq 1 120); do
@@ -667,7 +691,8 @@ jobs:
               rm -f "$WEB_PID_FILE"
             fi
             rm -f /tmp/cloudflared-web.log
-            nohup cloudflared tunnel --url http://localhost:7681 --no-autoupdate > /tmp/cloudflared-web.log 2>&1 &
+            WEB_PORT_CUR=$(cat /tmp/ttyd-port.txt 2>/dev/null || echo "7681")
+            nohup cloudflared tunnel --url "http://localhost:$WEB_PORT_CUR" --no-autoupdate > /tmp/cloudflared-web.log 2>&1 &
             WEB_PID=$!
             echo $WEB_PID > "$WEB_PID_FILE"
             for i in {1..60}; do
@@ -706,7 +731,8 @@ jobs:
             CRED=$(cat "$CRED_FILE")
             WORKDIR="$HOME/work/Youffx/Youffx"
             [ -d "$WORKDIR" ] || WORKDIR="$HOME"
-            nohup /usr/bin/ttyd -i 127.0.0.1 -p 7681 -W -c "$CRED" \
+            WEB_PORT_CUR=$(cat /tmp/ttyd-port.txt 2>/dev/null || echo "7681")
+            nohup /usr/bin/ttyd -i 127.0.0.1 -p "$WEB_PORT_CUR" -W -c "$CRED" \
               -t titleFixed='Youffx runner web terminal' \
               -w "$WORKDIR" /bin/bash -l > /tmp/ttyd.log 2>&1 &
             echo $! > "$TTYD_PID_FILE"
@@ -785,7 +811,7 @@ jobs:
               CF_DEAD_SINCE=0
             fi
 
-            # ---- Web terminal health (ttyd must stay on 127.0.0.1:7681) ----
+            # ---- Web terminal health (ttyd must stay on 127.0.0.1, chosen port) ----
             if [ -f "$TTYD_PID_FILE" ]; then
               if ! kill -0 "$(cat "$TTYD_PID_FILE")" 2>/dev/null; then
                 echo "ttyd dead, restarting..."
