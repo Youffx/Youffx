@@ -106,7 +106,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+            libelf-dev lz4 libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
       - name: Restore ccache
         uses: actions/cache@v5
@@ -296,7 +296,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+            libelf-dev lz4 libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
       - name: Restore ccache
         uses: actions/cache@v5
@@ -475,7 +475,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+            libelf-dev lz4 libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
       - name: Restore ccache
         uses: actions/cache@v5
@@ -681,7 +681,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install -y \
             bc bison build-essential ccache curl flex git gnupg gperf \
-            libelf-dev liblz4-tool libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
+            libelf-dev lz4 libncurses5-dev libssl-dev lzop rsync zip zlib1g-dev jq
 
       - name: Restore ccache
         uses: actions/cache@v5
