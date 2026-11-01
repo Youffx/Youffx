@@ -257,7 +257,7 @@ jobs:
           cd kernel
           echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
 # BUILD NONKSU
@@ -436,7 +436,7 @@ jobs:
           cd kernel
           echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
 # BUILD KSU NOMOUNT
@@ -574,7 +574,7 @@ jobs:
           echo "CONFIG_NOMOUNT=y" >> out/.config
 
           make O=out olddefconfig
-          
+
           echo "--- DEBUG ---"
           grep -E "NOMOUNT|KSU|SUSFS" out/.config
           echo "---------------------------------"
@@ -638,7 +638,7 @@ jobs:
           cd kernel
           echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
 # BUILD KSU SUSFS
@@ -832,7 +832,7 @@ jobs:
           cd kernel
           echo "commit=$(git log -1 --format='%h %s')" >> $GITHUB_OUTPUT
           echo "version=$(make kernelversion)" >> $GITHUB_OUTPUT
-          echo "compiler=$($GITHUB_WORKSPACE/clang/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
+          echo "compiler=$($GITHUB_WORKSPACE/llvm/bin/clang --version | head -n 1 | cut -d'(' -f1)" >> $GITHUB_OUTPUT
 
 # =========================
 # RELEASE
@@ -904,11 +904,11 @@ jobs:
           CHATID: ${{ secrets.TG_CHATID }}
         run: |
           tg() {
-            curl -sX POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
-              -d chat_id="${CHATID}" \
-              -d parse_mode=Markdown \
-              -d disable_web_page_preview=true \
-              -d text="$1"
+            curl -sS --fail-with-body -X POST https://api.telegram.org/bot"${TOKEN}"/sendMessage \
+              --data-urlencode chat_id="${CHATID}" \
+              --data-urlencode parse_mode=Markdown \
+              --data-urlencode disable_web_page_preview=true \
+              --data-urlencode text="$1"
           }
 
           BUILD_DATE=$(date +"%a %b %d %H:%M:%S %Z %Y")
@@ -925,7 +925,7 @@ jobs:
           *Kernel Version:* \`${{ needs.build-ksu.outputs.kern_ver }}\`
           *Compiler:* \`${{ needs.build-ksu.outputs.compiler_ver }}\`
           *Date:* \`$BUILD_DATE\`
-          *Root Method:* `BakaSU`
+          *Root Method:* \`BakaSU\`
           *Build Variants:* \`KSU, Non-KSU, KSU NoMount, KSU SUSFS\`
           *Latest Commit:* \`${{ needs.build-ksu.outputs.commit_log }}\`
           *Build Statistics:*
