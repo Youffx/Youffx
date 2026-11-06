@@ -247,6 +247,7 @@ jobs:
           claude --version
 
       - name: Install Remotion skills
+        if: github.event.inputs.kernel_target == 'none (skip)'
         run: |
           npx -y skills@latest add remotion-dev/skills -g -y || true
           P1="open"; P2="code"
@@ -256,6 +257,7 @@ jobs:
           ls "$DEST" | grep remotion || true
 
       - name: Install content support skills
+        if: github.event.inputs.kernel_target == 'none (skip)'
         run: |
           npx -y skills@latest add vercel-labs/agent-skills -g -y -s web-design-guidelines -s writing-guidelines || true
           P1="open"; P2="code"
@@ -265,6 +267,7 @@ jobs:
           ls "$DEST" | grep -E "web-design|writing-" || true
 
       - name: Install free media skills
+        if: github.event.inputs.kernel_target == 'none (skip)'
         run: |
           npx -y skills@latest add karotkriss/remove-background -g -y -s remove-background || true
           npx -y skills@latest add wyattowalsh/agents -g -y -s ffmpeg || true
@@ -276,6 +279,7 @@ jobs:
           ls "$DEST" | grep -E "remove-background|^ffmpeg$|^trx$" || true
 
       - name: Install FFmpeg
+        if: github.event.inputs.kernel_target == 'none (skip)'
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y ffmpeg
