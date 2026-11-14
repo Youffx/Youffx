@@ -93,7 +93,10 @@ jobs:
 
       - name: Configure Swap
         run: |
-          sudo swapoff /swapfile
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile || true
+          fi
+
           sudo fallocate -l 8G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
@@ -283,7 +286,10 @@ jobs:
 
       - name: Configure Swap
         run: |
-          sudo swapoff /swapfile
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile || true
+          fi
+
           sudo fallocate -l 8G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
@@ -462,7 +468,10 @@ jobs:
 
       - name: Configure Swap
         run: |
-          sudo swapoff /swapfile
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile || true
+          fi
+
           sudo fallocate -l 8G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
@@ -668,7 +677,10 @@ jobs:
 
       - name: Configure Swap
         run: |
-          sudo swapoff /swapfile
+          if [ -f /swapfile ]; then
+            sudo swapoff /swapfile || true
+          fi
+
           sudo fallocate -l 8G /swapfile
           sudo chmod 600 /swapfile
           sudo mkswap /swapfile
