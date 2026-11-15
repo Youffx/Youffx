@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      m_bank:
+        description: "autolocalversion"
+        required: false
+        type: boolean
+        default: true
       bakasu_ref:
         description: "BakaSU commit or branch (empty = upstream default)"
         required: false
@@ -145,6 +150,22 @@ jobs:
           REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
+
+      - name: Apply Lineage Diff
+        if: ${{ inputs.m_bank }}
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/Youffx/Youffx/master/configs/lineage.diff \
+            -o kernel/lineage.diff
+
+          cd kernel
+
+          git apply --check lineage.diff
+          git apply lineage.diff
+
+          rm lineage.diff
+
+          echo "Lineage diff applied successfully!"
 
       - name: Setup Clang 20
         run: |
@@ -339,6 +360,22 @@ jobs:
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
 
+      - name: Apply Lineage Diff
+        if: ${{ inputs.m_bank }}
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/Youffx/Youffx/master/configs/lineage.diff \
+            -o kernel/lineage.diff
+
+          cd kernel
+
+          git apply --check lineage.diff
+          git apply lineage.diff
+
+          rm lineage.diff
+
+          echo "Lineage diff applied successfully!"
+
       - name: Setup Clang 20
         run: |
           if [ ! -d "llvm/bin" ]; then
@@ -520,6 +557,22 @@ jobs:
           REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
+
+      - name: Apply Lineage Diff
+        if: ${{ inputs.m_bank }}
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/Youffx/Youffx/master/configs/lineage.diff \
+            -o kernel/lineage.diff
+
+          cd kernel
+
+          git apply --check lineage.diff
+          git apply lineage.diff
+
+          rm lineage.diff
+
+          echo "Lineage diff applied successfully!"
 
       - name: Clone NoMount
         run: |
@@ -729,6 +782,22 @@ jobs:
           REPO=$(echo "$REPO" | sed "s|https://|https://${PAT_TOKEN}@|")
 
           git clone --depth=$DEPTH --branch $BRANCH "$REPO" kernel
+
+      - name: Apply Lineage Diff
+        if: ${{ inputs.m_bank }}
+        run: |
+          curl -fsSL \
+            https://raw.githubusercontent.com/Youffx/Youffx/master/configs/lineage-susfs.diff \
+            -o kernel/lineage-susfs.diff
+
+          cd kernel
+
+          git apply --check lineage-susfs.diff
+          git apply lineage-susfs.diff
+
+          rm lineage-susfs.diff
+
+          echo "Lineage diff applied successfully!"
 
       - name: Setup Clang 20
         run: |
