@@ -1,0 +1,18 @@
+diff --git a/arch/arm64/configs/dev_defconfig b/arch/arm64/configs/dev_defconfig
+--- a/arch/arm64/configs/dev_defconfig
++++ b/arch/arm64/configs/dev_defconfig
+@@ -482,5 +482,3 @@ CONFIG_SDCARD_FS=y
+ CONFIG_KPM=n
+ CONFIG_KSU=n
+ CONFIG_KSU_MANUAL_HOOK=n
+-CONFIG_LOCALVERSION="-Dominance-lineage"
+-CONFIG_LOCALVERSION_AUTO=n
+diff --git a/arch/arm64/configs/rosemary_defconfig b/arch/arm64/configs/rosemary_defconfig
+--- a/arch/arm64/configs/rosemary_defconfig
++++ b/arch/arm64/configs/rosemary_defconfig
+@@ -485,5 +485,3 @@ CONFIG_KSU_MANUAL_HOOK=y
+ # CONFIG_KSU_KPROBES_HOOK is not set
+ # CONFIG_KSU_DEBUG is not set
+ # CONFIG_KSU_SUSFS is not set
+-CONFIG_LOCALVERSION="-Dominance-lineage"
+-CONFIG_LOCALVERSION_AUTO=n
